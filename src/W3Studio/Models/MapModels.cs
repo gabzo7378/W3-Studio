@@ -643,8 +643,25 @@ public enum W3ObjectCategory
 
 public class FieldChoiceOption
 {
+    private string _displayText = string.Empty;
+
     public string Value { get; set; } = string.Empty;
-    public string DisplayText { get; set; } = string.Empty;
+    public string LabelEs { get; set; } = string.Empty;
+    public string LabelEn { get; set; } = string.Empty;
+
+    public string DisplayText
+    {
+        get
+        {
+            if (!string.IsNullOrEmpty(LabelEs) || !string.IsNullOrEmpty(LabelEn))
+                return Services.LocalizationService.L(
+                    !string.IsNullOrEmpty(LabelEs) ? LabelEs : LabelEn,
+                    !string.IsNullOrEmpty(LabelEn) ? LabelEn : LabelEs);
+            return _displayText;
+        }
+        set => _displayText = value;
+    }
+
     public string? Description { get; set; }
 
     public FieldChoiceOption() { }
@@ -652,9 +669,20 @@ public class FieldChoiceOption
     public FieldChoiceOption(string value, string displayText, string? description = null)
     {
         Value = value;
-        DisplayText = displayText;
+        _displayText = displayText;
         Description = description;
     }
+
+    public FieldChoiceOption(string value, string labelEs, string labelEn, string? description, bool isLocalized)
+    {
+        Value = value;
+        LabelEs = labelEs;
+        LabelEn = labelEn;
+        Description = description;
+    }
+
+    public static FieldChoiceOption Localized(string value, string labelEs, string labelEn, string? description = null)
+        => new(value, labelEs, labelEn, description, true);
 
     public override string ToString() => DisplayText;
 }
@@ -663,11 +691,26 @@ public class W3ObjectField : ObservableObject
 {
     private string _rawValue = string.Empty;
     private string _resolvedValue = string.Empty;
+    private string _fieldName = string.Empty;
     private bool _isModified;
 
     public string FieldId { get; set; } = string.Empty;
     public int FieldIntId { get; set; }
-    public string FieldName { get; set; } = string.Empty;
+    public string FieldName
+    {
+        get => _fieldName;
+        set
+        {
+            if (_fieldName != value)
+            {
+                _fieldName = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(DisplayFieldTitle));
+                OnPropertyChanged(nameof(DisplayValueText));
+                OnPropertyChanged(nameof(StatusBadge));
+            }
+        }
+    }
     public int Level { get; set; }
     public int Variation { get; set; }
     public int DataPointer { get; set; }
@@ -741,10 +784,24 @@ public class W3ObjectField : ObservableObject
         }
     }
 
-    public string LevelLabel => Level > 0 ? $"Nv. {Level}" : "Base";
-    public string DisplayFieldTitle => Level > 0 ? $"{FieldName} (Level {Level})" : FieldName;
-    public string StatusBadge => IsModified ? "★ Modificado" : "Base SLK";
+    public string LevelLabel => Level > 0 ? Services.LocalizationService.L($"Nv. {Level}", $"Lv. {Level}") : "Base";
+    public string DisplayFieldTitle => Level > 0
+        ? $"{FieldName} ({Services.LocalizationService.L("Nivel", "Level")} {Level})"
+        : FieldName;
+    public string StatusBadge => IsModified
+        ? Services.LocalizationService.L("★ Modificado", "★ Modified")
+        : "Base SLK";
     public Action<W3ObjectField>? ValueUpdatedCallback { get; set; }
+
+    public void NotifyLocalizationChanged()
+    {
+        OnPropertyChanged(nameof(FieldName));
+        OnPropertyChanged(nameof(DisplayFieldTitle));
+        OnPropertyChanged(nameof(DisplayValueText));
+        OnPropertyChanged(nameof(SelectedChoice));
+        OnPropertyChanged(nameof(StatusBadge));
+        OnPropertyChanged(nameof(LevelLabel));
+    }
 }
 
 public class W3ObjectTreeNode : ObservableObject

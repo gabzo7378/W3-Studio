@@ -27,33 +27,33 @@
         <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="6,2">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <CheckBox x:Name="ChkRawData" Content="Display Values As Raw Data (Ctrl+D)" VerticalAlignment="Center" Margin="0,0,12,0" Checked="ChkDisplayOptions_Changed" Unchecked="ChkDisplayOptions_Changed"/>
+                    <CheckBox x:Name="ChkRawData" Content="Mostrar Datos Crudos (Ctrl+D)" VerticalAlignment="Center" Margin="0,0,12,0" Checked="ChkDisplayOptions_Changed" Unchecked="ChkDisplayOptions_Changed"/>
                     <CheckBox x:Name="ChkOnlyModified" Content="Solo Campos Modificados" VerticalAlignment="Center" Margin="0,0,10,0" Checked="ChkDisplayOptions_Changed" Unchecked="ChkDisplayOptions_Changed"/>
                     <Button x:Name="BtnPopoutWindow" Style="{StaticResource Win10ClassicButton}" Padding="8,2" Click="BtnPopoutWindow_Click">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/Icons/popout.png" Width="13" Height="13" Margin="0,0,5,0"/>
-                            <TextBlock Text="Abrir Ventana Object Editor" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtBtnPopoutWindow" Text="Abrir Ventana Object Editor" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Style="{StaticResource Win10ClassicButton}" Margin="0,0,4,0" ToolTip="Crear o clonar un nuevo objeto personalizado" Click="BtnNewCustomObject_Click">
+                    <Button x:Name="BtnNewObject" Style="{StaticResource Win10ClassicButton}" Margin="0,0,4,0" ToolTip="Crear o clonar un nuevo objeto personalizado" Click="BtnNewCustomObject_Click">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/Icons/add.png" Width="13" Height="13" Margin="0,0,4,0"/>
-                            <TextBlock Text="Nuevo Objeto..." VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtBtnNewObject" Text="Nuevo Objeto..." VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <Button Style="{StaticResource Win10ClassicButton}" Margin="0,0,4,0" ToolTip="Duplicar el objeto seleccionado con un nuevo Rawcode" Click="BtnNewCustomObject_Click">
+                    <Button x:Name="BtnCloneObject" Style="{StaticResource Win10ClassicButton}" Margin="0,0,4,0" ToolTip="Duplicar el objeto seleccionado con un nuevo Rawcode" Click="BtnNewCustomObject_Click">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/Icons/copy.png" Width="13" Height="13" Margin="0,0,4,0"/>
-                            <TextBlock Text="Clonar Seleccionado" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtBtnCloneObject" Text="Clonar Seleccionado" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <Button Style="{StaticResource Win10ClassicButton}" Margin="0,0,8,0" ToolTip="Restaurar el campo seleccionado a su valor original del SLK" Click="BtnResetFieldToDefault_Click">
+                    <Button x:Name="BtnResetField" Style="{StaticResource Win10ClassicButton}" Margin="0,0,8,0" ToolTip="Restaurar el campo seleccionado a su valor original del SLK" Click="BtnResetFieldToDefault_Click">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/Icons/reset.png" Width="13" Height="13" Margin="0,0,4,0"/>
-                            <TextBlock Text="Restaurar Campo a Base" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtBtnResetField" Text="Restaurar Campo a Base" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
                 </StackPanel>
@@ -66,43 +66,43 @@
                 <RadioButton x:Name="TabBtnUnits" IsChecked="False" GroupName="ObjCatTabs" Style="{StaticResource {x:Type ToggleButton}}" Padding="9,2" Margin="0,0,2,0" Checked="CategoryTab_Checked" Tag="Units">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="pack://application:,,,/Assets/Icons/tab_units.png" Width="15" Height="15" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                        <TextBlock Text="Units" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TxtTabUnits" Text="Unidades" VerticalAlignment="Center"/>
                     </StackPanel>
                 </RadioButton>
                 <RadioButton x:Name="TabBtnItems" IsChecked="True" GroupName="ObjCatTabs" Style="{StaticResource {x:Type ToggleButton}}" Padding="9,2" Margin="0,0,2,0" Checked="CategoryTab_Checked" Tag="Items">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="pack://application:,,,/Assets/Icons/tab_items.png" Width="15" Height="15" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                        <TextBlock Text="Items" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TxtTabItems" Text="Objetos" VerticalAlignment="Center"/>
                     </StackPanel>
                 </RadioButton>
                 <RadioButton x:Name="TabBtnDestructables" GroupName="ObjCatTabs" Style="{StaticResource {x:Type ToggleButton}}" Padding="9,2" Margin="0,0,2,0" Checked="CategoryTab_Checked" Tag="Destructables">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="pack://application:,,,/Assets/Icons/tab_destructables.png" Width="15" Height="15" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                        <TextBlock Text="Destructibles" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TxtTabDestructables" Text="Destructibles" VerticalAlignment="Center"/>
                     </StackPanel>
                 </RadioButton>
                 <RadioButton x:Name="TabBtnDoodads" GroupName="ObjCatTabs" Style="{StaticResource {x:Type ToggleButton}}" Padding="9,2" Margin="0,0,2,0" Checked="CategoryTab_Checked" Tag="Doodads">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="pack://application:,,,/Assets/Icons/tab_doodads.png" Width="15" Height="15" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                        <TextBlock Text="Doodads" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TxtTabDoodads" Text="Doodads" VerticalAlignment="Center"/>
                     </StackPanel>
                 </RadioButton>
                 <RadioButton x:Name="TabBtnAbilities" GroupName="ObjCatTabs" Style="{StaticResource {x:Type ToggleButton}}" Padding="9,2" Margin="0,0,2,0" Checked="CategoryTab_Checked" Tag="Abilities">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="pack://application:,,,/Assets/Icons/tab_abilities.png" Width="15" Height="15" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                        <TextBlock Text="Abilities" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TxtTabAbilities" Text="Habilidades" VerticalAlignment="Center"/>
                     </StackPanel>
                 </RadioButton>
                 <RadioButton x:Name="TabBtnBuffs" GroupName="ObjCatTabs" Style="{StaticResource {x:Type ToggleButton}}" Padding="9,2" Margin="0,0,2,0" Checked="CategoryTab_Checked" Tag="Buffs">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="pack://application:,,,/Assets/Icons/tab_buffs.png" Width="15" Height="15" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                        <TextBlock Text="Buffs/Effects" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TxtTabBuffs" Text="Buffs/Efectos" VerticalAlignment="Center"/>
                     </StackPanel>
                 </RadioButton>
                 <RadioButton x:Name="TabBtnUpgrades" GroupName="ObjCatTabs" Style="{StaticResource {x:Type ToggleButton}}" Padding="9,2" Checked="CategoryTab_Checked" Tag="Upgrades">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="pack://application:,,,/Assets/Icons/tab_upgrades.png" Width="15" Height="15" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                        <TextBlock Text="Upgrades" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TxtTabUpgrades" Text="Mejoras" VerticalAlignment="Center"/>
                     </StackPanel>
                 </RadioButton>
             </StackPanel>
@@ -128,7 +128,7 @@
                 <Border Grid.Row="0" Background="#ECECEC" BorderBrush="#B0B0B0" BorderThickness="0,0,0,1" Padding="5,4">
                     <DockPanel>
                         <Image Source="pack://application:,,,/Assets/Icons/search.png" Width="14" Height="14" Margin="0,0,4,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="Buscar:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,5,0" FontSize="11.5"/>
+                        <TextBlock x:Name="LblTreeSearch" Text="Buscar:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,5,0" FontSize="11.5"/>
                         <TextBox x:Name="TxtTreeSearch"
                                  Style="{StaticResource Win10TextBox}"
                                  ToolTip="Buscar por nombre o rawcode (ej: Flute, afac, hfoo, AHhb...)"
@@ -174,7 +174,7 @@
                 <Border Grid.Row="0" Background="#ECECEC" BorderBrush="#B0B0B0" BorderThickness="0,0,0,1" Padding="8,4">
                     <DockPanel>
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="Filtrar propiedad:" VerticalAlignment="Center" Margin="0,0,5,0" FontSize="11.5"/>
+                            <TextBlock x:Name="LblFieldFilter" Text="Filtrar propiedad:" VerticalAlignment="Center" Margin="0,0,5,0" FontSize="11.5"/>
                             <TextBox x:Name="TxtFieldFilter"
                                      Width="185"
                                      Style="{StaticResource Win10TextBox}"
@@ -218,8 +218,8 @@
                         </Style>
                     </DataGrid.RowStyle>
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Name" Binding="{Binding DisplayFieldTitle}" Width="310" IsReadOnly="True"/>
-                        <DataGridTemplateColumn Header="Value" Width="*">
+                        <DataGridTextColumn x:Name="ColFieldName" Header="Campo" Binding="{Binding DisplayFieldTitle}" Width="330" IsReadOnly="True"/>
+                        <DataGridTemplateColumn x:Name="ColFieldValue" Header="Valor" Width="*">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <Grid>
@@ -242,7 +242,7 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="Estado" Binding="{Binding StatusBadge}" Width="95" IsReadOnly="True"/>
+                        <DataGridTextColumn x:Name="ColFieldStatus" Header="Estado" Binding="{Binding StatusBadge}" Width="95" IsReadOnly="True"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </Grid>

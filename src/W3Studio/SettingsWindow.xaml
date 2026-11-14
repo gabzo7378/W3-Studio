@@ -39,9 +39,9 @@
             <!-- Menú de categorías a la izquierda -->
             <Border Grid.Column="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" CornerRadius="3">
                 <ListBox x:Name="LstCategories" SelectedIndex="0" Background="Transparent" BorderThickness="0" SelectionChanged="LstCategories_SelectionChanged">
-                    <ListBoxItem Padding="10,8" FontSize="12.5" FontWeight="SemiBold">🎨 Temas y Apariencia</ListBoxItem>
-                    <ListBoxItem Padding="10,8" FontSize="12.5" FontWeight="SemiBold">🎮 Warcraft III &amp; Pruebas</ListBoxItem>
-                    <ListBoxItem Padding="10,8" FontSize="12.5" FontWeight="SemiBold">🛠️ Editor y Preferencias</ListBoxItem>
+                    <ListBoxItem x:Name="CatItemThemes" Padding="10,8" FontSize="12.5" FontWeight="SemiBold">🎨 Temas e Idioma</ListBoxItem>
+                    <ListBoxItem x:Name="CatItemWar3" Padding="10,8" FontSize="12.5" FontWeight="SemiBold">🎮 Warcraft III &amp; Pruebas</ListBoxItem>
+                    <ListBoxItem x:Name="CatItemEditor" Padding="10,8" FontSize="12.5" FontWeight="SemiBold">🛠️ Editor y Preferencias</ListBoxItem>
                 </ListBox>
             </Border>
 
@@ -51,8 +51,15 @@
                     <!-- SECCIÓN 1: TEMAS Y APARIENCIA -->
                     <ScrollViewer x:Name="SecTheme" Visibility="Visible" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
-                            <TextBlock Text="Selecciona el tema de la aplicación:" FontWeight="Bold" FontSize="13" Margin="0,0,0,4"/>
-                            <TextBlock Text="El tema se aplicará en tiempo real en la ventana principal, el editor de objetos y todas las herramientas." Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" Margin="0,0,0,12" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="LblLanguageTitle" Text="Idioma del Editor:" FontWeight="Bold" FontSize="13" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="LblLanguageDesc" Text="Cambia el idioma de los campos del Editor de Objetos, menús y herramientas (sin mezclar dos idiomas)." Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" Margin="0,0,0,6" TextWrapping="Wrap"/>
+                            <ComboBox x:Name="CmbAppLanguage" Height="28" Margin="0,0,0,14" VerticalContentAlignment="Center" SelectionChanged="CmbAppLanguage_SelectionChanged">
+                                <ComboBoxItem Content="Español" Tag="es"/>
+                                <ComboBoxItem Content="English" Tag="en"/>
+                            </ComboBox>
+
+                            <TextBlock x:Name="LblThemeTitle" Text="Selecciona el tema de la aplicación:" FontWeight="Bold" FontSize="13" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="LblThemeDesc" Text="El tema se aplicará en tiempo real en la ventana principal, el editor de objetos y todas las herramientas." Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" Margin="0,0,0,12" TextWrapping="Wrap"/>
 
                             <!-- Modo Sistema -->
                             <Border BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" CornerRadius="3" Padding="8" Margin="0,0,0,8" Background="{DynamicResource ThemeInputBg}">

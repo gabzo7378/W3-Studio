@@ -81,6 +81,10 @@ public partial class MainWindow : Window
 
         var totalSw = Stopwatch.StartNew();
         _settings = WorkspaceSettings.Load();
+        LocalizationService.SetLanguage(_settings.AppLanguage, notify: false);
+        LocalizationService.LanguageChanged += OnAppLanguageChanged;
+        ApplyMainWindowLocalization();
+
         TxtTopWar3Dir.Text = _settings.Warcraft3Dir;
         ChkWindowedTest.IsChecked = _settings.WindowedMode;
         if (MenuWindowedMode != null)
@@ -1799,6 +1803,40 @@ endlibrary
             var theme = ThemeService.ParseTheme(themeTag);
             ThemeService.ApplyTheme(theme, _settings, saveSettings: true);
         }
+    }
+
+    private void MenuLanguage_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Tag: string langTag })
+        {
+            var normalized = LocalizationService.NormalizeLanguage(langTag);
+            _settings.AppLanguage = normalized;
+            _settings.Save();
+            LocalizationService.SetLanguage(normalized, notify: true);
+        }
+    }
+
+    private void OnAppLanguageChanged(string lang)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            _baseDataService.RefreshLocalization(_currentProject);
+            ApplyMainWindowLocalization();
+            RefreshToolPaletteList();
+        });
+    }
+
+    private void ApplyMainWindowLocalization()
+    {
+        if (MenuLangEs != null) MenuLangEs.IsChecked = LocalizationService.IsSpanish;
+        if (MenuLangEn != null) MenuLangEn.IsChecked = LocalizationService.IsEnglish;
+        if (MenuConfigRoot != null) MenuConfigRoot.Header = LocalizationService.L("_Configuración", "_Settings");
+        if (MenuLanguageSub != null) MenuLanguageSub.Header = LocalizationService.L("🌐 _Idioma", "🌐 _Language");
+        if (MenuThemeSub != null) MenuThemeSub.Header = LocalizationService.L("_Tema Visual", "_Visual Theme");
+        if (MenuWar3Dir != null) MenuWar3Dir.Header = LocalizationService.L("Directorio de Warcraft III...", "Warcraft III Directory...");
+        if (MenuWindowedMode != null) MenuWindowedMode.Header = LocalizationService.L("Probar Mapa en Modo Ventana (-window)", "Test Map in Windowed Mode (-window)");
+        if (MenuSettingsItem != null) MenuSettingsItem.Header = LocalizationService.L("Opciones y Preferencias...", "Options & Preferences...");
+        if (ChkWindowedTest != null) ChkWindowedTest.Content = LocalizationService.L("Ventana", "Windowed");
     }
 
     private void MenuToggleWindowed_Click(object sender, RoutedEventArgs e)

@@ -11,6 +11,7 @@ public class WorkspaceSettings
     public string LastOpenedMapPath { get; set; } = string.Empty;
     public bool WindowedMode { get; set; } = true;
     public string AppThemeName { get; set; } = "System";
+    public string AppLanguage { get; set; } = "es";
     public bool AutoSaveBeforeTest { get; set; } = true;
     public bool ShowGridByDefault { get; set; } = false;
     public string AdditionalLaunchArgs { get; set; } = string.Empty;

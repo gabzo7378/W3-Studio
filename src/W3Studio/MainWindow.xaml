@@ -99,8 +99,12 @@
                     <MenuItem.Icon><Image Source="pack://application:,,,/Assets/Icons/icon_manager.png" Width="16" Height="16"/></MenuItem.Icon>
                 </MenuItem>
             </MenuItem>
-            <MenuItem Header="_Configuración">
-                <MenuItem Header="_Tema Visual">
+            <MenuItem x:Name="MenuConfigRoot" Header="_Configuración">
+                <MenuItem x:Name="MenuLanguageSub" Header="🌐 _Idioma">
+                    <MenuItem x:Name="MenuLangEs" Header="Español" IsCheckable="True" Click="MenuLanguage_Click" Tag="es"/>
+                    <MenuItem x:Name="MenuLangEn" Header="English" IsCheckable="True" Click="MenuLanguage_Click" Tag="en"/>
+                </MenuItem>
+                <MenuItem x:Name="MenuThemeSub" Header="_Tema Visual">
                     <MenuItem Header="Modo Sistema (Clásico World Editor)" Click="MenuTheme_Click" Tag="System"/>
                     <MenuItem Header="Modo Oscuro" Click="MenuTheme_Click" Tag="Dark"/>
                     <MenuItem Header="Modo Blanco" Click="MenuTheme_Click" Tag="Light"/>
@@ -109,10 +113,10 @@
                     <MenuItem Header="Modo Azul Oscuro" Click="MenuTheme_Click" Tag="DarkBlue"/>
                 </MenuItem>
                 <Separator/>
-                <MenuItem Header="Directorio de Warcraft III..." Click="BtnBrowseWar3Dir_Click"/>
+                <MenuItem x:Name="MenuWar3Dir" Header="Directorio de Warcraft III..." Click="BtnBrowseWar3Dir_Click"/>
                 <MenuItem x:Name="MenuWindowedMode" Header="Probar Mapa en Modo Ventana (-window)" IsCheckable="True" IsChecked="True" Click="MenuToggleWindowed_Click"/>
                 <Separator/>
-                <MenuItem Header="Opciones y Preferencias..." Click="MenuSettings_Click" InputGestureText="Ctrl+P">
+                <MenuItem x:Name="MenuSettingsItem" Header="Opciones y Preferencias..." Click="MenuSettings_Click" InputGestureText="Ctrl+P">
                     <MenuItem.Icon><Image Source="pack://application:,,,/Assets/Icons/settings.png" Width="16" Height="16"/></MenuItem.Icon>
                 </MenuItem>
             </MenuItem>

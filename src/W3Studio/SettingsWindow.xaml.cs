@@ -25,6 +25,10 @@ public partial class SettingsWindow : Window
 
     private void LoadSettingsToUi()
     {
+        // Idioma actual
+        var lang = LocalizationService.NormalizeLanguage(_settings.AppLanguage);
+        CmbAppLanguage.SelectedIndex = lang == "en" ? 1 : 0;
+
         // Tema actual
         var theme = ThemeService.CurrentTheme;
         switch (theme)
@@ -46,7 +50,49 @@ public partial class SettingsWindow : Window
         ChkAutoSaveBeforeTest.IsChecked = _settings.AutoSaveBeforeTest;
         ChkShowGridByDefault.IsChecked = _settings.ShowGridByDefault;
 
+        ApplyWindowLocalization();
         UpdateComponentStatus();
+    }
+
+    private void CmbAppLanguage_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_initializing) return;
+
+        if (CmbAppLanguage.SelectedItem is ComboBoxItem { Tag: string langTag })
+        {
+            var normalized = LocalizationService.NormalizeLanguage(langTag);
+            _settings.AppLanguage = normalized;
+            LocalizationService.SetLanguage(normalized, notify: true);
+            _settings.Save();
+            ApplyWindowLocalization();
+            UpdateComponentStatus();
+        }
+    }
+
+    private void ApplyWindowLocalization()
+    {
+        Title = LocalizationService.L("Configuración — W3 Studio", "Settings — W3 Studio");
+        if (CatItemThemes != null) CatItemThemes.Content = LocalizationService.L("🎨 Temas e Idioma", "🎨 Themes & Language");
+        if (CatItemWar3 != null) CatItemWar3.Content = LocalizationService.L("🎮 Warcraft III y Pruebas", "🎮 Warcraft III & Testing");
+        if (CatItemEditor != null) CatItemEditor.Content = LocalizationService.L("🛠️ Editor y Preferencias", "🛠️ Editor & Preferences");
+
+        if (LblLanguageTitle != null) LblLanguageTitle.Text = LocalizationService.L("Idioma del Editor:", "Editor Language:");
+        if (LblLanguageDesc != null) LblLanguageDesc.Text = LocalizationService.L(
+            "Cambia el idioma de los campos del Editor de Objetos, menús y herramientas.",
+            "Switch the language of Object Editor fields, menus, and tools.");
+        if (LblThemeTitle != null) LblThemeTitle.Text = LocalizationService.L("Selecciona el tema de la aplicación:", "Select Application Theme:");
+        if (LblThemeDesc != null) LblThemeDesc.Text = LocalizationService.L(
+            "El tema se aplicará en tiempo real en la ventana principal, el editor de objetos y todas las herramientas.",
+            "The theme is applied in real time across the main window, Object Editor, and all tools.");
+        if (ChkAutoSaveBeforeTest != null) ChkAutoSaveBeforeTest.Content = LocalizationService.L(
+            "Guardar mapa automáticamente antes de Probar (F9)",
+            "Auto-save map before Test Map (F9)");
+        if (ChkShowGridByDefault != null) ChkShowGridByDefault.Content = LocalizationService.L(
+            "Mostrar cuadrícula de terreno por defecto",
+            "Show terrain grid by default");
+        if (ChkWindowed != null) ChkWindowed.Content = LocalizationService.L(
+            "Ejecutar Warcraft III en Modo Ventana (-window)",
+            "Run Warcraft III in Windowed Mode (-window)");
     }
 
     private void LstCategories_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -108,15 +154,17 @@ public partial class SettingsWindow : Window
         var hasWar3xMpq = existsDir && File.Exists(Path.Combine(dir, "War3x.mpq"));
         var hasPatchMpq = existsDir && File.Exists(Path.Combine(dir, "War3Patch.mpq"));
 
-        SetStatusText(TxtStatusWar3Exe, "Ejecutable (war3.exe / Frozen Throne.exe)", hasExe);
-        SetStatusText(TxtStatusWar3Mpq, "war3.mpq (Datos base)", hasWar3Mpq);
-        SetStatusText(TxtStatusWar3xMpq, "War3x.mpq (Expansion The Frozen Throne)", hasWar3xMpq);
-        SetStatusText(TxtStatusWar3PatchMpq, "War3Patch.mpq (Parche 1.27b)", hasPatchMpq);
+        SetStatusText(TxtStatusWar3Exe, LocalizationService.L("Ejecutable (war3.exe / Frozen Throne.exe)", "Executable (war3.exe / Frozen Throne.exe)"), hasExe);
+        SetStatusText(TxtStatusWar3Mpq, LocalizationService.L("war3.mpq (Datos base)", "war3.mpq (Base data)"), hasWar3Mpq);
+        SetStatusText(TxtStatusWar3xMpq, LocalizationService.L("War3x.mpq (Expansión The Frozen Throne)", "War3x.mpq (The Frozen Throne expansion)"), hasWar3xMpq);
+        SetStatusText(TxtStatusWar3PatchMpq, LocalizationService.L("War3Patch.mpq (Parche 1.27b)", "War3Patch.mpq (Patch 1.27b)"), hasPatchMpq);
     }
 
     private static void SetStatusText(TextBlock tb, string name, bool ok)
     {
-        tb.Text = ok ? $"✓ {name}: Encontrado" : $"✗ {name}: No encontrado";
+        var foundStr = LocalizationService.L("Encontrado", "Found");
+        var notFoundStr = LocalizationService.L("No encontrado", "Not found");
+        tb.Text = ok ? $"✓ {name}: {foundStr}" : $"✗ {name}: {notFoundStr}";
         tb.Foreground = ok ? new SolidColorBrush(Color.FromRgb(46, 160, 67)) : new SolidColorBrush(Color.FromRgb(217, 37, 37));
         tb.FontWeight = ok ? FontWeights.SemiBold : FontWeights.Normal;
     }
@@ -129,6 +177,11 @@ public partial class SettingsWindow : Window
         _settings.AutoSaveBeforeTest = ChkAutoSaveBeforeTest.IsChecked == true;
         _settings.ShowGridByDefault = ChkShowGridByDefault.IsChecked == true;
         _settings.AppThemeName = ThemeService.CurrentTheme.ToString();
+        if (CmbAppLanguage.SelectedItem is ComboBoxItem { Tag: string langTag })
+        {
+            _settings.AppLanguage = LocalizationService.NormalizeLanguage(langTag);
+            LocalizationService.SetLanguage(_settings.AppLanguage, notify: true);
+        }
         _settings.Save();
     }
 

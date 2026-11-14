@@ -60,6 +60,50 @@ public partial class ObjectEditorView : UserControl
     {
         InitializeComponent();
         BuildCommandCardButtons();
+        LocalizationService.LanguageChanged += OnLanguageChanged;
+        Unloaded += (_, _) => LocalizationService.LanguageChanged -= OnLanguageChanged;
+        ApplyLocalization();
+    }
+
+    private void OnLanguageChanged(string lang)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            ApplyLocalization();
+            if (_selectedEntry != null)
+            {
+                DisplayObjectEntry(_selectedEntry);
+            }
+            else
+            {
+                RefreshFieldsDataGrid();
+            }
+        });
+    }
+
+    public void ApplyLocalization()
+    {
+        if (ChkRawData != null) ChkRawData.Content = LocalizationService.L("Mostrar Datos Crudos (Ctrl+D)", "Display Values As Raw Data (Ctrl+D)");
+        if (ChkOnlyModified != null) ChkOnlyModified.Content = LocalizationService.L("Solo Campos Modificados", "Only Modified Fields");
+        if (TxtBtnPopoutWindow != null) TxtBtnPopoutWindow.Text = LocalizationService.L("Abrir Ventana Object Editor", "Open Object Editor Window");
+        if (TxtBtnNewObject != null) TxtBtnNewObject.Text = LocalizationService.L("Nuevo Objeto...", "New Object...");
+        if (TxtBtnCloneObject != null) TxtBtnCloneObject.Text = LocalizationService.L("Clonar Seleccionado", "Clone Selected");
+        if (TxtBtnResetField != null) TxtBtnResetField.Text = LocalizationService.L("Restaurar Campo a Base", "Reset Field to Default");
+
+        if (TxtTabUnits != null) TxtTabUnits.Text = LocalizationService.L("Unidades", "Units");
+        if (TxtTabItems != null) TxtTabItems.Text = LocalizationService.L("Objetos", "Items");
+        if (TxtTabDestructables != null) TxtTabDestructables.Text = LocalizationService.L("Destructibles", "Destructibles");
+        if (TxtTabDoodads != null) TxtTabDoodads.Text = LocalizationService.L("Doodads", "Doodads");
+        if (TxtTabAbilities != null) TxtTabAbilities.Text = LocalizationService.L("Habilidades", "Abilities");
+        if (TxtTabBuffs != null) TxtTabBuffs.Text = LocalizationService.L("Buffs/Efectos", "Buffs/Effects");
+        if (TxtTabUpgrades != null) TxtTabUpgrades.Text = LocalizationService.L("Mejoras", "Upgrades");
+
+        if (LblTreeSearch != null) LblTreeSearch.Text = LocalizationService.L("Buscar:", "Search:");
+        if (LblFieldFilter != null) LblFieldFilter.Text = LocalizationService.L("Filtrar propiedad:", "Filter property:");
+
+        if (ColFieldName != null) ColFieldName.Header = LocalizationService.L("Campo", "Field");
+        if (ColFieldValue != null) ColFieldValue.Header = LocalizationService.L("Valor", "Value");
+        if (ColFieldStatus != null) ColFieldStatus.Header = LocalizationService.L("Estado", "Status");
     }
 
     public void HidePopoutButton()
@@ -860,7 +904,7 @@ public partial class ObjectEditorView : UserControl
 
         if (weapsOn == 0 || (minDmg == 0 && maxDmg == 0 && dice1 == 0))
         {
-            TxtHudDamage.Text = "Ninguno";
+            TxtHudDamage.Text = LocalizationService.L("Ninguno", "None");
         }
         else if (minDmg == maxDmg)
         {
@@ -891,28 +935,32 @@ public partial class ObjectEditorView : UserControl
 
             var primaryTitle = primaryRaw switch
             {
-                "STR" => "Fuerza",
-                "AGI" => "Agilidad",
-                "INT" => "Inteligencia",
-                _ => "Héroe"
+                "STR" => LocalizationService.L("Fuerza", "Strength"),
+                "AGI" => LocalizationService.L("Agilidad", "Agility"),
+                "INT" => LocalizationService.L("Inteligencia", "Intelligence"),
+                _ => LocalizationService.L("Héroe", "Hero")
             };
-            TxtHudUnitSub.Text = $"Héroe ({primaryTitle})";
+            TxtHudUnitSub.Text = $"{LocalizationService.L("Héroe", "Hero")} ({primaryTitle})";
 
             TxtHudStr.Text = str.ToString();
             TxtHudAgi.Text = agi.ToString();
             TxtHudInt.Text = intel.ToString();
 
-            TxtHudStrLabel.Text = primaryRaw == "STR" ? "★ Strength:" : "Strength:";
+            var strLbl = LocalizationService.L("Fuerza:", "Strength:");
+            var agiLbl = LocalizationService.L("Agilidad:", "Agility:");
+            var intLbl = LocalizationService.L("Inteligencia:", "Intelligence:");
+
+            TxtHudStrLabel.Text = primaryRaw == "STR" ? $"★ {strLbl}" : strLbl;
             TxtHudStrLabel.Foreground = primaryRaw == "STR"
                 ? new SolidColorBrush(Color.FromRgb(255, 215, 0))
                 : new SolidColorBrush(Color.FromRgb(220, 200, 140));
 
-            TxtHudAgiLabel.Text = primaryRaw == "AGI" ? "★ Agility:" : "Agility:";
+            TxtHudAgiLabel.Text = primaryRaw == "AGI" ? $"★ {agiLbl}" : agiLbl;
             TxtHudAgiLabel.Foreground = primaryRaw == "AGI"
                 ? new SolidColorBrush(Color.FromRgb(255, 215, 0))
                 : new SolidColorBrush(Color.FromRgb(220, 200, 140));
 
-            TxtHudIntLabel.Text = primaryRaw == "INT" ? "★ Intelligence:" : "Intelligence:";
+            TxtHudIntLabel.Text = primaryRaw == "INT" ? $"★ {intLbl}" : intLbl;
             TxtHudIntLabel.Foreground = primaryRaw == "INT"
                 ? new SolidColorBrush(Color.FromRgb(255, 215, 0))
                 : new SolidColorBrush(Color.FromRgb(220, 200, 140));
@@ -927,13 +975,13 @@ public partial class ObjectEditorView : UserControl
         var atkType1 = GetVal("atkType1", "ua1t").Trim().ToLowerInvariant();
         var (attackIcon, attackTypeLabel) = atkType1 switch
         {
-            "normal" => (@"ReplaceableTextures\CommandButtons\BTNAttack.blp", "Normal"),
-            "pierce" => (@"ReplaceableTextures\CommandButtons\BTNHumanMissileUpOne.blp", "Perforador"),
-            "siege" => (@"ReplaceableTextures\CommandButtons\BTNMortarTeam.blp", "Asedio"),
-            "magic" => (@"ReplaceableTextures\CommandButtons\BTNFireBolt.blp", "Mágico"),
-            "chaos" => (@"ReplaceableTextures\CommandButtons\BTNDoom.blp", "Caos"),
-            "hero" => (@"ReplaceableTextures\CommandButtons\BTNAttack.blp", "Héroe"),
-            "spells" => (@"ReplaceableTextures\CommandButtons\BTNDispelMagic.blp", "Hechizos"),
+            "normal" => (@"ReplaceableTextures\CommandButtons\BTNAttack.blp", LocalizationService.L("Normal", "Normal")),
+            "pierce" => (@"ReplaceableTextures\CommandButtons\BTNHumanMissileUpOne.blp", LocalizationService.L("Perforación", "Pierce")),
+            "siege" => (@"ReplaceableTextures\CommandButtons\BTNMortarTeam.blp", LocalizationService.L("Asedio", "Siege")),
+            "magic" => (@"ReplaceableTextures\CommandButtons\BTNFireBolt.blp", LocalizationService.L("Mágico", "Magic")),
+            "chaos" => (@"ReplaceableTextures\CommandButtons\BTNDoom.blp", LocalizationService.L("Caos", "Chaos")),
+            "hero" => (@"ReplaceableTextures\CommandButtons\BTNAttack.blp", LocalizationService.L("Héroe", "Hero")),
+            "spells" => (@"ReplaceableTextures\CommandButtons\BTNDispelMagic.blp", LocalizationService.L("Hechizos", "Spells")),
             _ => (@"ReplaceableTextures\CommandButtons\BTNAttack.blp", string.IsNullOrEmpty(atkType1) ? "Normal" : atkType1)
         };
         TxtHudAttackType.Text = $"({attackTypeLabel})";
@@ -941,14 +989,14 @@ public partial class ObjectEditorView : UserControl
         var defType = GetVal("defType", "udty").Trim().ToLowerInvariant();
         var (armorIcon, armorTypeLabel) = defType switch
         {
-            "small" => (@"ReplaceableTextures\CommandButtons\BTNLeatherUpgradeOne.blp", "Ligera"),
-            "medium" => (@"ReplaceableTextures\CommandButtons\BTNHumanArmorUpOne.blp", "Media"),
-            "heavy" or "large" => (@"ReplaceableTextures\CommandButtons\BTNHumanArmorUpTwo.blp", "Pesada"),
-            "fort" => (@"ReplaceableTextures\CommandButtons\BTNCastle.blp", "Fortificada"),
-            "hero" => (@"ReplaceableTextures\CommandButtons\BTNCirclet.blp", "Héroe"),
-            "divine" => (@"ReplaceableTextures\CommandButtons\BTNDivineIntervention.blp", "Divina"),
-            "none" or "unarmored" => (@"ReplaceableTextures\CommandButtons\BTNGlove.blp", "Sin armadura"),
-            _ => (@"ReplaceableTextures\CommandButtons\BTNHumanArmorUpOne.blp", string.IsNullOrEmpty(defType) ? "Media" : defType)
+            "small" => (@"ReplaceableTextures\CommandButtons\BTNLeatherUpgradeOne.blp", LocalizationService.L("Ligera", "Light")),
+            "medium" => (@"ReplaceableTextures\CommandButtons\BTNHumanArmorUpOne.blp", LocalizationService.L("Media", "Medium")),
+            "heavy" or "large" => (@"ReplaceableTextures\CommandButtons\BTNHumanArmorUpTwo.blp", LocalizationService.L("Pesada", "Heavy")),
+            "fort" => (@"ReplaceableTextures\CommandButtons\BTNCastle.blp", LocalizationService.L("Fortificada", "Fortified")),
+            "hero" => (@"ReplaceableTextures\CommandButtons\BTNCirclet.blp", LocalizationService.L("Héroe", "Hero")),
+            "divine" => (@"ReplaceableTextures\CommandButtons\BTNDivineIntervention.blp", LocalizationService.L("Divina", "Divine")),
+            "none" or "unarmored" => (@"ReplaceableTextures\CommandButtons\BTNGlove.blp", LocalizationService.L("Sin armadura", "Unarmored")),
+            _ => (@"ReplaceableTextures\CommandButtons\BTNHumanArmorUpOne.blp", string.IsNullOrEmpty(defType) ? LocalizationService.L("Media", "Medium") : defType)
         };
         TxtHudArmorType.Text = $"({armorTypeLabel})";
 
