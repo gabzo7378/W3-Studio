@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>W3 Studio 3D World Map Viewport</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0f1218;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      outline: none;
+    }
+
+    #loading-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(14, 17, 24, 0.94);
+      border: 1px solid rgba(255, 204, 0, 0.6);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+      border-radius: 8px;
+      padding: 18px 28px;
+      text-align: center;
+      color: #fff;
+      z-index: 20;
+      display: none;
+    }
+
+    #loading-spinner {
+      font-size: 14px;
+      font-weight: 700;
+      color: #ffcc00;
+      margin-bottom: 6px;
+    }
+
+    #loading-details {
+      font-size: 12px;
+      color: #a0a6b2;
+    }
+
+    #no-map-hint {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #0f1218;
+      z-index: 15;
+      color: #9aa0a6;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container">
+    <canvas id="map-canvas"></canvas>
+
+    <div id="no-map-hint">
+      <div style="font-size: 44px; margin-bottom: 12px;">🗺️</div>
+      <div style="font-size: 15px; font-weight: 700; color: #ffd700; margin-bottom: 6px;">Modo 3D (World Editor Oficial) Listo</div>
+      <div style="font-size: 12px; color: #8c95a5;">Abre un mapa desde <b>Archivo ➔ Abrir Mapa (Ctrl+O)</b> para explorar el terreno y modelos en 3D</div>
+    </div>
+
+    <div id="loading-overlay">
+      <div id="loading-spinner">Cargando Terreno y Modelos 3D...</div>
+      <div id="loading-details">Inicializando shaders y mallas del mapa</div>
+    </div>
+  </div>
+
+  <script src="viewer.min.js"></script>
+  <script src="map_viewer.js"></script>
+</body>
+</html>

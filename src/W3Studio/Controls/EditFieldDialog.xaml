@@ -1,0 +1,99 @@
+<Window x:Class="W3Studio.Controls.EditFieldDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Editar Propiedad de Objeto"
+        Width="540" Height="290"
+        MinWidth="420" MinHeight="230"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        ResizeMode="CanResizeWithGrip"
+        Background="{DynamicResource Win10WindowBg}"
+        Foreground="{DynamicResource Win10Text}"
+        FontFamily="Segoe UI" FontSize="12">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ENCABEZADO: TÍTULO DEL CAMPO Y DETALLES TÉCNICOS -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock x:Name="TxtFieldHeader" FontWeight="Bold" FontSize="13.5" Text="Nombre del Campo" Foreground="{DynamicResource Win10Text}"/>
+            <TextBlock x:Name="TxtFieldSub" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" Margin="0,3,0,0" Text="Rawcode: unam • Tipo: String"/>
+        </StackPanel>
+
+        <!-- CONTENIDO CENTRAL DINÁMICO SEGÚN EL TIPO DE DATO Y OPCIONES -->
+        <Grid Grid.Row="1">
+            <!-- 1. MODO DROPDOWN / COMBOBOX (TIPO DE ATAQUE, ARMADURA, ATRIBUTO PRINCIPAL, ETC.) -->
+            <StackPanel x:Name="PnlChoice" Visibility="Collapsed" VerticalAlignment="Top">
+                <TextBlock Text="Selecciona un valor permitido:" Foreground="#333333" FontSize="11.5" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                <ComboBox x:Name="CmbChoice"
+                          Height="32"
+                          FontSize="12"
+                          Padding="8,5"
+                          Background="#FFFFFF"
+                          BorderBrush="#A5A5A5"
+                          BorderThickness="1"
+                          VerticalContentAlignment="Center"/>
+                <TextBlock x:Name="TxtChoiceDesc" Foreground="#666666" FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap"
+                           Text="Solo se permiten los valores estándar reconocidos por el motor de Warcraft III."/>
+            </StackPanel>
+
+            <!-- 2. MODO NUMÉRICO (ENTEROS Y REALES CON LÍMITES / INTERVALOS Y SPINNER) -->
+            <StackPanel x:Name="PnlNumeric" Visibility="Collapsed" VerticalAlignment="Top">
+                <TextBlock x:Name="TxtNumericLabel" Text="Introduce un valor numérico:" Foreground="#333333" FontSize="11.5" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                <Grid Margin="0,0,0,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox x:Name="TxtNumericValue"
+                             Grid.Column="0"
+                             Height="32"
+                             FontSize="13"
+                             FontWeight="SemiBold"
+                             Padding="8,5"
+                             VerticalContentAlignment="Center"
+                             BorderBrush="#A5A5A5"
+                             BorderThickness="1"
+                             Background="#FFFFFF"
+                             Foreground="#111111"
+                             TextChanged="TxtNumericValue_TextChanged"/>
+
+                    <StackPanel Grid.Column="1" Orientation="Vertical" Width="26" Margin="4,0,0,0">
+                        <Button x:Name="BtnSpinUp" Content="▲" Height="15" FontSize="9" Padding="0" Click="BtnSpinUp_Click" ToolTip="Incrementar"/>
+                        <Button x:Name="BtnSpinDown" Content="▼" Height="15" FontSize="9" Padding="0" Margin="0,2,0,0" Click="BtnSpinDown_Click" ToolTip="Decrementar"/>
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock x:Name="TxtNumericRange" Foreground="#555555" FontSize="11" Text="Intervalo válido: [0 .. 1000000]"/>
+                <TextBlock x:Name="TxtNumericError" Foreground="#D92525" FontSize="11" Margin="0,4,0,0" FontWeight="SemiBold" Visibility="Collapsed"/>
+            </StackPanel>
+
+            <!-- 3. MODO TEXTO MULTILÍNEA / STRINGS LIBRES (NOMBRES, HABILIDADES, TOOLTIPS) -->
+            <Grid x:Name="PnlString" Visibility="Visible">
+                <TextBox x:Name="TxtValue"
+                         Padding="8"
+                         FontSize="12"
+                         FontFamily="Segoe UI"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         BorderBrush="#A5A5A5"
+                         BorderThickness="1"
+                         Background="#FFFFFF"
+                         Foreground="#111111"/>
+            </Grid>
+        </Grid>
+
+        <!-- PIE DE VENTANA: AYUDA Y BOTONES -->
+        <DockPanel Grid.Row="2" Margin="0,12,0,0" LastChildFill="False">
+            <TextBlock x:Name="TxtFooterHint" DockPanel.Dock="Left" VerticalAlignment="Center" Foreground="#777777" FontSize="10.5"
+                       Text="Presiona Enter para Aceptar, Escape para Cancelar"/>
+            <Button x:Name="BtnCancel" DockPanel.Dock="Right" Content="Cancelar" IsCancel="True" Width="85" Height="26" Margin="6,0,0,0"/>
+            <Button x:Name="BtnOk" DockPanel.Dock="Right" Content="Aceptar" IsDefault="True" Width="85" Height="26" Click="BtnOk_Click"/>
+        </DockPanel>
+    </Grid>
+</Window>

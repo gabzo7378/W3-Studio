@@ -1,0 +1,446 @@
+using System;
+using System.IO;
+using System.Text.Json;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using Microsoft.Web.WebView2.Core;
+using W3Studio.Models;
+using W3Studio.Services;
+
+namespace W3Studio.Controls;
+
+public partial class WorldMap3DViewportControl : UserControl
+{
+    private bool _isInitialized;
+    private bool _isEngineReady;
+    private Task? _initTask;
+    private BlpIconService? _blpService;
+    private MapProject? _project;
+    private bool _pendingMapLoad;
+    private string _webResDir = string.Empty;
+
+    public event Action? MapLoadedSuccess;
+    public event Action<float, float, bool>? TerrainBrushDabReceived;
+    public event Action<string?, int>? EntitySelected;
+    public event Action<string, int, float, float, float>? EntityMoved;
+    public event Action<string, string, float, float, float, float, float, int, int>? EntityPlaceRequested;
+    public event Action<string, int>? EntityDeleteRequested;
+    public event Action? PlacementCancelled;
+
+    public WorldMap3DViewportControl()
+    {
+        InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private async void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        await EnsureEngineInitializedAsync();
+    }
+
+    public void SetContext(BlpIconService blpService, MapProject? project)
+    {
+        _blpService = blpService;
+        _project = project;
+    }
+
+    public Task EnsureEngineInitializedAsync()
+    {
+        if (_isInitialized) return Task.CompletedTask;
+        _initTask ??= InitializeInternalAsync();
+        return _initTask;
+    }
+
+    private async Task InitializeInternalAsync()
+    {
+        try
+        {
+            if (WvMap.CoreWebView2 == null)
+            {
+                var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                var webViewEnvDir = Path.Combine(appData, "W3Studio", "WebView2MapProfile");
+                Directory.CreateDirectory(webViewEnvDir);
+
+                var env = await CoreWebView2Environment.CreateAsync(null, webViewEnvDir);
+                await WvMap.EnsureCoreWebView2Async(env);
+            }
+
+            var webResDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WebResources");
+            if (!Directory.Exists(webResDir))
+            {
+                var projectDir = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\WebResources"));
+                if (Directory.Exists(projectDir))
+                    webResDir = projectDir;
+            }
+            _webResDir = webResDir;
+
+            if (WvMap.CoreWebView2 == null) return;
+
+            // Intercept ALL requests under w3studio.local so we don't have conflicts with virtual host mapping
+            WvMap.CoreWebView2.AddWebResourceRequestedFilter(
+                "https://w3studio.local/*",
+                CoreWebView2WebResourceContext.All);
+
+            WvMap.CoreWebView2.WebResourceRequested += OnWebResourceRequested;
+            WvMap.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
+
+            WvMap.Source = new Uri("https://w3studio.local/map_viewer.html");
+            _isInitialized = true;
+            BorderInitProgress.Visibility = Visibility.Collapsed;
+        }
+        catch (Exception ex)
+        {
+            BorderInitProgress.Child = new TextBlock
+            {
+                Text = "Error inicializando WebView2: " + ex.Message,
+                Foreground = System.Windows.Media.Brushes.Red
+            };
+        }
+    }
+
+    private void OnWebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs e)
+    {
+        try
+        {
+            var uri = new Uri(e.Request.Uri);
+            var path = uri.AbsolutePath;
+
+            // 1. Current map payload (/currentmap.w3x)
+            if (path.Equals("/currentmap.w3x", StringComparison.OrdinalIgnoreCase))
+            {
+                if (_project != null && !string.IsNullOrEmpty(_project.FilePath) && File.Exists(_project.FilePath))
+                {
+                    try
+                    {
+                        using var fs = new FileStream(_project.FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                        using var ms = new MemoryStream();
+                        fs.CopyTo(ms);
+                        e.Response = WvMap.CoreWebView2.Environment.CreateWebResourceResponse(
+                            new MemoryStream(ms.ToArray()),
+                            200,
+                            "OK",
+                            "Content-Type: application/octet-stream\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS");
+                        return;
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                e.Response = WvMap.CoreWebView2.Environment.CreateWebResourceResponse(
+                    new MemoryStream(),
+                    404,
+                    "Not Found",
+                    "Content-Type: text/plain\r\nAccess-Control-Allow-Origin: *");
+                return;
+            }
+
+            // 2. MPQ asset lookups (/mpq/...)
+            if (path.StartsWith("/mpq/", StringComparison.OrdinalIgnoreCase))
+            {
+                var subPath = Uri.UnescapeDataString(path.Substring(5)).Replace('/', '\\');
+                string? tileset = null;
+                if (!string.IsNullOrEmpty(uri.Query))
+                {
+                    foreach (var part in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        var kv = part.Split('=', 2);
+                        if (kv.Length == 2 && kv[0].Equals("tileset", StringComparison.OrdinalIgnoreCase))
+                        {
+                            tileset = Uri.UnescapeDataString(kv[1]);
+                            break;
+                        }
+                    }
+                }
+                var bytes = _blpService?.FindRawFileBytes(subPath, _project, tileset);
+                if (bytes != null && bytes.Length > 0)
+                {
+                    var mime = GetMimeType(subPath);
+                    e.Response = WvMap.CoreWebView2.Environment.CreateWebResourceResponse(
+                        new MemoryStream(bytes),
+                        200,
+                        "OK",
+                        $"Content-Type: {mime}\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS");
+                    return;
+                }
+
+                e.Response = WvMap.CoreWebView2.Environment.CreateWebResourceResponse(
+                    new MemoryStream(),
+                    404,
+                    "Not Found",
+                    "Content-Type: text/plain\r\nAccess-Control-Allow-Origin: *");
+                return;
+            }
+
+            // 3. Local WebResources files (map_viewer.html, viewer.min.js, map_viewer.js, etc.)
+            var cleanPath = Uri.UnescapeDataString(path.TrimStart('/')).Replace('/', '\\');
+            var localFile = Path.Combine(_webResDir, cleanPath);
+            if (File.Exists(localFile))
+            {
+                var fileBytes = File.ReadAllBytes(localFile);
+                var mime = GetMimeType(localFile);
+                e.Response = WvMap.CoreWebView2.Environment.CreateWebResourceResponse(
+                    new MemoryStream(fileBytes),
+                    200,
+                    "OK",
+                    $"Content-Type: {mime}\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS");
+                return;
+            }
+
+            e.Response = WvMap.CoreWebView2.Environment.CreateWebResourceResponse(
+                new MemoryStream(),
+                404,
+                "Not Found",
+                "Content-Type: text/plain\r\nAccess-Control-Allow-Origin: *");
+        }
+        catch
+        {
+            e.Response = WvMap.CoreWebView2.Environment.CreateWebResourceResponse(
+                new MemoryStream(),
+                500,
+                "Internal Error",
+                "Access-Control-Allow-Origin: *");
+        }
+    }
+
+    private static string GetMimeType(string path)
+    {
+        var ext = Path.GetExtension(path).ToLowerInvariant();
+        return ext switch
+        {
+            ".html" or ".htm" => "text/html; charset=utf-8",
+            ".js" => "application/javascript; charset=utf-8",
+            ".css" => "text/css; charset=utf-8",
+            ".json" => "application/json; charset=utf-8",
+            ".slk" or ".txt" => "text/plain; charset=utf-8",
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            _ => "application/octet-stream"
+        };
+    }
+
+    private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(e.WebMessageAsJson);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("type", out var typeProp)) return;
+
+            var msgType = typeProp.GetString();
+            if (msgType is "map_engine_ready" or "map_engine_script_loaded")
+            {
+                _isEngineReady = true;
+                if (_pendingMapLoad && _project != null)
+                {
+                    _pendingMapLoad = false;
+                    LoadMap(_project);
+                }
+            }
+            else if (msgType == "map_loaded_success")
+            {
+                MapLoadedSuccess?.Invoke();
+            }
+            else if (msgType == "terrain_brush_dab")
+            {
+                if (root.TryGetProperty("wx", out var wxProp) && root.TryGetProperty("wy", out var wyProp))
+                {
+                    float wx = (float)wxProp.GetDouble();
+                    float wy = (float)wyProp.GetDouble();
+                    bool isStart = root.TryGetProperty("isStrokeStart", out var stProp) && stProp.GetBoolean();
+                    TerrainBrushDabReceived?.Invoke(wx, wy, isStart);
+                }
+            }
+            else if (msgType == "entity_selected")
+            {
+                if (root.TryGetProperty("entity", out var entProp) && entProp.ValueKind == JsonValueKind.Object)
+                {
+                    var kind = entProp.TryGetProperty("kind", out var kProp) ? kProp.GetString() : null;
+                    int cnum = entProp.TryGetProperty("creationNumber", out var cProp) ? cProp.GetInt32() : -1;
+                    EntitySelected?.Invoke(kind, cnum);
+                }
+                else
+                {
+                    EntitySelected?.Invoke(null, -1);
+                }
+            }
+            else if (msgType == "entity_moved")
+            {
+                var kind = root.GetProperty("kind").GetString() ?? "unit";
+                int cnum = root.GetProperty("creationNumber").GetInt32();
+                float x = (float)root.GetProperty("x").GetDouble();
+                float y = (float)root.GetProperty("y").GetDouble();
+                float z = (float)root.GetProperty("z").GetDouble();
+                EntityMoved?.Invoke(kind, cnum, x, y, z);
+            }
+            else if (msgType == "entity_place_request")
+            {
+                var kind = root.GetProperty("kind").GetString() ?? "unit";
+                var rawcode = root.GetProperty("rawcode").GetString() ?? string.Empty;
+                float x = (float)root.GetProperty("x").GetDouble();
+                float y = (float)root.GetProperty("y").GetDouble();
+                float z = (float)root.GetProperty("z").GetDouble();
+                float angle = root.TryGetProperty("angle", out var aProp) ? (float)aProp.GetDouble() : (float)(270 * Math.PI / 180.0);
+                float scale = root.TryGetProperty("scale", out var sProp) ? (float)sProp.GetDouble() : 1.0f;
+                int player = root.TryGetProperty("player", out var pProp) ? pProp.GetInt32() : 0;
+                int variation = root.TryGetProperty("variation", out var vProp) ? vProp.GetInt32() : 0;
+                EntityPlaceRequested?.Invoke(kind, rawcode, x, y, z, angle, scale, player, variation);
+            }
+            else if (msgType == "entity_delete_request")
+            {
+                var kind = root.GetProperty("kind").GetString() ?? "unit";
+                int cnum = root.GetProperty("creationNumber").GetInt32();
+                EntityDeleteRequested?.Invoke(kind, cnum);
+            }
+            else if (msgType == "placement_cancelled")
+            {
+                PlacementCancelled?.Invoke();
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    public void LoadMap(MapProject? project)
+    {
+        _project = project;
+
+        if (project == null || string.IsNullOrEmpty(project.FilePath) || !File.Exists(project.FilePath))
+        {
+            if (_isEngineReady && WvMap.CoreWebView2 != null)
+            {
+                var clearJson = JsonSerializer.Serialize(new { action = "clear_map" });
+                WvMap.CoreWebView2.PostWebMessageAsJson(clearJson);
+            }
+            return;
+        }
+
+        if (!_isInitialized || !_isEngineReady || WvMap.CoreWebView2 == null)
+        {
+            _pendingMapLoad = true;
+            return;
+        }
+
+        var json = JsonSerializer.Serialize(new
+        {
+            action = "load_map",
+            url = "https://w3studio.local/currentmap.w3x",
+            title = string.IsNullOrEmpty(project.MapName) ? project.FileName : project.MapName
+        });
+
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
+    public void ResetCamera()
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
+        var json = JsonSerializer.Serialize(new { action = "reset_camera" });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
+    public void SetTerrainBrush(bool active, int size, bool isSquare)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
+        var json = JsonSerializer.Serialize(new
+        {
+            action = "set_terrain_brush",
+            active,
+            size,
+            isSquare
+        });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
+    public Task ReloadW3eAsync(byte[] w3eBytes)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null || w3eBytes == null || w3eBytes.Length == 0)
+            return Task.CompletedTask;
+
+        var json = JsonSerializer.Serialize(new
+        {
+            action = "reload_w3e",
+            base64 = Convert.ToBase64String(w3eBytes)
+        });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+        return Task.CompletedTask;
+    }
+
+    public Task PatchW3eCornersAsync(TerrainDabResult dab)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null || dab == null || !dab.Modified || dab.Patches.Count == 0)
+            return Task.CompletedTask;
+
+        var patches = new object[dab.Patches.Count];
+        for (int i = 0; i < dab.Patches.Count; i++)
+        {
+            var p = dab.Patches[i];
+            patches[i] = new
+            {
+                x = p.X,
+                y = p.Y,
+                g = p.GroundHeightRaw,
+                w = p.WaterRaw,
+                f = p.FlagsAndTex,
+                v = p.Variations,
+                c = p.CliffAndLayer
+            };
+        }
+
+        var json = JsonSerializer.Serialize(new
+        {
+            action = "patch_w3e_corners",
+            minX = dab.MinX,
+            maxX = dab.MaxX,
+            minY = dab.MinY,
+            maxY = dab.MaxY,
+            cliffsChanged = dab.CliffsChanged,
+            patches
+        });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+        return Task.CompletedTask;
+    }
+
+    public void SetEditorMode(string mode, object? placeSpec = null)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
+        var json = JsonSerializer.Serialize(new { action = "set_editor_mode", mode, placeSpec });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
+    public void SelectEntity(string kind, int creationNumber, bool focus = false, float distance = 1650f)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
+        var json = JsonSerializer.Serialize(new { action = "select_entity", kind, creationNumber, focus, distance });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
+    public void FocusWorldPoint(float x, float y, float distance = 1650f)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
+        var json = JsonSerializer.Serialize(new { action = "focus_world_point", x, y, distance });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
+    public void SpawnLiveEntity(string kind, object opts)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
+        var json = JsonSerializer.Serialize(new { action = "spawn_entity", kind, opts });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
+    public void UpdateLiveEntity(string kind, int creationNumber, object opts)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
+        var json = JsonSerializer.Serialize(new { action = "update_entity", kind, creationNumber, opts });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
+    public void DeleteLiveEntity(string kind, int creationNumber)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
+        var json = JsonSerializer.Serialize(new { action = "delete_entity", kind, creationNumber });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+}

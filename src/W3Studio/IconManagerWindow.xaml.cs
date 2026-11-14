@@ -1,0 +1,554 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using Microsoft.Win32;
+using W3Studio.Models;
+using W3Studio.Services;
+
+namespace W3Studio;
+
+public partial class IconManagerWindow : Window
+{
+    private sealed class IconListItem
+    {
+        public string MpqPath { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+    }
+
+    private readonly BlpIconService _blpService;
+    private MapProject? _project;
+    private readonly Action<string>? _onSavedToImports;
+
+    private List<IconListItem> _allIcons = new();
+    private byte[]? _sourcePixels;
+    private int _sourceWidth;
+    private int _sourceHeight;
+    private string _sourceLabel = "Sin imagen";
+
+    private byte[]? _composedMain64;
+    private byte[]? _composedDis64;
+    private bool _suppressUiEvents;
+
+    public IconManagerWindow(BlpIconService blpService, MapProject? project, Action<string>? onSavedToImports = null)
+    {
+        _suppressUiEvents = true;
+        InitializeComponent();
+        _blpService = blpService;
+        _project = project;
+        _onSavedToImports = onSavedToImports;
+        _suppressUiEvents = false;
+
+        SetProject(project);
+        LoadWc3IconCatalog();
+        UpdateTargetPathsText();
+    }
+
+    public void SetProject(MapProject? project)
+    {
+        _project = project;
+        if (TxtMapContextBadge != null)
+        {
+            TxtMapContextBadge.Text = project != null
+                ? $"Mapa activo: {(string.IsNullOrEmpty(project.MapName) ? project.FileName : project.MapName)}"
+                : "Sin mapa abierto (solo exportación a disco)";
+        }
+        if (BtnSaveToImports != null)
+        {
+            BtnSaveToImports.IsEnabled = project != null;
+        }
+        LoadWc3IconCatalog();
+    }
+
+    public void LoadIconByMpqPath(string mpqPath)
+    {
+        if (string.IsNullOrWhiteSpace(mpqPath)) return;
+        var bmp = _blpService.GetIcon(mpqPath, _project);
+        var pixels = IconProcessorService.ExtractBgraPixels(bmp, out int w, out int h);
+        if (pixels == null) return;
+
+        _sourcePixels = pixels;
+        _sourceWidth = w;
+        _sourceHeight = h;
+        _sourceLabel = $"MPQ: {mpqPath}";
+
+        var baseName = Path.GetFileNameWithoutExtension(mpqPath);
+        _suppressUiEvents = true;
+        TxtOutputName.Text = StripKnownPrefix(baseName);
+        // Si es icono base de WC3 con prefijo BTN/PASBTN, activar recorte de borde previo por defecto para evitar doble marco
+        bool hasWc3FramePrefix = baseName.StartsWith("BTN", StringComparison.OrdinalIgnoreCase) ||
+                                   baseName.StartsWith("PASBTN", StringComparison.OrdinalIgnoreCase);
+        ChkStripOldBorder.IsChecked = hasWc3FramePrefix && !RbBorderNone.IsChecked.GetValueOrDefault();
+        _suppressUiEvents = false;
+
+        RenderLivePreview();
+    }
+
+    private void LoadWc3IconCatalog()
+    {
+        var paths = _blpService.GetAvailableIconPaths(_project);
+        _allIcons = paths
+            .Select(p => new IconListItem
+            {
+                MpqPath = p,
+                DisplayName = Path.GetFileName(p)
+            })
+            .ToList();
+
+        ApplyIconListFilter();
+    }
+
+    private void ApplyIconListFilter()
+    {
+        if (LstWc3Icons == null) return;
+        var q = TxtSearchIcons?.Text?.Trim() ?? string.Empty;
+        IEnumerable<IconListItem> list = _allIcons;
+        if (!string.IsNullOrEmpty(q))
+        {
+            list = list.Where(i =>
+                i.DisplayName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                i.MpqPath.Contains(q, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var filtered = list.Take(1200).ToList();
+        LstWc3Icons.ItemsSource = filtered;
+        if (TxtIconsCount != null)
+            TxtIconsCount.Text = $"Mostrando {filtered.Count} de {_allIcons.Count} iconos";
+    }
+
+    private void TxtSearchIcons_TextChanged(object sender, TextChangedEventArgs e) => ApplyIconListFilter();
+
+    private void LstWc3Icons_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (LstWc3Icons.SelectedItem is IconListItem item)
+        {
+            LoadIconByMpqPath(item.MpqPath);
+        }
+    }
+
+    private void BtnImportExternal_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFileDialog
+        {
+            Title = "Importar imagen para crear Icono (.blp)",
+            Filter = "Imágenes e Iconos (*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.blp)|*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.blp|Todos (*.*)|*.*"
+        };
+
+        if (dlg.ShowDialog(this) == true)
+        {
+            LoadExternalImageFile(dlg.FileName);
+        }
+    }
+
+    private void LoadExternalImageFile(string filePath)
+    {
+        try
+        {
+            var bmp = IconProcessorService.LoadExternalImage(filePath, _blpService);
+            var pixels = IconProcessorService.ExtractBgraPixels(bmp, out int w, out int h);
+            if (pixels == null)
+            {
+                MessageBox.Show(this, "No se pudo decodificar la imagen seleccionada.", "Icon Manager", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            _sourcePixels = pixels;
+            _sourceWidth = w;
+            _sourceHeight = h;
+            _sourceLabel = $"Archivo externo: {Path.GetFileName(filePath)} ({w}x{h} -> 64x64)";
+
+            _suppressUiEvents = true;
+            TxtOutputName.Text = StripKnownPrefix(Path.GetFileNameWithoutExtension(filePath));
+            ChkStripOldBorder.IsChecked = false;
+            _suppressUiEvents = false;
+
+            RenderLivePreview();
+            TxtStatus.Text = $"Imagen cargada: {Path.GetFileName(filePath)} ({w}x{h})";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"Error abriendo imagen:\n{ex.Message}", "Icon Manager", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void Window_DragOver(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            e.Effects = DragDropEffects.Copy;
+        else
+            e.Effects = DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void Window_Drop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
+        {
+            LoadExternalImageFile(files[0]);
+        }
+    }
+
+    private void BorderPreset_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressUiEvents) return;
+        UpdateTargetPathsText();
+        RenderLivePreview();
+    }
+
+    private void EditOption_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressUiEvents) return;
+        RenderLivePreview();
+    }
+
+    private void IconOutputOption_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressUiEvents) return;
+        UpdateTargetPathsText();
+        RenderLivePreview();
+    }
+
+    private void SliderOption_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_suppressUiEvents || !IsLoaded) return;
+        if (TxtFrameThickness != null && SldFrameThickness != null)
+            TxtFrameThickness.Text = $"{(int)SldFrameThickness.Value} px";
+        if (TxtZoomVal != null && SldZoom != null)
+            TxtZoomVal.Text = $"{(int)SldZoom.Value}%";
+        if (TxtBrightnessVal != null && SldBrightness != null)
+            TxtBrightnessVal.Text = ((int)SldBrightness.Value).ToString();
+        if (TxtContrastVal != null && SldContrast != null)
+            TxtContrastVal.Text = ((int)SldContrast.Value).ToString();
+        RenderLivePreview();
+    }
+
+    private void BtnFrameColorSwatch_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string hex) return;
+        _suppressUiEvents = true;
+        ChkUseColorFrame.IsChecked = true;
+        TxtFrameColorHex.Text = hex;
+        if (TryParseColor(hex, out var col))
+            BorderSelectedFrameColor.Background = new SolidColorBrush(col);
+        _suppressUiEvents = false;
+        RenderLivePreview();
+    }
+
+    private void TxtFrameColorHex_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressUiEvents || BorderSelectedFrameColor == null) return;
+        if (TryParseColor(TxtFrameColorHex.Text, out var col))
+        {
+            BorderSelectedFrameColor.Background = new SolidColorBrush(col);
+            RenderLivePreview();
+        }
+    }
+
+    private void TxtTintColorHex_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressUiEvents || BorderTintColor == null) return;
+        if (TryParseColor(TxtTintColorHex.Text, out var col))
+        {
+            BorderTintColor.Background = new SolidColorBrush(col);
+            RenderLivePreview();
+        }
+    }
+
+    private void CmbColorFrameStyle_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressUiEvents || !IsLoaded) return;
+        RenderLivePreview();
+    }
+
+    private void TxtOutputName_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressUiEvents) return;
+        UpdateTargetPathsText();
+    }
+
+    private void BtnResetAdjustments_Click(object sender, RoutedEventArgs e)
+    {
+        _suppressUiEvents = true;
+        SldZoom.Value = 100;
+        SldBrightness.Value = 0;
+        SldContrast.Value = 0;
+        ChkFlipH.IsChecked = false;
+        ChkUseTint.IsChecked = false;
+        SldTintStrength.Value = 35;
+        TxtZoomVal.Text = "100%";
+        TxtBrightnessVal.Text = "0";
+        TxtContrastVal.Text = "0";
+        _suppressUiEvents = false;
+        RenderLivePreview();
+    }
+
+    private IconBorderStyle GetSelectedBorderStyle()
+    {
+        if (RbBorderPas?.IsChecked == true) return IconBorderStyle.Pas;
+        if (RbBorderAtc?.IsChecked == true) return IconBorderStyle.Atc;
+        if (RbBorderUpg?.IsChecked == true) return IconBorderStyle.Upg;
+        if (RbBorderInf?.IsChecked == true) return IconBorderStyle.Inf;
+        if (RbBorderNone?.IsChecked == true) return IconBorderStyle.None;
+        return IconBorderStyle.Btn;
+    }
+
+    private IconEditOptions BuildEditOptions()
+    {
+        var borderStyle = GetSelectedBorderStyle();
+        TryParseColor(TxtFrameColorHex?.Text, out var frameColor);
+        TryParseColor(TxtTintColorHex?.Text, out var tintColor);
+
+        var frameStyleTag = (CmbColorFrameStyle?.SelectedItem as ComboBoxItem)?.Tag as string;
+        var colorFrameStyle = frameStyleTag switch
+        {
+            "GlowingBox" => IconColorFrameStyle.GlowingBox,
+            "CornerBrackets" => IconColorFrameStyle.CornerBrackets,
+            _ => IconColorFrameStyle.SolidBox
+        };
+
+        return new IconEditOptions
+        {
+            BorderStyle = borderStyle,
+            UseColorFrame = ChkUseColorFrame?.IsChecked == true,
+            FrameColor = frameColor,
+            FrameThickness = (int)(SldFrameThickness?.Value ?? 3),
+            ColorFrameStyle = colorFrameStyle,
+            ZoomPercent = (int)(SldZoom?.Value ?? 100),
+            CropMargin = ChkStripOldBorder?.IsChecked == true ? 5 : 0,
+            Brightness = (int)(SldBrightness?.Value ?? 0),
+            Contrast = (int)(SldContrast?.Value ?? 0),
+            FlipHorizontal = ChkFlipH?.IsChecked == true,
+            UseTint = ChkUseTint?.IsChecked == true,
+            TintColor = tintColor,
+            TintStrength = (int)(SldTintStrength?.Value ?? 35)
+        };
+    }
+
+    private void RenderLivePreview()
+    {
+        if (_sourcePixels == null)
+            return;
+
+        var opts = BuildEditOptions();
+        _composedMain64 = IconProcessorService.ComposeIcon64(_sourcePixels, _sourceWidth, _sourceHeight, opts);
+        _composedDis64 = IconProcessorService.CreateDisabledVariant64(_composedMain64, opts.BorderStyle);
+
+        var mainBmp = IconProcessorService.PixelsToBitmapSource(_composedMain64);
+        var disBmp = IconProcessorService.PixelsToBitmapSource(_composedDis64);
+
+        ImgPreviewMainBig.Source = mainBmp;
+        ImgPreviewMain64.Source = mainBmp;
+        ImgPreviewDisBig.Source = disBmp;
+        ImgPreviewDis64.Source = disBmp;
+
+        bool showDis = ChkAutoDisbtn?.IsChecked == true;
+        PnlDisbtnPreview.Visibility = showDis ? Visibility.Visible : Visibility.Collapsed;
+        TxtSourceInfo.Text = _sourceLabel;
+        UpdateTargetPathsText();
+    }
+
+    private (string mainPath, string disPath, string mainFile, string disFile) ComputeTargetMpqPaths()
+    {
+        var style = GetSelectedBorderStyle();
+        var rawName = StripKnownPrefix(TxtOutputName?.Text ?? "CustomIcon01");
+        if (string.IsNullOrWhiteSpace(rawName))
+            rawName = "CustomIcon01";
+
+        // Sanitizar caracteres no válidos en nombres de archivo
+        foreach (var c in Path.GetInvalidFileNameChars())
+            rawName = rawName.Replace(c.ToString(), string.Empty);
+        if (string.IsNullOrWhiteSpace(rawName))
+            rawName = "CustomIcon01";
+
+        string prefix = style switch
+        {
+            IconBorderStyle.Pas => "PASBTN",
+            IconBorderStyle.Atc => "ATC",
+            IconBorderStyle.Upg => "BTN",
+            IconBorderStyle.Inf => "INF",
+            _ => "BTN"
+        };
+
+        string folder = style == IconBorderStyle.Pas
+            ? @"ReplaceableTextures\CommandButtons\"
+            : @"ReplaceableTextures\CommandButtons\";
+
+        string mainFile = $"{prefix}{rawName}.blp";
+        string disFile = $"DIS{mainFile}";
+
+        string mainPath = folder + mainFile;
+        string disPath = @"ReplaceableTextures\CommandButtonsDisabled\" + disFile;
+        return (mainPath, disPath, mainFile, disFile);
+    }
+
+    private void UpdateTargetPathsText()
+    {
+        if (TxtMainMpqPath == null || TxtDisMpqPath == null || PnlDisMpqPath == null)
+            return;
+
+        var (mainPath, disPath, mainFile, disFile) = ComputeTargetMpqPaths();
+        var style = GetSelectedBorderStyle();
+        if (TxtMainPreviewTitle != null)
+            TxtMainPreviewTitle.Text = $"PRINCIPAL ({style.ToString().ToUpperInvariant()})";
+        if (TxtDisPreviewTitle != null)
+            TxtDisPreviewTitle.Text = $"DESHABILITADO ({Path.GetFileNameWithoutExtension(disFile)})";
+
+        TxtMainMpqPath.Text = $"Principal: {mainPath}";
+        bool autoDis = ChkAutoDisbtn?.IsChecked == true;
+        PnlDisMpqPath.Visibility = autoDis ? Visibility.Visible : Visibility.Collapsed;
+        TxtDisMpqPath.Text = $"DISBTN:    {disPath}";
+    }
+
+    private static string StripKnownPrefix(string name)
+    {
+        var s = (name ?? string.Empty).Trim();
+        foreach (var prefix in new[] { "DISPASBTN", "DISBTN", "PASBTN", "BTN", "ATC", "INF" })
+        {
+            if (s.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && s.Length > prefix.Length)
+                return s.Substring(prefix.Length);
+        }
+        return s;
+    }
+
+    private static bool TryParseColor(string? hex, out Color color)
+    {
+        color = Color.FromRgb(255, 210, 40);
+        if (string.IsNullOrWhiteSpace(hex)) return false;
+        var clean = hex.Trim();
+        if (!clean.StartsWith("#")) clean = "#" + clean;
+        try
+        {
+            if (ColorConverter.ConvertFromString(clean) is Color c)
+            {
+                color = c;
+                return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    private void BtnCopyMainPath_Click(object sender, RoutedEventArgs e)
+    {
+        var (mainPath, _, _, _) = ComputeTargetMpqPaths();
+        Clipboard.SetText(mainPath);
+        TxtStatus.Text = $"Ruta copiada al portapapeles: {mainPath}";
+    }
+
+    private void BtnSaveToImports_Click(object sender, RoutedEventArgs e)
+    {
+        if (_project == null)
+        {
+            MessageBox.Show(this, "Abre primero un mapa (.w3x / .w3m) para poder guardar el icono en sus Importaciones.", "Icon Manager", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        if (_composedMain64 == null)
+        {
+            MessageBox.Show(this, "Primero selecciona un icono de Warcraft III o importa una imagen.", "Icon Manager", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var (mainPath, disPath, _, _) = ComputeTargetMpqPaths();
+        var mainBlp = IconProcessorService.EncodeBlp1Paletted(_composedMain64);
+        UpsertImportedFile(_project, mainPath, mainBlp);
+
+        int count = 1;
+        if (ChkAutoDisbtn.IsChecked == true && _composedDis64 != null)
+        {
+            var disBlp = IconProcessorService.EncodeBlp1Paletted(_composedDis64);
+            UpsertImportedFile(_project, disPath, disBlp);
+            count++;
+        }
+
+        _onSavedToImports?.Invoke(mainPath);
+        TxtStatus.Text = $"Guardado en Importaciones ({count} archivo(s)): {mainPath}" + (count > 1 ? " + DISBTN" : "");
+        MessageBox.Show(this,
+            $"¡Icono guardado correctamente en Importaciones!\n\nPrincipal: {mainPath}" +
+            (count > 1 ? $"\nDeshabilitado: {disPath}" : "") +
+            "\n\nRecuerda presionar Guardar (Ctrl+S) en el mapa para escribirlo al MPQ final.",
+            "Icon Manager",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+    }
+
+    private void UpsertImportedFile(MapProject project, string mpqPath, byte[] bytes)
+    {
+        project.RawMpqFiles[mpqPath] = bytes;
+        _blpService.InvalidateIcon(mpqPath);
+
+        var existing = project.Imports.FirstOrDefault(i => i.MpqPath.Equals(mpqPath, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+        {
+            existing.Data = bytes;
+            existing.SizeBytes = bytes.Length;
+            existing.IsPendingWrite = true;
+            existing.IsDeleted = false;
+            existing.Status = "Icono editado (Pendiente guardar)";
+        }
+        else
+        {
+            project.Imports.Add(new W3ImportedFile
+            {
+                MpqPath = mpqPath,
+                SizeBytes = bytes.Length,
+                Data = bytes,
+                IsPendingWrite = true,
+                Status = "Icono Custom (Pendiente guardar)"
+            });
+        }
+    }
+
+    private void BtnExportToDisk_Click(object sender, RoutedEventArgs e)
+    {
+        if (_composedMain64 == null)
+        {
+            MessageBox.Show(this, "Primero selecciona o importa una imagen.", "Icon Manager", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var (_, _, mainFile, disFile) = ComputeTargetMpqPaths();
+        var dlg = new SaveFileDialog
+        {
+            Title = "Exportar icono editado",
+            FileName = mainFile,
+            Filter = "Icono Warcraft III (*.blp)|*.blp|Imagen PNG (*.png)|*.png"
+        };
+
+        if (dlg.ShowDialog(this) != true)
+            return;
+
+        var ext = Path.GetExtension(dlg.FileName).ToLowerInvariant();
+        if (ext == ".png")
+        {
+            IconProcessorService.SaveAsPng(dlg.FileName, _composedMain64);
+            if (ChkAutoDisbtn.IsChecked == true && _composedDis64 != null)
+            {
+                var disPngPath = Path.Combine(Path.GetDirectoryName(dlg.FileName) ?? string.Empty, Path.GetFileNameWithoutExtension(disFile) + ".png");
+                IconProcessorService.SaveAsPng(disPngPath, _composedDis64);
+            }
+        }
+        else
+        {
+            var mainBlp = IconProcessorService.EncodeBlp1Paletted(_composedMain64);
+            File.WriteAllBytes(dlg.FileName, mainBlp);
+            if (ChkAutoDisbtn.IsChecked == true && _composedDis64 != null)
+            {
+                var disBlpPath = Path.Combine(Path.GetDirectoryName(dlg.FileName) ?? string.Empty, "DIS" + Path.GetFileName(dlg.FileName));
+                File.WriteAllBytes(disBlpPath, IconProcessorService.EncodeBlp1Paletted(_composedDis64));
+            }
+        }
+
+        TxtStatus.Text = $"Exportado a disco: {dlg.FileName}";
+    }
+
+    private void Window_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+            Close();
+    }
+}
+

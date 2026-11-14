@@ -1,0 +1,124 @@
+<Window x:Class="W3Studio.EditTriggerEventDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Evento del Disparador (WC3 1.27b)"
+        Icon="pack://application:,,,/Assets/W3Studio.ico"
+        Width="560" Height="420"
+        MinWidth="500" MinHeight="360"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Win10WindowBg}"
+        Foreground="{DynamicResource Win10Text}"
+        FontFamily="Segoe UI"
+        FontSize="12">
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Tipo de Evento -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+            <TextBlock Text="Tipo de Evento (WC3 1.27b):" FontWeight="SemiBold" Margin="0,0,0,4"/>
+            <ComboBox x:Name="CboEventType"
+                      Height="26"
+                      MaxDropDownHeight="320"
+                      SelectionChanged="CboEventType_SelectionChanged">
+                <ComboBoxItem Content="Map - Map initialization" Tag="MapInitialization" IsSelected="True"/>
+                <ComboBoxItem Content="Time - Every X seconds of game time (Periódico)" Tag="PeriodicTimer"/>
+                <ComboBoxItem Content="Time - Elapsed game time is X seconds (Tiempo transcurrido)" Tag="ElapsedTime"/>
+                <ComboBoxItem Content="Player - Player types a chat message (Mensaje de chat)" Tag="PlayerChat"/>
+                <ComboBoxItem Content="Player - Player leaves the game (Abandona partida)" Tag="PlayerLeavesGame"/>
+                <ComboBoxItem Content="Unit - A unit Dies (Una unidad muere)" Tag="UnitDies"/>
+                <ComboBoxItem Content="Unit - A unit is Attacked (Una unidad es atacada)" Tag="UnitAttacked"/>
+                <ComboBoxItem Content="Unit - A unit Starts the effect of an ability (Efecto de habilidad)" Tag="UnitSpell"/>
+                <ComboBoxItem Content="Unit - A unit Begins channeling an ability (Canaliza habilidad)" Tag="UnitSpellChannel"/>
+                <ComboBoxItem Content="Unit - A unit Finishes casting an ability (Termina habilidad)" Tag="UnitSpellFinish"/>
+                <ComboBoxItem Content="Unit - A unit Is issued an order with no target (Orden sin objetivo)" Tag="UnitIssuedOrder"/>
+                <ComboBoxItem Content="Unit - A unit Is issued an order targeting a point (Orden a punto)" Tag="UnitIssuedPointOrder"/>
+                <ComboBoxItem Content="Unit - A unit Is issued an order targeting an object (Orden a objetivo)" Tag="UnitIssuedTargetOrder"/>
+                <ComboBoxItem Content="Unit - A unit enters Region (Entra en región)" Tag="UnitEntersRegion"/>
+                <ComboBoxItem Content="Unit - A unit leaves Region (Sale de región)" Tag="UnitLeavesRegion"/>
+                <ComboBoxItem Content="Hero - A hero Gains a level (Sube de nivel)" Tag="HeroLevelUp"/>
+                <ComboBoxItem Content="Hero - A hero Learns a skill (Aprende habilidad)" Tag="HeroLearnSkill"/>
+                <ComboBoxItem Content="Item - A unit Acquires an item (Recoge objeto)" Tag="ItemPickup"/>
+                <ComboBoxItem Content="Item - A unit Uses an item (Usa objeto)" Tag="ItemUse"/>
+                <ComboBoxItem Content="Item - A unit Loses an item (Suelta objeto)" Tag="ItemDrop"/>
+                <ComboBoxItem Content="Custom - Código JASS de evento personalizado" Tag="CustomEventScript"/>
+            </ComboBox>
+        </StackPanel>
+
+        <!-- Parámetros dinámicos según el evento seleccionado -->
+        <Border Grid.Row="1" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" CornerRadius="3" Padding="10">
+            <StackPanel>
+                <TextBlock Text="Parámetros del Evento:" FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+                <!-- Panel Tiempo Periódico / Transcurrido -->
+                <StackPanel x:Name="PanelTime" Margin="0,0,0,8" Visibility="Collapsed">
+                    <TextBlock Text="Segundos:" Margin="0,0,0,3"/>
+                    <TextBox x:Name="TxtSeconds" Text="2.00" Height="24" TextChanged="ParamChanged"/>
+                </StackPanel>
+
+                <!-- Panel Chat / Jugador -->
+                <StackPanel x:Name="PanelChat" Margin="0,0,0,8" Visibility="Collapsed">
+                    <TextBlock Text="Jugador:" Margin="0,0,0,3"/>
+                    <ComboBox x:Name="CboChatPlayer" Height="24" Margin="0,0,0,6" SelectionChanged="ParamChanged">
+                        <ComboBoxItem Content="Player 1 (Red)" Tag="0" IsSelected="True"/>
+                        <ComboBoxItem Content="Player 2 (Blue)" Tag="1"/>
+                        <ComboBoxItem Content="Player 3 (Teal)" Tag="2"/>
+                        <ComboBoxItem Content="Player 4 (Purple)" Tag="3"/>
+                        <ComboBoxItem Content="Player 5 (Yellow)" Tag="4"/>
+                        <ComboBoxItem Content="Player 6 (Orange)" Tag="5"/>
+                        <ComboBoxItem Content="Player 7 (Green)" Tag="6"/>
+                        <ComboBoxItem Content="Player 8 (Pink)" Tag="7"/>
+                        <ComboBoxItem Content="Player 9 (Gray)" Tag="8"/>
+                        <ComboBoxItem Content="Player 10 (Light Blue)" Tag="9"/>
+                        <ComboBoxItem Content="Player 11 (Dark Green)" Tag="10"/>
+                        <ComboBoxItem Content="Player 12 (Brown)" Tag="11"/>
+                    </ComboBox>
+
+                    <StackPanel x:Name="PanelChatMessageFields">
+                        <TextBlock Text="Mensaje de chat a comparar:" Margin="0,0,0,3"/>
+                        <TextBox x:Name="TxtChatMessage" Text="-test" Height="24" Margin="0,0,0,6" TextChanged="ParamChanged"/>
+                        <CheckBox x:Name="ChkExactMatch" Content="Coincidencia exacta (Exact match)" IsChecked="True" Checked="ParamChanged" Unchecked="ParamChanged"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Panel Región -->
+                <StackPanel x:Name="PanelRegion" Margin="0,0,0,8" Visibility="Collapsed">
+                    <TextBlock Text="Región (Rect) del Mapa:" Margin="0,0,0,3"/>
+                    <ComboBox x:Name="CboRegionName" IsEditable="True" Height="24"
+                              Text="EntireMap"
+                              SelectionChanged="ParamChanged"
+                              TextBoxBase.TextChanged="ParamChanged"/>
+                    <TextBlock Text="Usa 'EntireMap' o selecciona una región gg_rct_* del mapa." FontSize="11" Foreground="#707070" Margin="0,4,0,0"/>
+                </StackPanel>
+
+                <!-- Panel Custom Script -->
+                <StackPanel x:Name="PanelCustomEvent" Margin="0,0,0,8" Visibility="Collapsed">
+                    <TextBlock Text="Línea JASS de registro de evento (usa gg_trg_&lt;Nombre&gt;):" Margin="0,0,0,3"/>
+                    <TextBox x:Name="TxtCustomEventCode" Text="call TriggerRegisterGameStateEvent(GetTriggeringTrigger(), GAME_STATE_TIME_OF_DAY, EQUAL, 12.0)" Height="24" FontFamily="Consolas" TextChanged="ParamChanged"/>
+                </StackPanel>
+
+                <!-- Info genérica para eventos sin parámetros -->
+                <TextBlock x:Name="TxtNoParams" Text="Este evento se dispara para cualquier unidad/jugador correspondiente sin parámetros adicionales (puedes filtrar en Condiciones)." Foreground="#707070" FontStyle="Italic" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Vista previa en formato World Editor -->
+        <Border Grid.Row="2" Background="#11000000" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" CornerRadius="3" Padding="8" Margin="0,10,0,10">
+            <DockPanel>
+                <TextBlock Text="Texto GUI:" FontWeight="SemiBold" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                <TextBlock x:Name="TxtPreview" Text="Map initialization" Foreground="#0066CC" FontWeight="Medium" VerticalAlignment="Center" TextWrapping="Wrap"/>
+            </DockPanel>
+        </Border>
+
+        <!-- Botones Aceptar / Cancelar -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Aceptar" Width="85" Height="26" Margin="0,0,8,0" IsDefault="True" Click="BtnOk_Click"/>
+            <Button Content="Cancelar" Width="85" Height="26" IsCancel="True" Click="BtnCancel_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

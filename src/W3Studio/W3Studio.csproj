@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RuntimeFrameworkVersion>8.0.11</RuntimeFrameworkVersion>
+    <RollForward>LatestMinor</RollForward>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <ApplicationIcon>Assets\W3Studio.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
+    <PackageReference Include="Dirkster.AvalonDock" Version="4.72.1" />
+    <PackageReference Include="Dirkster.AvalonDock.Themes.VS2013" Version="4.72.1" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
+    <PackageReference Include="War3Net.Build" Version="6.1.2" />
+    <PackageReference Include="War3Net.IO.Mpq" Version="6.0.3" />
+    <PackageReference Include="War3Net.IO.Slk" Version="6.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Tools\**" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="WebResources\**" CopyToOutputDirectory="PreserveNewest" />
+    <Resource Include="Assets\**" />
+  </ItemGroup>
+
+</Project>

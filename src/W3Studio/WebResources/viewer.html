@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>W3 Studio 3D Model Viewer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at center, #1b2028 0%, #0d0f13 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      outline: none;
+    }
+    
+    #overlay-hud {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      background: rgba(16, 20, 26, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      padding: 5px 10px;
+      color: #e0e0e0;
+      font-size: 11px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+      pointer-events: auto;
+      z-index: 10;
+    }
+    
+    #model-badge {
+      font-weight: 600;
+      color: #ffd700;
+      max-width: 180px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .hud-label {
+      color: #9aa0a6;
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: bold;
+    }
+    
+    select, button {
+      background: #252b36;
+      color: #f1f3f4;
+      border: 1px solid #485264;
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      outline: none;
+      cursor: pointer;
+    }
+    select:hover, button:hover {
+      background: #343c4b;
+      border-color: #68758c;
+    }
+    
+    #loading-indicator {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #ffcc00;
+      font-size: 13px;
+      font-weight: 600;
+      background: rgba(15, 18, 24, 0.9);
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 204, 0, 0.5);
+      display: none;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    #controls-hint {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      background: rgba(16, 20, 26, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+      padding: 4px 8px;
+      color: #7b8390;
+      font-size: 10px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container">
+    <canvas id="viewer-canvas"></canvas>
+    
+    <div id="overlay-hud">
+      <span id="model-badge">Modelo 3D</span>
+      <span class="hud-label">Anim:</span>
+      <select id="anim-select"></select>
+      <span class="hud-label">Equipo:</span>
+      <select id="team-select">
+        <option value="0">Rojo (1)</option>
+        <option value="1">Azul (2)</option>
+        <option value="2">Teal (3)</option>
+        <option value="3">Púrpura (4)</option>
+        <option value="4">Amarillo (5)</option>
+        <option value="5">Naranja (6)</option>
+        <option value="6">Verde (7)</option>
+        <option value="7">Rosa (8)</option>
+        <option value="8">Gris (9)</option>
+        <option value="9">Celeste (10)</option>
+        <option value="10">Verde Osc. (11)</option>
+        <option value="11">Marrón (12)</option>
+      </select>
+      <button id="btn-reset-cam">Restablecer Cámara</button>
+    </div>
+
+    <div id="loading-indicator">Cargando modelo...</div>
+    <div id="controls-hint">Clic Izq: Rotar | Clic Der: Mover | Rueda: Zoom</div>
+  </div>
+
+  <script src="viewer.min.js"></script>
+  <script src="model_viewer.js"></script>
+</body>
+</html>
+

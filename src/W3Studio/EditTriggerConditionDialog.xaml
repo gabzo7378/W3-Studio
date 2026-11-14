@@ -1,0 +1,176 @@
+<Window x:Class="W3Studio.EditTriggerConditionDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Condición del Disparador (WC3 1.27b)"
+        Icon="pack://application:,,,/Assets/W3Studio.ico"
+        Width="560" Height="420"
+        MinWidth="500" MinHeight="360"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Win10WindowBg}"
+        Foreground="{DynamicResource Win10Text}"
+        FontFamily="Segoe UI"
+        FontSize="12">
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Tipo de Condición -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+            <TextBlock Text="Tipo de Condición (WC3 1.27b):" FontWeight="SemiBold" Margin="0,0,0,4"/>
+            <ComboBox x:Name="CboConditionType"
+                      Height="26"
+                      MaxDropDownHeight="320"
+                      SelectionChanged="CboConditionType_SelectionChanged">
+                <ComboBoxItem Content="Unit-Type Comparison (Comparación de Tipo de Unidad)" Tag="UnitTypeEqual" IsSelected="True"/>
+                <ComboBoxItem Content="Ability Comparison (Habilidad lanzada igual a...)" Tag="AbilityEqual"/>
+                <ComboBoxItem Content="Item-Type Comparison (Tipo de Objeto manipulado)" Tag="ItemTypeEqual"/>
+                <ComboBoxItem Content="Unit Has Buff (Unidad tiene Buff)" Tag="UnitHasBuff"/>
+                <ComboBoxItem Content="Unit in Region (Unidad dentro de Región)" Tag="UnitInRegion"/>
+                <ComboBoxItem Content="Player Comparison (Comparación de Jugador / Propietario)" Tag="PlayerEqual"/>
+                <ComboBoxItem Content="Hero Level Comparison (Nivel de Héroe)" Tag="HeroLevelComparison"/>
+                <ComboBoxItem Content="Integer Comparison (Comparación Numérica Entera)" Tag="IntegerComparison"/>
+                <ComboBoxItem Content="Real Comparison (Comparación Numérica Real)" Tag="RealComparison"/>
+                <ComboBoxItem Content="String Comparison (Comparación de Texto Chat)" Tag="StringComparison"/>
+                <ComboBoxItem Content="Boolean Comparison (Comparación Booleana / Estado 1.27b)" Tag="BooleanComparison"/>
+                <ComboBoxItem Content="Custom Script (Condición en Código JASS Libre)" Tag="CustomScript"/>
+            </ComboBox>
+        </StackPanel>
+
+        <!-- Parámetros dinámicos según la condición -->
+        <Border Grid.Row="1" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" CornerRadius="3" Padding="10">
+            <StackPanel>
+                <TextBlock Text="Parámetros de la Condición:" FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+                <!-- Panel Tipo de Unidad -->
+                <StackPanel x:Name="PanelUnitType" Margin="0,0,0,8">
+                    <TextBlock Text="La unidad desencadenante (Triggering unit) es de tipo:" Margin="0,0,0,3"/>
+                    <ComboBox x:Name="CboUnitType" Height="24" SelectionChanged="ParamChanged">
+                        <ComboBoxItem Content="Footman (hfoo)" Tag="hfoo" IsSelected="True"/>
+                        <ComboBoxItem Content="Peasant (hpea)" Tag="hpea"/>
+                        <ComboBoxItem Content="Rifleman (hrif)" Tag="hrif"/>
+                        <ComboBoxItem Content="Knight (hkni)" Tag="hkni"/>
+                        <ComboBoxItem Content="Archmage (Hamg)" Tag="Hamg"/>
+                        <ComboBoxItem Content="Paladin (Hpal)" Tag="Hpal"/>
+                        <ComboBoxItem Content="Mountain King (Hmkg)" Tag="Hmkg"/>
+                        <ComboBoxItem Content="Blood Mage (Hblm)" Tag="Hblm"/>
+                        <ComboBoxItem Content="Grunt (ogru)" Tag="ogru"/>
+                        <ComboBoxItem Content="Tauren (otau)" Tag="otau"/>
+                        <ComboBoxItem Content="Blademaster (Obla)" Tag="Obla"/>
+                        <ComboBoxItem Content="Archer (eaer)" Tag="eaer"/>
+                        <ComboBoxItem Content="Demon Hunter (Edmh)" Tag="Edmh"/>
+                        <ComboBoxItem Content="Ghoul (ugho)" Tag="ugho"/>
+                        <ComboBoxItem Content="Death Knight (Udea)" Tag="Udea"/>
+                    </ComboBox>
+                    <TextBlock Text="O escribe un Rawcode personalizado de 4 caracteres:" Margin="0,6,0,3" FontSize="11" Foreground="#666666"/>
+                    <TextBox x:Name="TxtCustomRawcode" Height="22" Width="120" HorizontalAlignment="Left" TextChanged="TxtCustomRawcode_TextChanged"/>
+                </StackPanel>
+
+                <!-- Panel Rawcode Habilidad / Objeto / Buff -->
+                <StackPanel x:Name="PanelRawcode" Margin="0,0,0,8" Visibility="Collapsed">
+                    <TextBlock x:Name="TxtRawcodeLabel" Text="Rawcode (4 caracteres, ej: AHtb / phea / BHab):" Margin="0,0,0,3"/>
+                    <TextBox x:Name="TxtRawcodeParam" Text="AHtb" Width="140" HorizontalAlignment="Left" Height="24" FontFamily="Consolas" TextChanged="ParamChanged"/>
+                </StackPanel>
+
+                <!-- Panel Región -->
+                <StackPanel x:Name="PanelCondRegion" Margin="0,0,0,8" Visibility="Collapsed">
+                    <TextBlock Text="Región (Rect) que contiene a (Triggering unit):" Margin="0,0,0,3"/>
+                    <ComboBox x:Name="CboCondRegion" IsEditable="True" Height="24" Text="EntireMap"
+                              SelectionChanged="ParamChanged"
+                              TextBoxBase.TextChanged="ParamChanged"/>
+                </StackPanel>
+
+                <!-- Panel Jugador -->
+                <StackPanel x:Name="PanelPlayer" Margin="0,0,0,8" Visibility="Collapsed">
+                    <TextBlock Text="El propietario de (Triggering unit) es:" Margin="0,0,0,3"/>
+                    <ComboBox x:Name="CboPlayer" Height="24" SelectionChanged="ParamChanged">
+                        <ComboBoxItem Content="Player 1 (Red)" Tag="0" IsSelected="True"/>
+                        <ComboBoxItem Content="Player 2 (Blue)" Tag="1"/>
+                        <ComboBoxItem Content="Player 3 (Teal)" Tag="2"/>
+                        <ComboBoxItem Content="Player 4 (Purple)" Tag="3"/>
+                        <ComboBoxItem Content="Player 5 (Yellow)" Tag="4"/>
+                        <ComboBoxItem Content="Player 6 (Orange)" Tag="5"/>
+                        <ComboBoxItem Content="Player 7 (Green)" Tag="6"/>
+                        <ComboBoxItem Content="Player 8 (Pink)" Tag="7"/>
+                        <ComboBoxItem Content="Player Neutral Hostile" Tag="12"/>
+                        <ComboBoxItem Content="Triggering Player" Tag="TriggeringPlayer"/>
+                    </ComboBox>
+                </StackPanel>
+
+                <!-- Panel Comparación Numérica (Entero / Real / Nivel) -->
+                <StackPanel x:Name="PanelInteger" Margin="0,0,0,8" Visibility="Collapsed">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="78"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock x:Name="TxtCompLeftLabel" Text="Variable / Valor 1:" Margin="0,0,0,3"/>
+                            <TextBox x:Name="TxtIntVal1" Text="udg_Count" Height="24" TextChanged="ParamChanged"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="6,0,6,0">
+                            <TextBlock Text="Operador:" Margin="0,0,0,3"/>
+                            <ComboBox x:Name="CboIntOp" Height="24" SelectionChanged="ParamChanged">
+                                <ComboBoxItem Content="==" Tag="==" IsSelected="True"/>
+                                <ComboBoxItem Content="!=" Tag="!="/>
+                                <ComboBoxItem Content="&gt;" Tag="&gt;"/>
+                                <ComboBoxItem Content="&lt;" Tag="&lt;"/>
+                                <ComboBoxItem Content="&gt;=" Tag="&gt;="/>
+                                <ComboBoxItem Content="&lt;=" Tag="&lt;="/>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock x:Name="TxtCompRightLabel" Text="Valor 2:" Margin="0,0,0,3"/>
+                            <TextBox x:Name="TxtIntVal2" Text="1" Height="24" TextChanged="ParamChanged"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+
+                <!-- Panel Comparación Texto -->
+                <StackPanel x:Name="PanelStringComp" Margin="0,0,0,8" Visibility="Collapsed">
+                    <TextBlock Text="El texto de chat escrito por el jugador es igual a:" Margin="0,0,0,3"/>
+                    <TextBox x:Name="TxtStringValue" Text="-test" Height="24" TextChanged="ParamChanged"/>
+                </StackPanel>
+
+                <!-- Panel Booleano -->
+                <StackPanel x:Name="PanelBoolean" Margin="0,0,0,8" Visibility="Collapsed">
+                    <TextBlock Text="Estado booleano a evaluar (WC3 1.27b):" Margin="0,0,0,3"/>
+                    <ComboBox x:Name="CboBoolExpr" Height="24" SelectionChanged="ParamChanged">
+                        <ComboBoxItem Content="((Triggering unit) is alive) Equal to True" Tag="UnitAlive" IsSelected="True"/>
+                        <ComboBoxItem Content="((Triggering unit) is dead) Equal to True" Tag="UnitDead"/>
+                        <ComboBoxItem Content="((Triggering unit) is A Hero) Equal to True" Tag="UnitIsHero"/>
+                        <ComboBoxItem Content="((Triggering unit) is A structure) Equal to True" Tag="UnitIsBuilding"/>
+                        <ComboBoxItem Content="((Triggering unit) is A flying unit) Equal to True" Tag="UnitIsFlying"/>
+                        <ComboBoxItem Content="((Triggering unit) belongs to an enemy of (Player 1)) Equal to True" Tag="UnitEnemyP1"/>
+                        <ComboBoxItem Content="((Triggering player) Controller Equal to User)" Tag="PlayerIsUser"/>
+                    </ComboBox>
+                </StackPanel>
+
+                <!-- Panel Custom Script -->
+                <StackPanel x:Name="PanelCustomScript" Margin="0,0,0,8" Visibility="Collapsed">
+                    <TextBlock Text="Expresión JASS (debe devolver boolean):" Margin="0,0,0,3"/>
+                    <TextBox x:Name="TxtCustomScript" Text="GetWidgetLife(GetTriggerUnit()) &gt; 0.405" Height="24" FontFamily="Consolas" TextChanged="ParamChanged"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Vista previa en formato World Editor -->
+        <Border Grid.Row="2" Background="#11000000" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" CornerRadius="3" Padding="8" Margin="0,10,0,10">
+            <DockPanel>
+                <TextBlock Text="Texto GUI:" FontWeight="SemiBold" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                <TextBlock x:Name="TxtPreview" Text="(Unit-type of (Triggering unit)) Equal to Footman" Foreground="#990099" FontWeight="Medium" VerticalAlignment="Center" TextWrapping="Wrap"/>
+            </DockPanel>
+        </Border>
+
+        <!-- Botones Aceptar / Cancelar -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Aceptar" Width="85" Height="26" Margin="0,0,8,0" IsDefault="True" Click="BtnOk_Click"/>
+            <Button Content="Cancelar" Width="85" Height="26" IsCancel="True" Click="BtnCancel_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

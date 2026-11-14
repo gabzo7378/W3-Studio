@@ -1,0 +1,7 @@
+﻿bin/
+obj/
+.vs/
+*.user
+*.suo
+*.W3Studio.exe.WebView2/
+*.bak

@@ -1,0 +1,103 @@
+<Application x:Class="W3Studio.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <!-- Paleta Clásica Windows 10 / World Editor Dinámica -->
+        <SolidColorBrush x:Key="Win10WindowBg" Color="#F0F0F0"/>
+        <SolidColorBrush x:Key="Win10PanelBg" Color="#E6E6E6"/>
+        <SolidColorBrush x:Key="Win10SidebarGray" Color="#808080"/>
+        <SolidColorBrush x:Key="Win10Border" Color="#A0A0A0"/>
+        <SolidColorBrush x:Key="Win10DarkBorder" Color="#696969"/>
+        <SolidColorBrush x:Key="Win10Text" Color="#111111"/>
+        <SolidColorBrush x:Key="Win10Accent" Color="#0078D7"/>
+
+        <SolidColorBrush x:Key="ThemeMenuBg" Color="#F5F5F5"/>
+        <SolidColorBrush x:Key="ThemeToolbarBg" Color="#E6E6E6"/>
+        <SolidColorBrush x:Key="ThemeTextMuted" Color="#555555"/>
+        <SolidColorBrush x:Key="ThemeButtonBg" Color="#E1E1E1"/>
+        <SolidColorBrush x:Key="ThemeInputBg" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="ThemeInputText" Color="#111111"/>
+
+        <!-- Botón Clásico Rectangular Windows 10 con soporte de temas -->
+        <Style TargetType="Button" x:Key="Win10ClassicButton">
+            <Setter Property="Background" Value="{DynamicResource ThemeButtonBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,3"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="0"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{DynamicResource Win10Accent}"/>
+                                <Setter TargetName="border" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{DynamicResource Win10Accent}"/>
+                                <Setter TargetName="border" Property="Opacity" Value="1.0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Botón de Icono de la Barra de Herramientas Clásica World Editor -->
+        <Style TargetType="Button" x:Key="WeToolbarIconBtn" BasedOn="{StaticResource Win10ClassicButton}">
+            <Setter Property="Background" Value="{DynamicResource ThemeToolbarBg}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
+            <Setter Property="Padding" Value="5,2"/>
+            <Setter Property="Margin" Value="1,1"/>
+            <Setter Property="MinWidth" Value="26"/>
+            <Setter Property="Height" Value="24"/>
+        </Style>
+
+        <Style TargetType="TextBox" x:Key="Win10TextBox">
+            <Setter Property="Background" Value="{DynamicResource ThemeInputBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ThemeInputText}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="4,2"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+        </Style>
+
+        <Style TargetType="DataGrid">
+            <Setter Property="Background" Value="{DynamicResource ThemeInputBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="RowBackground" Value="{DynamicResource ThemeInputBg}"/>
+            <Setter Property="AlternatingRowBackground" Value="{DynamicResource Win10WindowBg}"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource Win10Border}"/>
+            <Setter Property="VerticalGridLinesBrush" Value="{DynamicResource Win10Border}"/>
+            <Setter Property="HeadersVisibility" Value="Column"/>
+            <Setter Property="SelectionMode" Value="Single"/>
+            <Setter Property="CanUserAddRows" Value="False"/>
+            <Setter Property="CanUserDeleteRows" Value="False"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="{DynamicResource Win10PanelBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+        </Style>
+    </Application.Resources>
+</Application>

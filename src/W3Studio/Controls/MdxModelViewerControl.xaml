@@ -1,0 +1,23 @@
+<UserControl x:Class="W3Studio.Controls.MdxModelViewerControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+             Background="#0D0F13">
+    <Grid>
+        <wv2:WebView2 x:Name="WvModel" DefaultBackgroundColor="Black"/>
+        
+        <Border x:Name="BorderInitProgress"
+                Background="#181C24"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Padding="16,10"
+                CornerRadius="6"
+                BorderBrush="#3E4555"
+                BorderThickness="1">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="⏳ Inicializando motor 3D WebGL (mdx-m3-viewer)..." Foreground="#E0B040" FontSize="12" FontWeight="SemiBold"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>
+

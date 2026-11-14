@@ -1,0 +1,269 @@
+<Window x:Class="W3Studio.EditTriggerActionDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Acción del Disparador (WC3 1.27b)"
+        Icon="pack://application:,,,/Assets/W3Studio.ico"
+        Width="600" Height="500"
+        MinWidth="540" MinHeight="430"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Win10WindowBg}"
+        Foreground="{DynamicResource Win10Text}"
+        FontFamily="Segoe UI"
+        FontSize="12">
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Categoría de Acción -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,8">
+            <TextBlock Text="Categoría de Acción (WC3 1.27b):" FontWeight="SemiBold" Margin="0,0,0,3"/>
+            <ComboBox x:Name="CboCategory" Height="25" SelectionChanged="CboCategory_SelectionChanged">
+                <ComboBoxItem Content="Unidad (Unit)" Tag="Unit" IsSelected="True"/>
+                <ComboBoxItem Content="Héroe / Objetos (Hero &amp; Items)" Tag="Hero"/>
+                <ComboBoxItem Content="Jugador (Player)" Tag="Player"/>
+                <ComboBoxItem Content="Variables (Set Variable)" Tag="Variable"/>
+                <ComboBoxItem Content="Tiempo / Espera (Wait)" Tag="Time"/>
+                <ComboBoxItem Content="Disparador (Trigger)" Tag="Trigger"/>
+                <ComboBoxItem Content="Cinemática / Texto / Juego (Game)" Tag="Game"/>
+                <ComboBoxItem Content="Sonido (Sound)" Tag="Sound"/>
+                <ComboBoxItem Content="Efecto Especial (Special Effect)" Tag="SpecialEffect"/>
+                <ComboBoxItem Content="Código JASS Libre (Custom Script)" Tag="CustomScript"/>
+            </ComboBox>
+        </StackPanel>
+
+        <!-- Tipo de Acción -->
+        <StackPanel Grid.Row="1" Margin="0,0,0,10">
+            <TextBlock Text="Acción:" FontWeight="SemiBold" Margin="0,0,0,3"/>
+            <ComboBox x:Name="CboAction" Height="25" MaxDropDownHeight="300" SelectionChanged="CboAction_SelectionChanged"/>
+        </StackPanel>
+
+        <!-- Parámetros dinámicos según la acción seleccionada -->
+        <Border Grid.Row="2" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" CornerRadius="3" Padding="10">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <TextBlock Text="Parámetros de la Acción:" FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+                    <!-- Panel Crear Unidades -->
+                    <StackPanel x:Name="PanelCreateUnits" Visibility="Collapsed">
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Cantidad:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="TxtUnitCount" Text="1" Height="24" TextChanged="ParamChanged"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Tipo de Unidad:" Margin="0,0,0,3"/>
+                                <ComboBox x:Name="CboUnitType" Height="24" SelectionChanged="ParamChanged">
+                                    <ComboBoxItem Content="Footman (hfoo)" Tag="hfoo" IsSelected="True"/>
+                                    <ComboBoxItem Content="Peasant (hpea)" Tag="hpea"/>
+                                    <ComboBoxItem Content="Rifleman (hrif)" Tag="hrif"/>
+                                    <ComboBoxItem Content="Knight (hkni)" Tag="hkni"/>
+                                    <ComboBoxItem Content="Archmage (Hamg)" Tag="Hamg"/>
+                                    <ComboBoxItem Content="Paladin (Hpal)" Tag="Hpal"/>
+                                    <ComboBoxItem Content="Mountain King (Hmkg)" Tag="Hmkg"/>
+                                    <ComboBoxItem Content="Blood Mage (Hblm)" Tag="Hblm"/>
+                                    <ComboBoxItem Content="Grunt (ogru)" Tag="ogru"/>
+                                    <ComboBoxItem Content="Tauren (otau)" Tag="otau"/>
+                                    <ComboBoxItem Content="Blademaster (Obla)" Tag="Obla"/>
+                                    <ComboBoxItem Content="Archer (eaer)" Tag="eaer"/>
+                                    <ComboBoxItem Content="Demon Hunter (Edmh)" Tag="Edmh"/>
+                                    <ComboBoxItem Content="Ghoul (ugho)" Tag="ugho"/>
+                                    <ComboBoxItem Content="Death Knight (Udea)" Tag="Udea"/>
+                                </ComboBox>
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="O escribe un Rawcode específico:" Margin="0,2,0,3" FontSize="11" Foreground="#666666"/>
+                        <TextBox x:Name="TxtCustomRawcode" Height="22" Width="100" HorizontalAlignment="Left" Margin="0,0,0,6" TextChanged="ParamChanged"/>
+
+                        <TextBlock Text="Para el Jugador:" Margin="0,0,0,3"/>
+                        <ComboBox x:Name="CboCreatePlayer" Height="24" Margin="0,0,0,6" SelectionChanged="ParamChanged">
+                            <ComboBoxItem Content="Player 1 (Red)" Tag="0" IsSelected="True"/>
+                            <ComboBoxItem Content="Player 2 (Blue)" Tag="1"/>
+                            <ComboBoxItem Content="Player 3 (Teal)" Tag="2"/>
+                            <ComboBoxItem Content="Player 4 (Purple)" Tag="3"/>
+                            <ComboBoxItem Content="Player 5 (Yellow)" Tag="4"/>
+                            <ComboBoxItem Content="Player 6 (Orange)" Tag="5"/>
+                            <ComboBoxItem Content="Player 7 (Green)" Tag="6"/>
+                            <ComboBoxItem Content="Player 8 (Pink)" Tag="7"/>
+                            <ComboBoxItem Content="Player Neutral Hostile" Tag="12"/>
+                            <ComboBoxItem Content="Triggering Player" Tag="TriggeringPlayer"/>
+                        </ComboBox>
+
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="100"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Ubicación / Punto:" Margin="0,0,0,3"/>
+                                <ComboBox x:Name="CboLocation" IsEditable="True" Height="24" SelectionChanged="ParamChanged" TextBoxBase.TextChanged="ParamChanged">
+                                    <ComboBoxItem Content="Center of (Playable map area)" Tag="GetRectCenter(GetPlayableMapRect())" IsSelected="True"/>
+                                    <ComboBoxItem Content="Position of (Triggering unit)" Tag="GetUnitLoc(GetTriggerUnit())"/>
+                                    <ComboBoxItem Content="Target point of ability being cast" Tag="GetSpellTargetLoc()"/>
+                                    <ComboBoxItem Content="Target point of issued order" Tag="GetOrderPointLoc()"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Ángulo (°):" Margin="0,0,0,3"/>
+                                <TextBox x:Name="TxtAngle" Text="270.0" Height="24" TextChanged="ParamChanged"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Panel Ubicación / Orientación simple (Mover / Revivir / Facing) -->
+                    <StackPanel x:Name="PanelLocationOnly" Visibility="Collapsed">
+                        <TextBlock x:Name="TxtLocationOnlyLabel" Text="Punto / Ubicación destino (expresión location JASS):" Margin="0,0,0,3"/>
+                        <ComboBox x:Name="CboTargetLocation" IsEditable="True" Height="24" SelectionChanged="ParamChanged" TextBoxBase.TextChanged="ParamChanged">
+                            <ComboBoxItem Content="GetRectCenter(GetPlayableMapRect())" IsSelected="True"/>
+                            <ComboBoxItem Content="GetSpellTargetLoc()"/>
+                            <ComboBoxItem Content="GetOrderPointLoc()"/>
+                            <ComboBoxItem Content="GetUnitLoc(GetTriggerUnit())"/>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <!-- Panel Booleano Unidad (Pausar / Mostrar-Ocultar) -->
+                    <StackPanel x:Name="PanelUnitFlag" Visibility="Collapsed">
+                        <CheckBox x:Name="ChkUnitFlagValue" Content="Activar estado (true / false)" IsChecked="True" Checked="ParamChanged" Unchecked="ParamChanged"/>
+                    </StackPanel>
+
+                    <!-- Panel Texto Corto Genérico (Orden / Rawcode habilidad o item) -->
+                    <StackPanel x:Name="PanelSingleTextParam" Visibility="Collapsed">
+                        <TextBlock x:Name="TxtSingleParamLabel" Text="Valor:" Margin="0,0,0,3"/>
+                        <TextBox x:Name="TxtSingleParamValue" Text="AHtb" Height="24" FontFamily="Consolas" TextChanged="ParamChanged"/>
+                    </StackPanel>
+
+                    <!-- Panel Set Variable -->
+                    <StackPanel x:Name="PanelSetVariable" Visibility="Collapsed">
+                        <TextBlock Text="Variable Global (udg_*) o Local:" Margin="0,0,0,3"/>
+                        <ComboBox x:Name="CboVarName" IsEditable="True" Height="24" Margin="0,0,0,6" Text="udg_MyVar"
+                                  SelectionChanged="ParamChanged" TextBoxBase.TextChanged="ParamChanged"/>
+                        <TextBlock Text="Valor / Expresión JASS:" Margin="0,0,0,3"/>
+                        <TextBox x:Name="TxtVarValue" Text="0" Height="24" FontFamily="Consolas" TextChanged="ParamChanged"/>
+                    </StackPanel>
+
+                    <!-- Panel Espera / Segundos -->
+                    <StackPanel x:Name="PanelWait" Visibility="Collapsed">
+                        <TextBlock Text="Tiempo de espera en segundos:" Margin="0,0,0,3"/>
+                        <TextBox x:Name="TxtWaitSeconds" Text="2.00" Height="24" TextChanged="ParamChanged"/>
+                    </StackPanel>
+
+                    <!-- Panel Mensaje de Texto / Texto Flotante -->
+                    <StackPanel x:Name="PanelMessage" Visibility="Collapsed">
+                        <TextBlock Text="Mensaje a mostrar:" Margin="0,0,0,3"/>
+                        <TextBox x:Name="TxtGameMessage" Text="¡Bienvenido al mapa!" Height="24" Margin="0,0,0,6" TextChanged="ParamChanged"/>
+
+                        <Grid Margin="0,0,0,6" x:Name="GridMessageTarget">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="90"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Destinatario:" Margin="0,0,0,3"/>
+                                <ComboBox x:Name="CboMessageTarget" Height="24" SelectionChanged="ParamChanged">
+                                    <ComboBoxItem Content="Todos los jugadores (All players)" Tag="All" IsSelected="True"/>
+                                    <ComboBoxItem Content="Player 1 (Red)" Tag="0"/>
+                                    <ComboBoxItem Content="Player 2 (Blue)" Tag="1"/>
+                                    <ComboBoxItem Content="Triggering Player" Tag="TriggeringPlayer"/>
+                                    <ComboBoxItem Content="Owner of Triggering Unit" Tag="OwnerOfTriggering"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Duración (seg):" Margin="0,0,0,3"/>
+                                <TextBox x:Name="TxtMessageDuration" Text="10.0" Height="24" TextChanged="ParamChanged"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Panel Oro / Madera Jugador -->
+                    <StackPanel x:Name="PanelPlayerResource" Visibility="Collapsed">
+                        <TextBlock Text="Jugador:" Margin="0,0,0,3"/>
+                        <ComboBox x:Name="CboResourcePlayer" Height="24" Margin="0,0,0,6" SelectionChanged="ParamChanged">
+                            <ComboBoxItem Content="Player 1 (Red)" Tag="0" IsSelected="True"/>
+                            <ComboBoxItem Content="Player 2 (Blue)" Tag="1"/>
+                            <ComboBoxItem Content="Player 3 (Teal)" Tag="2"/>
+                            <ComboBoxItem Content="Player 4 (Purple)" Tag="3"/>
+                            <ComboBoxItem Content="Player 5 (Yellow)" Tag="4"/>
+                            <ComboBoxItem Content="Triggering Player" Tag="TriggeringPlayer"/>
+                            <ComboBoxItem Content="Owner of Triggering Unit" Tag="OwnerOfTriggering"/>
+                        </ComboBox>
+
+                        <TextBlock Text="Cantidad a añadir:" Margin="0,0,0,3"/>
+                        <TextBox x:Name="TxtResourceAmount" Text="500" Height="24" TextChanged="ParamChanged"/>
+                    </StackPanel>
+
+                    <!-- Panel Héroe Stats -->
+                    <StackPanel x:Name="PanelHero" Visibility="Collapsed">
+                        <TextBlock Text="Cantidad / Nivel:" Margin="0,0,0,3"/>
+                        <TextBox x:Name="TxtHeroValue" Text="100" Height="24" TextChanged="ParamChanged"/>
+                    </StackPanel>
+
+                    <!-- Panel Vida / Maná Unidad -->
+                    <StackPanel x:Name="PanelUnitState" Visibility="Collapsed">
+                        <TextBlock Text="Porcentaje (0.0 a 100.0%) o Daño:" Margin="0,0,0,3"/>
+                        <TextBox x:Name="TxtUnitPercent" Text="100.0" Height="24" TextChanged="ParamChanged"/>
+                    </StackPanel>
+
+                    <!-- Panel Efecto Especial -->
+                    <StackPanel x:Name="PanelSpecialEffect" Visibility="Collapsed">
+                        <TextBlock Text="Ruta del Modelo del Efecto Especial:" Margin="0,0,0,3"/>
+                        <ComboBox x:Name="CboEffectPath" Height="24" Margin="0,0,0,6" SelectionChanged="ParamChanged">
+                            <ComboBoxItem Content="Abilities\Spells\Human\Thunderclap\ThunderClapCaster.mdl" IsSelected="True"/>
+                            <ComboBoxItem Content="Abilities\Spells\Human\Resurrection\ResurrectionTarget.mdl"/>
+                            <ComboBoxItem Content="Abilities\Spells\Orc\WarStomp\WarStompCaster.mdl"/>
+                            <ComboBoxItem Content="Abilities\Spells\Undead\FrostNova\FrostNovaTarget.mdl"/>
+                            <ComboBoxItem Content="Abilities\Spells\NightElf\Blink\BlinkCaster.mdl"/>
+                        </ComboBox>
+                        <TextBlock Text="O escribe ruta personalizada:" Margin="0,2,0,3" FontSize="11" Foreground="#666666"/>
+                        <TextBox x:Name="TxtCustomEffectPath" Height="22" Margin="0,0,0,6" TextChanged="ParamChanged"/>
+                    </StackPanel>
+
+                    <!-- Panel Sonido -->
+                    <StackPanel x:Name="PanelSound" Visibility="Collapsed">
+                        <TextBlock Text="Nombre del Sonido (variable gg_snd_*):" Margin="0,0,0,3"/>
+                        <TextBox x:Name="TxtSoundName" Text="Rescue" Height="24" TextChanged="ParamChanged"/>
+                    </StackPanel>
+
+                    <!-- Panel Disparador -->
+                    <StackPanel x:Name="PanelTriggerControl" Visibility="Collapsed">
+                        <TextBlock Text="Disparador objetivo (deja vacío para 'This trigger' al desactivar):" Margin="0,0,0,3"/>
+                        <ComboBox x:Name="TxtTargetTrigger" IsEditable="True" Height="24" Text=""
+                                  SelectionChanged="ParamChanged" TextBoxBase.TextChanged="ParamChanged"/>
+                    </StackPanel>
+
+                    <!-- Panel Custom Script -->
+                    <StackPanel x:Name="PanelCustomScript" Visibility="Collapsed">
+                        <TextBlock Text="Línea de código JASS a ejecutar:" Margin="0,0,0,3"/>
+                        <TextBox x:Name="TxtCustomCode" Text="call DoNothing()" Height="24" FontFamily="Consolas" TextChanged="ParamChanged"/>
+                    </StackPanel>
+
+                    <!-- Mensaje para acciones sin parámetros -->
+                    <TextBlock x:Name="TxtSimpleActionInfo" Text="Esta acción opera directamente sin parámetros adicionales." Foreground="#707070" FontStyle="Italic" Visibility="Collapsed"/>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- Vista previa en formato World Editor -->
+        <Border Grid.Row="3" Background="#11000000" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" CornerRadius="3" Padding="8" Margin="0,10,0,10">
+            <DockPanel>
+                <TextBlock Text="Texto GUI:" FontWeight="SemiBold" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                <TextBlock x:Name="TxtPreview" Text="Unit - Create 1 Footman for Player 1 (Red) at (Center of (Playable map area)) facing 270.00 degrees" Foreground="#CC6600" FontWeight="Medium" VerticalAlignment="Center" TextWrapping="Wrap"/>
+            </DockPanel>
+        </Border>
+
+        <!-- Botones Aceptar / Cancelar -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Aceptar" Width="85" Height="26" Margin="0,0,8,0" IsDefault="True" Click="BtnOk_Click"/>
+            <Button Content="Cancelar" Width="85" Height="26" IsCancel="True" Click="BtnCancel_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

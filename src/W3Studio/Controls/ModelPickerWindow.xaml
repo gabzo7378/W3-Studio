@@ -1,0 +1,141 @@
+<Window x:Class="W3Studio.Controls.ModelPickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:W3Studio.Controls"
+        Title="Selector de Modelos 3D (.mdx / .mdl)"
+        Icon="pack://application:,,,/Assets/W3Studio.ico"
+        Width="980" Height="640" MinWidth="820" MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Win10WindowBg}"
+        Foreground="{DynamicResource Win10Text}"
+        KeyDown="Window_KeyDown">
+
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Cabecera -->
+        <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="8,6" Margin="0,0,0,8">
+            <DockPanel LastChildFill="False">
+                <StackPanel DockPanel.Dock="Left" Orientation="Vertical">
+                    <TextBlock x:Name="TxtHeaderTitle" Text="Seleccionar Modelo 3D" FontWeight="Bold" FontSize="13"/>
+                    <TextBlock x:Name="TxtHeaderSub" Text="Explora modelos base de Warcraft III e importaciones del mapa con vista previa 3D" FontSize="11" Foreground="#666666"/>
+                </StackPanel>
+                <TextBlock x:Name="TxtCount" DockPanel.Dock="Right" VerticalAlignment="Center" FontSize="11.5" FontWeight="SemiBold" Foreground="#005499"/>
+            </DockPanel>
+        </Border>
+
+        <!-- Contenido: [Lista con rutas | Previsualizador 3D] -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="420"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Panel izquierdo: Filtros + Lista de rutas -->
+            <Border Grid.Column="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="8">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="175"/>
+                            <ColumnDefinition Width="6"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <ComboBox Grid.Column="0" x:Name="CmbCategory" SelectedIndex="0" SelectionChanged="Filter_Changed">
+                            <ComboBoxItem Content="Todos los Modelos" Tag="ALL"/>
+                            <ComboBoxItem Content="Importados del Mapa" Tag="IMPORTED"/>
+                            <ComboBoxItem Content="Unidades y Héroes" Tag="UNITS"/>
+                            <ComboBoxItem Content="Edificios" Tag="BUILDINGS"/>
+                            <ComboBoxItem Content="Habilidades / Efectos" Tag="ABILITIES"/>
+                            <ComboBoxItem Content="Ítems / Objetos" Tag="OBJECTS"/>
+                            <ComboBoxItem Content="Doodads y Árboles" Tag="DOODADS"/>
+                        </ComboBox>
+
+                        <TextBox Grid.Column="2"
+                                 x:Name="TxtSearch"
+                                 Style="{StaticResource Win10TextBox}"
+                                 ToolTip="Buscar por nombre o ruta MPQ (ej: ArchMage, Fire, Bolt...)"
+                                 TextChanged="Filter_Changed"/>
+                    </Grid>
+
+                    <ListBox Grid.Row="1"
+                             x:Name="LstModels"
+                             Background="#FFFFFF"
+                             Foreground="#111111"
+                             BorderBrush="#808080"
+                             BorderThickness="1"
+                             VirtualizingStackPanel.IsVirtualizing="True"
+                             VirtualizingStackPanel.VirtualizationMode="Recycling"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             SelectionChanged="LstModels_SelectionChanged"
+                             MouseDoubleClick="LstModels_MouseDoubleClick">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="2,3">
+                                    <Border DockPanel.Dock="Right" Background="{Binding BadgeBg}" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="3" Padding="5,1" VerticalAlignment="Center" Margin="6,0,0,0">
+                                        <TextBlock Text="{Binding SourceBadge}" FontSize="10" FontWeight="SemiBold" Foreground="{Binding BadgeFg}"/>
+                                    </Border>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" FontSize="12"/>
+                                        <TextBlock Text="{Binding MpqPath}" FontFamily="Consolas" FontSize="10.5" Foreground="#555555" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <!-- Panel derecho: Vista previa 3D + Verificación de ruta -->
+            <Border Grid.Column="2" Background="#161A22" BorderBrush="#3A4250" BorderThickness="1" CornerRadius="4" Padding="8">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="🎬 PREVISUALIZACIÓN 3D EN VIVO" FontWeight="Bold" FontSize="11.5" Foreground="#FFCC00" Margin="0,0,0,6"/>
+
+                    <Border Grid.Row="1" Background="#0D0F13" BorderBrush="#252A36" BorderThickness="1" CornerRadius="3">
+                        <controls:MdxModelViewerControl x:Name="PreviewViewer"/>
+                    </Border>
+
+                    <StackPanel Grid.Row="2" Margin="0,8,0,0">
+                        <TextBlock Text="Ruta asignada al campo:" FontSize="11" Foreground="#CCCCCC" Margin="0,0,0,3"/>
+                        <TextBox x:Name="TxtSelectedPath"
+                                 FontFamily="Consolas"
+                                 FontSize="11.5"
+                                 Padding="5,4"
+                                 Background="#0D0F13"
+                                 Foreground="#FFFFFF"
+                                 BorderBrush="#3A4250"
+                                 TextChanged="TxtSelectedPath_TextChanged"/>
+                        <TextBlock x:Name="TxtVerification" FontSize="11" FontWeight="SemiBold" Margin="0,5,0,0" Text="Selecciona un modelo de la lista"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Barra inferior -->
+        <DockPanel Grid.Row="2" Margin="0,8,0,0" LastChildFill="False">
+            <Button DockPanel.Dock="Left" Content="Limpiar (Sin Modelo)" Style="{StaticResource Win10ClassicButton}" Padding="10,4" Click="BtnClearModel_Click"/>
+
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="Cancelar" Style="{StaticResource Win10ClassicButton}" Padding="14,5" Margin="0,0,8,0" Click="BtnCancel_Click"/>
+                <Button x:Name="BtnAccept" Content="✓ Elegir Modelo" Style="{StaticResource Win10ClassicButton}" Padding="16,5" Background="#DDF4DF" BorderBrush="#2EA043" FontWeight="Bold" Click="BtnAccept_Click"/>
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>
+

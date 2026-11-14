@@ -1,0 +1,50 @@
+<Window x:Class="W3Studio.ObjectEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:W3Studio.Controls"
+        Title="Object Editor (F6) — Warcraft III 1.27b"
+        Icon="pack://application:,,,/Assets/W3Studio.ico"
+        Width="1380" Height="820"
+        MinWidth="960" MinHeight="600"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Win10WindowBg}"
+        Foreground="{DynamicResource Win10Text}"
+        FontFamily="Segoe UI"
+        FontSize="12"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="24"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Menu Grid.Row="0" Background="{DynamicResource ThemeMenuBg}" Foreground="{DynamicResource Win10Text}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="2,1" FontSize="12">
+            <MenuItem Header="_File">
+                <MenuItem Header="Close Object Editor" Click="MenuClose_Click"/>
+            </MenuItem>
+            <MenuItem Header="_Edit">
+                <MenuItem Header="New Custom Object..." Click="MenuNewObject_Click"/>
+            </MenuItem>
+            <MenuItem Header="_View">
+                <MenuItem Header="Units" Click="MenuCatUnits_Click"/>
+                <MenuItem Header="Items" Click="MenuCatItems_Click"/>
+                <MenuItem Header="Destructibles" Click="MenuCatDestructables_Click"/>
+                <MenuItem Header="Doodads" Click="MenuCatDoodads_Click"/>
+                <MenuItem Header="Abilities" Click="MenuCatAbilities_Click"/>
+                <MenuItem Header="Buffs/Effects" Click="MenuCatBuffs_Click"/>
+                <MenuItem Header="Upgrades" Click="MenuCatUpgrades_Click"/>
+            </MenuItem>
+            <MenuItem Header="_Module">
+                <MenuItem Header="Object Editor (F6)" IsChecked="True"/>
+            </MenuItem>
+            <MenuItem Header="_Window">
+                <MenuItem Header="Return to Main World Editor Window" Click="MenuClose_Click"/>
+            </MenuItem>
+        </Menu>
+
+        <controls:ObjectEditorView Grid.Row="1" x:Name="ObjEditorControl"/>
+    </Grid>
+</Window>
+
