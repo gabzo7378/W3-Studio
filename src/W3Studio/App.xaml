@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-        <!-- Paleta Clásica Windows 10 / World Editor Dinámica -->
+        <!-- Paleta Dinámica (Sobrescrita en vivo por ThemeService) -->
         <SolidColorBrush x:Key="Win10WindowBg" Color="#F0F0F0"/>
         <SolidColorBrush x:Key="Win10PanelBg" Color="#E6E6E6"/>
         <SolidColorBrush x:Key="Win10SidebarGray" Color="#808080"/>
@@ -13,13 +13,31 @@
         <SolidColorBrush x:Key="Win10Accent" Color="#0078D7"/>
 
         <SolidColorBrush x:Key="ThemeMenuBg" Color="#F5F5F5"/>
+        <SolidColorBrush x:Key="ThemeMenuPopupBg" Color="#FAFAFA"/>
         <SolidColorBrush x:Key="ThemeToolbarBg" Color="#E6E6E6"/>
-        <SolidColorBrush x:Key="ThemeTextMuted" Color="#555555"/>
+        <SolidColorBrush x:Key="ThemeTextMuted" Color="#505050"/>
+        <SolidColorBrush x:Key="ThemeAccentText" Color="#005499"/>
         <SolidColorBrush x:Key="ThemeButtonBg" Color="#E1E1E1"/>
         <SolidColorBrush x:Key="ThemeInputBg" Color="#FFFFFF"/>
         <SolidColorBrush x:Key="ThemeInputText" Color="#111111"/>
+        <SolidColorBrush x:Key="ThemeHoverBg" Color="#D4E4F7"/>
+        <SolidColorBrush x:Key="ThemeSelectedBg" Color="#0078D7"/>
+        <SolidColorBrush x:Key="ThemeSelectedText" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="ThemeAlternatingRowBg" Color="#F5F5F5"/>
 
-        <!-- Botón Clásico Rectangular Windows 10 con soporte de temas -->
+        <SolidColorBrush x:Key="ThemeSuccessBg" Color="#DFF0D8"/>
+        <SolidColorBrush x:Key="ThemeSuccessBorder" Color="#3A8E42"/>
+        <SolidColorBrush x:Key="ThemeSuccessText" Color="#112E14"/>
+
+        <SolidColorBrush x:Key="ThemeWarningBg" Color="#FFF8DC"/>
+        <SolidColorBrush x:Key="ThemeWarningBorder" Color="#C89D28"/>
+        <SolidColorBrush x:Key="ThemeWarningText" Color="#221804"/>
+
+        <SolidColorBrush x:Key="ThemeDangerBg" Color="#F9E2E2"/>
+        <SolidColorBrush x:Key="ThemeDangerBorder" Color="#C44444"/>
+        <SolidColorBrush x:Key="ThemeDangerText" Color="#4A0E0E"/>
+
+        <!-- ==================== BOTONES ==================== -->
         <Style TargetType="Button" x:Key="Win10ClassicButton">
             <Setter Property="Background" Value="{DynamicResource ThemeButtonBg}"/>
             <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
@@ -36,24 +54,32 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="0"
+                                CornerRadius="2"
                                 Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <ContentPresenter x:Name="contentPresenter"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="{DynamicResource Win10Accent}"/>
-                                <Setter TargetName="border" Property="Opacity" Value="0.85"/>
+                                <Setter TargetName="border" Property="Background" Value="{DynamicResource ThemeHoverBg}"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource Win10Accent}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="{DynamicResource Win10Accent}"/>
-                                <Setter TargetName="border" Property="Opacity" Value="1.0"/>
+                                <Setter TargetName="border" Property="Background" Value="{DynamicResource ThemeSelectedBg}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource ThemeSelectedText}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Opacity" Value="0.48"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- Estilo implícito por defecto para cualquier Button sin Style explícito -->
+        <Style TargetType="Button" BasedOn="{StaticResource Win10ClassicButton}"/>
 
         <!-- Botón de Icono de la Barra de Herramientas Clásica World Editor -->
         <Style TargetType="Button" x:Key="WeToolbarIconBtn" BasedOn="{StaticResource Win10ClassicButton}">
@@ -65,23 +91,601 @@
             <Setter Property="Height" Value="24"/>
         </Style>
 
+        <!-- ToggleButton adaptable a temas (usado en pestañas de Object Editor, vista 3D/2D y herramientas) -->
+        <Style TargetType="ToggleButton">
+            <Setter Property="Background" Value="{DynamicResource ThemeButtonBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,2"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="2"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{DynamicResource ThemeHoverBg}"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource Win10Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{DynamicResource ThemeSelectedBg}"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource Win10Accent}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource ThemeSelectedText}"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Opacity" Value="0.48"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ==================== CHECKBOX Y RADIOBUTTON ==================== -->
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
+            <Setter Property="Background" Value="{DynamicResource ThemeInputBg}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Grid Background="Transparent" SnapsToDevicePixels="True">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border x:Name="checkBoxBorder"
+                                    Grid.Column="0"
+                                    Width="15" Height="15"
+                                    VerticalAlignment="Center"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="2">
+                                <Path x:Name="mark"
+                                      Data="M 2,6.5 L 5.2,9.8 L 11.2,2.8"
+                                      Stroke="{DynamicResource ThemeSelectedText}"
+                                      StrokeThickness="2"
+                                      Stretch="None"
+                                      Visibility="Collapsed"/>
+                            </Border>
+                            <ContentPresenter Grid.Column="1"
+                                              Margin="6,0,0,0"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              RecognizesAccessKey="True"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="checkBoxBorder" Property="BorderBrush" Value="{DynamicResource Win10Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="checkBoxBorder" Property="Background" Value="{DynamicResource Win10Accent}"/>
+                                <Setter TargetName="checkBoxBorder" Property="BorderBrush" Value="{DynamicResource Win10Accent}"/>
+                                <Setter TargetName="mark" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
+            <Setter Property="Background" Value="{DynamicResource ThemeInputBg}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Grid Background="Transparent" SnapsToDevicePixels="True">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border x:Name="radioBorder"
+                                    Grid.Column="0"
+                                    Width="15" Height="15"
+                                    VerticalAlignment="Center"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1.5"
+                                    CornerRadius="8">
+                                <Ellipse x:Name="radioMark"
+                                         Width="7" Height="7"
+                                         Fill="{DynamicResource Win10Accent}"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"
+                                         Visibility="Collapsed"/>
+                            </Border>
+                            <ContentPresenter Grid.Column="1"
+                                              Margin="6,0,0,0"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              RecognizesAccessKey="True"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="radioBorder" Property="BorderBrush" Value="{DynamicResource Win10Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="radioBorder" Property="BorderBrush" Value="{DynamicResource Win10Accent}"/>
+                                <Setter TargetName="radioMark" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ==================== MENÚ SUPERIOR, SUBMENÚS Y MENÚ CONTEXTUAL ==================== -->
+        <Style TargetType="Menu">
+            <Setter Property="Background" Value="{DynamicResource ThemeMenuBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+
+        <Style TargetType="ContextMenu">
+            <Setter Property="Background" Value="{DynamicResource ThemeMenuPopupBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="Separator">
+            <Setter Property="Height" Value="1"/>
+            <Setter Property="Margin" Value="6,3"/>
+            <Setter Property="Background" Value="{DynamicResource Win10Border}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Separator">
+                        <Border Height="1" Background="{TemplateBinding Background}" SnapsToDevicePixels="True"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Plantilla completa para MenuItem (TopLevelHeader, TopLevelItem, SubmenuHeader y SubmenuItem) -->
+        <Style TargetType="MenuItem">
+            <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="templateRoot"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="Transparent"
+                                BorderThickness="1"
+                                Padding="6,4"
+                                SnapsToDevicePixels="True">
+                            <Grid VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="22" SharedSizeGroup="MenuItemIconColumnGroup"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="MenuItemIGTColumnGroup"/>
+                                    <ColumnDefinition Width="16"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Icono o Checkmark -->
+                                <ContentPresenter x:Name="Icon"
+                                                  Grid.Column="0"
+                                                  ContentSource="Icon"
+                                                  Width="16" Height="16"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Center"
+                                                  Margin="0,0,4,0"/>
+                                <Border x:Name="GlyphPanel"
+                                        Grid.Column="0"
+                                        Width="18" Height="18"
+                                        CornerRadius="2"
+                                        Background="{DynamicResource Win10Accent}"
+                                        VerticalAlignment="Center"
+                                        HorizontalAlignment="Center"
+                                        Margin="0,0,4,0"
+                                        Visibility="Collapsed">
+                                    <Path Data="M 3,8.5 L 6.5,12 L 13,4.5"
+                                          Stroke="{DynamicResource ThemeSelectedText}"
+                                          StrokeThickness="2"
+                                          Stretch="None"/>
+                                </Border>
+
+                                <!-- Texto del elemento -->
+                                <ContentPresenter Grid.Column="1"
+                                                  ContentSource="Header"
+                                                  RecognizesAccessKey="True"
+                                                  VerticalAlignment="Center"
+                                                  Margin="2,0,14,0"/>
+
+                                <!-- Atajo de teclado (InputGestureText) -->
+                                <TextBlock x:Name="IGT"
+                                           Grid.Column="2"
+                                           Text="{TemplateBinding InputGestureText}"
+                                           Foreground="{DynamicResource ThemeTextMuted}"
+                                           VerticalAlignment="Center"
+                                           Margin="8,0,4,0"
+                                           FontSize="11"/>
+
+                                <!-- Flecha de submenú -->
+                                <Path x:Name="SubMenuArrow"
+                                      Grid.Column="3"
+                                      Data="M 0,0 L 5,4 L 0,8 Z"
+                                      Fill="{DynamicResource Win10Text}"
+                                      VerticalAlignment="Center"
+                                      HorizontalAlignment="Right"
+                                      Visibility="Collapsed"/>
+
+                                <!-- Popup desplegable adaptable al tema -->
+                                <Popup x:Name="PART_Popup"
+                                       AllowsTransparency="True"
+                                       Focusable="False"
+                                       IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                       PopupAnimation="Fade"
+                                       Placement="Right"
+                                       HorizontalOffset="-2">
+                                    <Border Background="{DynamicResource ThemeMenuPopupBg}"
+                                            BorderBrush="{DynamicResource Win10Border}"
+                                            BorderThickness="1"
+                                            Padding="2"
+                                            SnapsToDevicePixels="True">
+                                        <ScrollViewer CanContentScroll="True" VerticalScrollBarVisibility="Auto">
+                                            <StackPanel IsItemsHost="True"
+                                                        KeyboardNavigation.DirectionalNavigation="Cycle"
+                                                        Grid.IsSharedSizeScope="True"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <!-- Rol: Elemento en la barra superior con hijos (_Archivo, _Configuración, etc.) -->
+                            <Trigger Property="Role" Value="TopLevelHeader">
+                                <Setter Property="Padding" Value="8,3"/>
+                                <Setter TargetName="PART_Popup" Property="Placement" Value="Bottom"/>
+                                <Setter TargetName="PART_Popup" Property="HorizontalOffset" Value="0"/>
+                                <Setter TargetName="Icon" Property="Visibility" Value="Collapsed"/>
+                                <Setter TargetName="GlyphPanel" Property="Visibility" Value="Collapsed"/>
+                                <Setter TargetName="IGT" Property="Visibility" Value="Collapsed"/>
+                                <Setter TargetName="SubMenuArrow" Property="Visibility" Value="Collapsed"/>
+                                <Setter TargetName="templateRoot" Property="Padding" Value="8,2"/>
+                            </Trigger>
+
+                            <!-- Rol: Elemento en la barra superior sin hijos -->
+                            <Trigger Property="Role" Value="TopLevelItem">
+                                <Setter TargetName="Icon" Property="Visibility" Value="Collapsed"/>
+                                <Setter TargetName="GlyphPanel" Property="Visibility" Value="Collapsed"/>
+                                <Setter TargetName="IGT" Property="Visibility" Value="Collapsed"/>
+                                <Setter TargetName="SubMenuArrow" Property="Visibility" Value="Collapsed"/>
+                                <Setter TargetName="templateRoot" Property="Padding" Value="8,2"/>
+                            </Trigger>
+
+                            <!-- Rol: Submenú desplegable (Idioma ▶, Tema Visual ▶) -->
+                            <Trigger Property="Role" Value="SubmenuHeader">
+                                <Setter TargetName="SubMenuArrow" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+
+                            <!-- Mostrar Checkmark si está marcado -->
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="GlyphPanel" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="Icon" Property="Visibility" Value="Collapsed"/>
+                            </Trigger>
+
+                            <!-- Hover / Highlight con alto contraste garantizado -->
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="templateRoot" Property="Background" Value="{DynamicResource ThemeHoverBg}"/>
+                                <Setter TargetName="templateRoot" Property="BorderBrush" Value="{DynamicResource Win10Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsSubmenuOpen" Value="True">
+                                <Setter TargetName="templateRoot" Property="Background" Value="{DynamicResource ThemeHoverBg}"/>
+                                <Setter TargetName="templateRoot" Property="BorderBrush" Value="{DynamicResource Win10Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ==================== TEXTBOX ==================== -->
         <Style TargetType="TextBox" x:Key="Win10TextBox">
             <Setter Property="Background" Value="{DynamicResource ThemeInputBg}"/>
             <Setter Property="Foreground" Value="{DynamicResource ThemeInputText}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource ThemeInputText}"/>
+            <Setter Property="SelectionBrush" Value="{DynamicResource Win10Accent}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="4,2"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
         </Style>
 
+        <Style TargetType="TextBox" BasedOn="{StaticResource Win10TextBox}"/>
+
+        <!-- ==================== COMBOBOX Y COMBOBOXITEM ==================== -->
+        <ControlTemplate x:Key="ComboBoxToggleButtonTemplate" TargetType="ToggleButton">
+            <Grid Background="Transparent">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="22"/>
+                </Grid.ColumnDefinitions>
+                <Border x:Name="Border"
+                        Grid.ColumnSpan="2"
+                        Background="{DynamicResource ThemeInputBg}"
+                        BorderBrush="{DynamicResource Win10Border}"
+                        BorderThickness="1"
+                        CornerRadius="2"/>
+                <Path x:Name="Arrow"
+                      Grid.Column="1"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"
+                      Data="M 0,0 L 4.5,4.5 L 9,0 Z"
+                      Fill="{DynamicResource Win10Text}"/>
+            </Grid>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource Win10Accent}"/>
+                </Trigger>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource Win10Accent}"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource ThemeInputText}"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource ThemeHoverBg}"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Win10Accent}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource ThemeSelectedBg}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource ThemeSelectedText}"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="{DynamicResource ThemeInputBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ThemeInputText}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,2"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid SnapsToDevicePixels="True">
+                            <ToggleButton x:Name="ToggleButton"
+                                          Template="{StaticResource ComboBoxToggleButtonTemplate}"
+                                          Focusable="False"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                          ClickMode="Press"/>
+                            <ContentPresenter x:Name="ContentSite"
+                                              IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                              Margin="7,2,24,2"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Left"/>
+                            <TextBox x:Name="PART_EditableTextBox"
+                                     Visibility="Hidden"
+                                     IsReadOnly="{TemplateBinding IsReadOnly}"
+                                     Margin="5,2,24,2"
+                                     Background="Transparent"
+                                     Foreground="{DynamicResource ThemeInputText}"
+                                     CaretBrush="{DynamicResource ThemeInputText}"
+                                     BorderThickness="0"
+                                     VerticalAlignment="Center"
+                                     HorizontalAlignment="Stretch"/>
+                            <Popup x:Name="Popup"
+                                   Placement="Bottom"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   PopupAnimation="Slide">
+                                <Grid x:Name="DropDown"
+                                      SnapsToDevicePixels="True"
+                                      MinWidth="{TemplateBinding ActualWidth}"
+                                      MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                    <Border x:Name="DropDownBorder"
+                                            Background="{DynamicResource ThemeMenuPopupBg}"
+                                            BorderBrush="{DynamicResource Win10Border}"
+                                            BorderThickness="1"
+                                            Padding="1">
+                                        <ScrollViewer Margin="1" SnapsToDevicePixels="True">
+                                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Grid>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEditable" Value="True">
+                                <Setter Property="IsTabStop" Value="False"/>
+                                <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="ContentSite" Property="Visibility" Value="Hidden"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ==================== LISTBOX Y TREEVIEW ==================== -->
+        <Style TargetType="ListBox">
+            <Setter Property="Background" Value="{DynamicResource ThemeInputBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+
+        <Style TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="4,2"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource ThemeHoverBg}"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource ThemeSelectedBg}"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Win10Accent}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource ThemeSelectedText}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TreeView">
+            <Setter Property="Background" Value="{DynamicResource ThemeInputBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
+        </Style>
+
+        <Style TargetType="TreeViewItem">
+            <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
+            <Setter Property="Padding" Value="3,1.5"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource ThemeSelectedText}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- ==================== TABCONTROL Y TABITEM ==================== -->
+        <Style TargetType="TabItem">
+            <Setter Property="Background" Value="{DynamicResource ThemeButtonBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
+            <Setter Property="BorderThickness" Value="1,1,1,0"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Margin" Value="0,0,2,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3,3,0,0"
+                                Padding="{TemplateBinding Padding}"
+                                Margin="{TemplateBinding Margin}">
+                            <ContentPresenter x:Name="ContentSite"
+                                              ContentSource="Header"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource ThemeHoverBg}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource ThemeSelectedBg}"/>
+                                <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource Win10Accent}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource ThemeSelectedText}"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ==================== DATAGRID, FILAS, CELDAS Y CABECERAS ==================== -->
         <Style TargetType="DataGrid">
             <Setter Property="Background" Value="{DynamicResource ThemeInputBg}"/>
             <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="RowBackground" Value="{DynamicResource ThemeInputBg}"/>
-            <Setter Property="AlternatingRowBackground" Value="{DynamicResource Win10WindowBg}"/>
+            <Setter Property="AlternatingRowBackground" Value="{DynamicResource ThemeAlternatingRowBg}"/>
             <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource Win10Border}"/>
             <Setter Property="VerticalGridLinesBrush" Value="{DynamicResource Win10Border}"/>
             <Setter Property="HeadersVisibility" Value="Column"/>
@@ -98,6 +702,44 @@
             <Setter Property="Padding" Value="6,4"/>
             <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
             <Setter Property="BorderThickness" Value="0,0,1,1"/>
+        </Style>
+
+        <Style TargetType="DataGridRow">
+            <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ThemeHoverBg}"/>
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ThemeSelectedBg}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource ThemeSelectedText}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="DataGridCell">
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ThemeSelectedBg}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource ThemeSelectedText}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- ==================== EXPANDER Y TOOLTIP ==================== -->
+        <Style TargetType="Expander">
+            <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
+        </Style>
+
+        <Style TargetType="ToolTip">
+            <Setter Property="Background" Value="{DynamicResource ThemeMenuPopupBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,4"/>
         </Style>
     </Application.Resources>
 </Application>

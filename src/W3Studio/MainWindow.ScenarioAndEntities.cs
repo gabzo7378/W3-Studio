@@ -647,6 +647,6 @@ public partial class MainWindow
     private void UpdateMapHeaderOverlay()
     {
         if (_currentProject == null) return;
-        TxtMapOverlayHeader.Text = $"{StripColorCodes(_currentProject.MapName)} ({_currentProject.Terrain.GridWidth - 1}x{_currentProject.Terrain.GridHeight - 1} • {_currentProject.Terrain.TilesetName} • {_currentProject.PlacedUnits.Count} Unidades • {_currentProject.PlacedDoodads.Count:N0} Árboles/Doodads • {_currentProject.Regions.Count} Regiones)";
+        TxtStatusBarLeft.Text = $"{_currentProject.FileName}  |  Terreno: {_currentProject.Terrain.GridWidth - 1}x{_currentProject.Terrain.GridHeight - 1} ({_currentProject.Terrain.TilesetName})  |  Unidades: {_currentProject.PlacedUnits.Count}  |  Doodads: {_currentProject.PlacedDoodads.Count:N0}  |  Regiones: {_currentProject.Regions.Count}";
     }
 }

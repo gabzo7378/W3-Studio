@@ -119,13 +119,13 @@
             </Grid.ColumnDefinitions>
 
             <!-- PANEL IZQUIERDO: BUSCADOR + ÁRBOL JERÁRQUICO -->
-            <Grid Grid.Column="0" Background="#FFFFFF">
+            <Grid Grid.Column="0" Background="{DynamicResource ThemeInputBg}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="32"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <Border Grid.Row="0" Background="#ECECEC" BorderBrush="#B0B0B0" BorderThickness="0,0,0,1" Padding="5,4">
+                <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="5,4">
                     <DockPanel>
                         <Image Source="pack://application:,,,/Assets/Icons/search.png" Width="14" Height="14" Margin="0,0,4,0" VerticalAlignment="Center"/>
                         <TextBlock x:Name="LblTreeSearch" Text="Buscar:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,5,0" FontSize="11.5"/>
@@ -138,8 +138,8 @@
 
                 <TreeView Grid.Row="1"
                           x:Name="TreeObjects"
-                          Background="#FFFFFF"
-                          Foreground="#111111"
+                          Background="{DynamicResource ThemeInputBg}"
+                          Foreground="{DynamicResource Win10Text}"
                           BorderThickness="0"
                           VirtualizingStackPanel.IsVirtualizing="True"
                           VirtualizingStackPanel.VirtualizationMode="Recycling"
@@ -148,6 +148,7 @@
                         <Style TargetType="TreeViewItem">
                             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
                             <Setter Property="Padding" Value="2,1"/>
+                            <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
                         </Style>
                     </TreeView.ItemContainerStyle>
                     <TreeView.ItemTemplate>
@@ -161,17 +162,17 @@
                 </TreeView>
             </Grid>
 
-            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="#B0B0B0"/>
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="{DynamicResource Win10Border}"/>
 
             <!-- PANEL CENTRAL: CABECERA DEL OBJETO + TABLA CLÁSICA "Name | Value" -->
-            <Grid Grid.Column="2" Background="#FFFFFF">
+            <Grid Grid.Column="2" Background="{DynamicResource ThemeInputBg}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="46"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
                 <!-- Barra superior de la tabla Name | Value -->
-                <Border Grid.Row="0" Background="#ECECEC" BorderBrush="#B0B0B0" BorderThickness="0,0,0,1" Padding="8,4">
+                <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="8,4">
                     <DockPanel>
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock x:Name="LblFieldFilter" Text="Filtrar propiedad:" VerticalAlignment="Center" Margin="0,0,5,0" FontSize="11.5"/>
@@ -183,12 +184,12 @@
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Border Width="34" Height="34" BorderBrush="#505050" BorderThickness="1" Background="#111111" Margin="0,0,8,0">
+                            <Border Width="34" Height="34" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Background="#111111" Margin="0,0,8,0">
                                 <Image x:Name="ImgSelectedObjectHeader" Stretch="Fill" RenderOptions.BitmapScalingMode="HighQuality"/>
                             </Border>
                             <StackPanel VerticalAlignment="Center">
                                 <TextBlock x:Name="TxtSelectedObjectHeaderName" Text="Selecciona un objeto a la izquierda" FontWeight="Bold" FontSize="13"/>
-                                <TextBlock x:Name="TxtSelectedObjectHeaderSub" Text="Categoría • Rawcode" Foreground="#444444" FontSize="11"/>
+                                <TextBlock x:Name="TxtSelectedObjectHeaderSub" Text="Categoría • Rawcode" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11"/>
                             </StackPanel>
                         </StackPanel>
                     </DockPanel>
@@ -198,22 +199,26 @@
                 <DataGrid Grid.Row="1"
                           x:Name="GridFields"
                           AutoGenerateColumns="False"
-                          Background="#FFFFFF"
+                          Background="{DynamicResource ThemeInputBg}"
                           RowHeaderWidth="0"
                           CanUserAddRows="False"
                           CanUserDeleteRows="False"
                           GridLinesVisibility="Horizontal"
-                          HorizontalGridLinesBrush="#E8E8E8"
+                          HorizontalGridLinesBrush="{DynamicResource Win10Border}"
                           MouseDoubleClick="GridFields_MouseDoubleClick"
                           PreviewKeyDown="GridFields_PreviewKeyDown"
                           SelectionChanged="GridFields_SelectionChanged">
                     <DataGrid.RowStyle>
-                        <Style TargetType="DataGridRow">
+                        <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsModified}" Value="True">
-                                    <Setter Property="Foreground" Value="#00458B"/>
+                                    <Setter Property="Foreground" Value="{DynamicResource ThemeAccentText}"/>
                                     <Setter Property="FontWeight" Value="SemiBold"/>
                                 </DataTrigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource ThemeSelectedBg}"/>
+                                    <Setter Property="Foreground" Value="{DynamicResource ThemeSelectedText}"/>
+                                </Trigger>
                             </Style.Triggers>
                         </Style>
                     </DataGrid.RowStyle>
@@ -247,15 +252,15 @@
                 </DataGrid>
             </Grid>
 
-            <GridSplitter Grid.Column="3" Width="4" HorizontalAlignment="Stretch" Background="#B0B0B0"/>
+            <GridSplitter Grid.Column="3" Width="4" HorizontalAlignment="Stretch" Background="{DynamicResource Win10Border}"/>
 
             <!-- PANEL DERECHO: INSPECTOR, STATS Y PREVISUALIZADOR 3D -->
             <ScrollViewer Grid.Column="4" Background="{DynamicResource Win10WindowBg}" Padding="10" VerticalScrollBarVisibility="Auto">
                 <StackPanel>
 
                     <!-- Grilla 4x3 de Posición de Botón (Command Card) + Datos de Icono/Hotkey -->
-                    <TextBlock Text="CARTA DE COMANDO 4x3 (CLIC PARA MOVER BOTÓN X,Y)" FontWeight="Bold" FontSize="11" Foreground="#005499" Margin="0,0,0,5"/>
-                    <Border Background="#E2E2E2" BorderBrush="#999999" BorderThickness="1" Padding="8" Margin="0,0,0,10">
+                    <TextBlock Text="CARTA DE COMANDO 4x3 (CLIC PARA MOVER BOTÓN X,Y)" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,5"/>
+                    <Border Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="8" Margin="0,0,0,10">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -267,7 +272,7 @@
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                 <TextBlock x:Name="TxtCardPosInfo" Text="Button Pos: (0, 0)" FontWeight="Bold" Margin="0,0,0,4"/>
                                 <TextBlock x:Name="TxtCardHotkeyInfo" Text="Hotkey: -" Margin="0,0,0,4"/>
-                                <TextBlock Text="Ruta de Icono (.blp):" FontSize="11" Foreground="#444444"/>
+                                <TextBlock Text="Ruta de Icono (.blp):" FontSize="11" Foreground="{DynamicResource ThemeTextMuted}"/>
                                 <DockPanel Margin="0,2,0,0">
                                     <Button DockPanel.Dock="Right" Content="🎨" Width="26" Height="22" Margin="3,0,0,0" Style="{StaticResource Win10ClassicButton}" ToolTip="Editar o crear con Icon Manager" Click="BtnEditIconInManager_Click"/>
                                     <Button DockPanel.Dock="Right" Content="🔍" Width="26" Height="22" Margin="4,0,0,0" Style="{StaticResource Win10ClassicButton}" ToolTip="Elegir icono desde MPQ o Importaciones con vista previa" Click="BtnBrowseIconInPicker_Click"/>
@@ -416,7 +421,7 @@
                              TextChanged="TxtTooltipExtended_TextChanged"/>
 
                     <!-- PREVISUALIZADOR EN VIVO ESTILO WARCRAFT III -->
-                    <TextBlock Text="PREVISUALIZACIÓN" FontWeight="Bold" FontSize="11" Foreground="#005499" Margin="0,0,0,4"/>
+                    <TextBlock Text="PREVISUALIZACIÓN" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,4"/>
                     <Border Background="#0B0E14" BorderBrush="#C8A858" BorderThickness="2" Padding="10">
                         <StackPanel>
                             <DockPanel Margin="0,0,0,6">

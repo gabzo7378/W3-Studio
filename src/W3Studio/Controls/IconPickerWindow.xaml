@@ -21,9 +21,9 @@
             <DockPanel LastChildFill="False">
                 <StackPanel DockPanel.Dock="Left" Orientation="Vertical">
                     <TextBlock x:Name="TxtHeaderTitle" Text="Seleccionar Icono" FontWeight="Bold" FontSize="13"/>
-                    <TextBlock Text="Explora iconos base de Warcraft III e importaciones del mapa con verificación DISBTN" FontSize="11" Foreground="#666666"/>
+                    <TextBlock Text="Explora iconos base de Warcraft III e importaciones del mapa con verificación DISBTN" FontSize="11" Foreground="{DynamicResource ThemeTextMuted}"/>
                 </StackPanel>
-                <TextBlock x:Name="TxtCount" DockPanel.Dock="Right" VerticalAlignment="Center" FontSize="11.5" FontWeight="SemiBold" Foreground="#005499"/>
+                <TextBlock x:Name="TxtCount" DockPanel.Dock="Right" VerticalAlignment="Center" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource ThemeAccentText}"/>
             </DockPanel>
         </Border>
 
@@ -67,9 +67,9 @@
 
                     <ListBox Grid.Row="1"
                              x:Name="LstIcons"
-                             Background="#FFFFFF"
-                             Foreground="#111111"
-                             BorderBrush="#808080"
+                             Background="{DynamicResource ThemeInputBg}"
+                             Foreground="{DynamicResource Win10Text}"
+                             BorderBrush="{DynamicResource Win10Border}"
                              BorderThickness="1"
                              VirtualizingStackPanel.IsVirtualizing="True"
                              VirtualizingStackPanel.VirtualizationMode="Recycling"
@@ -87,7 +87,7 @@
                                     </Border>
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" FontSize="12"/>
-                                        <TextBlock Text="{Binding MpqPath}" FontFamily="Consolas" FontSize="10.5" Foreground="#555555" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding MpqPath}" FontFamily="Consolas" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" TextTrimming="CharacterEllipsis"/>
                                     </StackPanel>
                                 </DockPanel>
                             </DataTemplate>
@@ -165,7 +165,7 @@
         <DockPanel Grid.Row="2" Margin="0,8,0,0" LastChildFill="False">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                 <Button Content="Cancelar" Style="{StaticResource Win10ClassicButton}" Padding="14,5" Margin="0,0,8,0" Click="BtnCancel_Click"/>
-                <Button Content="✓ Elegir Icono" Style="{StaticResource Win10ClassicButton}" Padding="16,5" Background="#DDF4DF" BorderBrush="#2EA043" FontWeight="Bold" Click="BtnAccept_Click"/>
+                <Button Content="✓ Elegir Icono" Style="{StaticResource Win10ClassicButton}" Padding="16,5" Background="{DynamicResource ThemeSuccessBg}" BorderBrush="{DynamicResource ThemeSuccessBorder}" Foreground="{DynamicResource ThemeSuccessText}" FontWeight="Bold" Click="BtnAccept_Click"/>
             </StackPanel>
         </DockPanel>
     </Grid>

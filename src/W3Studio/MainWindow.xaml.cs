@@ -158,10 +158,7 @@ public partial class MainWindow : Window
             MapViewport.LoadProject(project);
             ImgSidebarMinimap.Source = MapViewport.MinimapBitmap;
             Map3DViewport.SetContext(_blpIconService, project);
-            if (RadioViewport3D.IsChecked == true)
-            {
-                Map3DViewport.LoadMap(project);
-            }
+            Map3DViewport.LoadMap(project);
             TxtSidebarLighting.Text = $"Noon ({project.Terrain.TilesetName})";
             UpdateMapHeaderOverlay();
 
@@ -453,26 +450,6 @@ public partial class MainWindow : Window
         MapViewport.MarkViewportDirty();
     }
 
-    private void ViewportMode_Checked(object sender, RoutedEventArgs e)
-    {
-        if (Map3DViewport == null || MapViewport == null) return;
-        if (RadioViewport3D.IsChecked == true)
-        {
-            Map3DViewport.Visibility = Visibility.Visible;
-            MapViewport.Visibility = Visibility.Collapsed;
-            if (_currentProject != null)
-            {
-                Map3DViewport.SetContext(_blpIconService, _currentProject);
-                Map3DViewport.LoadMap(_currentProject);
-            }
-        }
-        else
-        {
-            Map3DViewport.Visibility = Visibility.Collapsed;
-            MapViewport.Visibility = Visibility.Visible;
-        }
-    }
-
     private void BtnDistanceDec_Click(object sender, RoutedEventArgs e)
     {
         MapViewport.CameraDistance = Math.Max(600, MapViewport.CameraDistance - 250);
@@ -754,8 +731,9 @@ public partial class MainWindow : Window
         {
             if (b == null) continue;
             bool active = b.Tag is string t && t == tag;
-            b.Background = active ? new SolidColorBrush(Color.FromRgb(0xCD, 0xE8, 0xFF)) : SystemColors.ControlBrush;
-            b.BorderBrush = active ? new SolidColorBrush(Color.FromRgb(0x26, 0x73, 0xC5)) : new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+            b.SetResourceReference(Control.BackgroundProperty, active ? "ThemeSelectedBg" : "ThemeButtonBg");
+            b.SetResourceReference(Control.ForegroundProperty, active ? "ThemeSelectedText" : "Win10Text");
+            b.SetResourceReference(Control.BorderBrushProperty, active ? "Win10Accent" : "Win10Border");
         }
         SyncTerrainBrushToViewport();
     }
@@ -774,8 +752,9 @@ public partial class MainWindow : Window
         {
             if (b == null) continue;
             bool active = b.Tag is string t && t == tag;
-            b.Background = active ? new SolidColorBrush(Color.FromRgb(0xCD, 0xE8, 0xFF)) : SystemColors.ControlBrush;
-            b.BorderBrush = active ? new SolidColorBrush(Color.FromRgb(0x26, 0x73, 0xC5)) : new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+            b.SetResourceReference(Control.BackgroundProperty, active ? "ThemeSelectedBg" : "ThemeButtonBg");
+            b.SetResourceReference(Control.ForegroundProperty, active ? "ThemeSelectedText" : "Win10Text");
+            b.SetResourceReference(Control.BorderBrushProperty, active ? "Win10Accent" : "Win10Border");
         }
         SyncTerrainBrushToViewport();
     }
@@ -1821,6 +1800,19 @@ endlibrary
         {
             var theme = ThemeService.ParseTheme(themeTag);
             ThemeService.ApplyTheme(theme, _settings, saveSettings: true);
+            UpdateThemeMenuCheckmarks();
+        }
+    }
+
+    private void UpdateThemeMenuCheckmarks()
+    {
+        if (MenuThemeSub == null) return;
+        foreach (var item in MenuThemeSub.Items.OfType<MenuItem>())
+        {
+            if (item.Tag is string tag)
+            {
+                item.IsChecked = ThemeService.ParseTheme(tag) == ThemeService.CurrentTheme;
+            }
         }
     }
 
@@ -1866,6 +1858,7 @@ endlibrary
 
     private void ApplyMainWindowLocalization()
     {
+        UpdateThemeMenuCheckmarks();
         if (MenuLangEs != null) MenuLangEs.IsChecked = LocalizationService.IsSpanish;
         if (MenuLangEn != null) MenuLangEn.IsChecked = LocalizationService.IsEnglish;
         if (MenuConfigRoot != null) MenuConfigRoot.Header = LocalizationService.L("_Configuración", "_Settings");

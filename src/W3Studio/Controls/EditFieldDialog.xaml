@@ -27,22 +27,23 @@
         <Grid Grid.Row="1">
             <!-- 1. MODO DROPDOWN / COMBOBOX (TIPO DE ATAQUE, ARMADURA, ATRIBUTO PRINCIPAL, ETC.) -->
             <StackPanel x:Name="PnlChoice" Visibility="Collapsed" VerticalAlignment="Top">
-                <TextBlock Text="Selecciona un valor permitido:" Foreground="#333333" FontSize="11.5" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                <TextBlock Text="Selecciona un valor permitido:" Foreground="{DynamicResource Win10Text}" FontSize="11.5" FontWeight="SemiBold" Margin="0,0,0,6"/>
                 <ComboBox x:Name="CmbChoice"
                           Height="32"
                           FontSize="12"
                           Padding="8,5"
-                          Background="#FFFFFF"
-                          BorderBrush="#A5A5A5"
+                          Background="{DynamicResource ThemeInputBg}"
+                          Foreground="{DynamicResource ThemeInputText}"
+                          BorderBrush="{DynamicResource Win10Border}"
                           BorderThickness="1"
                           VerticalContentAlignment="Center"/>
-                <TextBlock x:Name="TxtChoiceDesc" Foreground="#666666" FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap"
+                <TextBlock x:Name="TxtChoiceDesc" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap"
                            Text="Solo se permiten los valores estándar reconocidos por el motor de Warcraft III."/>
             </StackPanel>
 
             <!-- 2. MODO NUMÉRICO (ENTEROS Y REALES CON LÍMITES / INTERVALOS Y SPINNER) -->
             <StackPanel x:Name="PnlNumeric" Visibility="Collapsed" VerticalAlignment="Top">
-                <TextBlock x:Name="TxtNumericLabel" Text="Introduce un valor numérico:" Foreground="#333333" FontSize="11.5" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                <TextBlock x:Name="TxtNumericLabel" Text="Introduce un valor numérico:" Foreground="{DynamicResource Win10Text}" FontSize="11.5" FontWeight="SemiBold" Margin="0,0,0,6"/>
                 <Grid Margin="0,0,0,6">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -56,10 +57,10 @@
                              FontWeight="SemiBold"
                              Padding="8,5"
                              VerticalContentAlignment="Center"
-                             BorderBrush="#A5A5A5"
+                             BorderBrush="{DynamicResource Win10Border}"
                              BorderThickness="1"
-                             Background="#FFFFFF"
-                             Foreground="#111111"
+                             Background="{DynamicResource ThemeInputBg}"
+                             Foreground="{DynamicResource ThemeInputText}"
                              TextChanged="TxtNumericValue_TextChanged"/>
 
                     <StackPanel Grid.Column="1" Orientation="Vertical" Width="26" Margin="4,0,0,0">
@@ -68,8 +69,8 @@
                     </StackPanel>
                 </Grid>
 
-                <TextBlock x:Name="TxtNumericRange" Foreground="#555555" FontSize="11" Text="Intervalo válido: [0 .. 1000000]"/>
-                <TextBlock x:Name="TxtNumericError" Foreground="#D92525" FontSize="11" Margin="0,4,0,0" FontWeight="SemiBold" Visibility="Collapsed"/>
+                <TextBlock x:Name="TxtNumericRange" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" Text="Intervalo válido: [0 .. 1000000]"/>
+                <TextBlock x:Name="TxtNumericError" Foreground="#EF4444" FontSize="11" Margin="0,4,0,0" FontWeight="SemiBold" Visibility="Collapsed"/>
             </StackPanel>
 
             <!-- 3. MODO TEXTO MULTILÍNEA / STRINGS LIBRES (NOMBRES, HABILIDADES, TOOLTIPS) -->
@@ -81,16 +82,16 @@
                          AcceptsReturn="True"
                          TextWrapping="Wrap"
                          VerticalScrollBarVisibility="Auto"
-                         BorderBrush="#A5A5A5"
+                         BorderBrush="{DynamicResource Win10Border}"
                          BorderThickness="1"
-                         Background="#FFFFFF"
-                         Foreground="#111111"/>
+                         Background="{DynamicResource ThemeInputBg}"
+                         Foreground="{DynamicResource ThemeInputText}"/>
             </Grid>
         </Grid>
 
         <!-- PIE DE VENTANA: AYUDA Y BOTONES -->
         <DockPanel Grid.Row="2" Margin="0,12,0,0" LastChildFill="False">
-            <TextBlock x:Name="TxtFooterHint" DockPanel.Dock="Left" VerticalAlignment="Center" Foreground="#777777" FontSize="10.5"
+            <TextBlock x:Name="TxtFooterHint" DockPanel.Dock="Left" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5"
                        Text="Presiona Enter para Aceptar, Escape para Cancelar"/>
             <Button x:Name="BtnCancel" DockPanel.Dock="Right" Content="Cancelar" IsCancel="True" Width="85" Height="26" Margin="6,0,0,0"/>
             <Button x:Name="BtnOk" DockPanel.Dock="Right" Content="Aceptar" IsDefault="True" Width="85" Height="26" Click="BtnOk_Click"/>

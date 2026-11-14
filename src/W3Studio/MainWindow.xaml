@@ -11,8 +11,8 @@
         Width="1540" Height="920"
         MinWidth="1120" MinHeight="680"
         WindowStartupLocation="CenterScreen"
-        Background="#F0F0F0"
-        Foreground="#111111"
+        Background="{DynamicResource Win10WindowBg}"
+        Foreground="{DynamicResource Win10Text}"
         FontFamily="Segoe UI"
         FontSize="12"
         UseLayoutRounding="True"
@@ -238,16 +238,16 @@
 
                     <Rectangle Width="1" Height="20" Fill="{DynamicResource Win10Border}" Margin="5,0"/>
 
-                    <Button x:Name="BtnSaveAndCompile" Style="{StaticResource WeToolbarIconBtn}" Padding="8,2" Background="#FFF8DC" BorderBrush="#C89D28" FontWeight="SemiBold" ToolTip="Guardar y compilar el mapa completo (Ctrl+S / F7). Si hay errores en los scripts, se mostrarán y no se podrá probar." Click="BtnSaveAndCompile_Click">
+                    <Button x:Name="BtnSaveAndCompile" Style="{StaticResource WeToolbarIconBtn}" Padding="8,2" Background="{DynamicResource ThemeWarningBg}" BorderBrush="{DynamicResource ThemeWarningBorder}" FontWeight="SemiBold" ToolTip="Guardar y compilar el mapa completo (Ctrl+S / F7). Si hay errores en los scripts, se mostrarán y no se podrá probar." Click="BtnSaveAndCompile_Click">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/Icons/save_compile.png" Width="16" Height="16" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Guardar (Ctrl+S / F7)" Foreground="#111111" VerticalAlignment="Center"/>
+                            <TextBlock Text="Guardar (Ctrl+S / F7)" Foreground="{DynamicResource ThemeWarningText}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <Button x:Name="BtnTestMap" Style="{StaticResource WeToolbarIconBtn}" Padding="9,2" Background="#E6F4EA" BorderBrush="#2EA043" FontWeight="Bold" IsEnabled="False" ToolTip="Lanzar y probar el mapa en Warcraft III (F9). Se activa cuando el mapa esté guardado y compilado sin errores." Click="BtnTestMap_Click" Margin="3,1,0,1">
+                    <Button x:Name="BtnTestMap" Style="{StaticResource WeToolbarIconBtn}" Padding="9,2" Background="{DynamicResource ThemeSuccessBg}" BorderBrush="{DynamicResource ThemeSuccessBorder}" FontWeight="Bold" IsEnabled="False" ToolTip="Lanzar y probar el mapa en Warcraft III (F9). Se activa cuando el mapa esté guardado y compilado sin errores." Click="BtnTestMap_Click" Margin="3,1,0,1">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/Icons/play.png" Width="15" Height="15" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Probar (F9)" Foreground="#111111" VerticalAlignment="Center"/>
+                            <TextBlock Text="Probar (F9)" Foreground="{DynamicResource ThemeSuccessText}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
                 </StackPanel>
@@ -262,8 +262,8 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- PANEL IZQUIERDO CLÁSICO WORLD EDITOR (Gris #808080 con controles hundidos estilo Win10/WE) -->
-            <Border Grid.Column="0" Background="#808080" BorderBrush="#505050" BorderThickness="0,0,1,0">
+            <!-- PANEL IZQUIERDO CLÁSICO WORLD EDITOR (Adaptable al tema activo) -->
+            <Border Grid.Column="0" Background="{DynamicResource Win10SidebarGray}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,1,0">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -272,33 +272,33 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Casillas Superiores (Idénticas a la captura) -->
-                    <Border Grid.Row="0" Background="#808080" Padding="6,10,6,8">
+                    <!-- Casillas Superiores -->
+                    <Border Grid.Row="0" Background="{DynamicResource Win10SidebarGray}" Padding="6,10,6,8">
                         <StackPanel>
-                            <Border Background="#FFFFFF" BorderBrush="#404040" BorderThickness="1" Padding="4,2" Margin="0,1">
+                            <Border Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="5,3" Margin="0,1">
                                 <CheckBox x:Name="ChkNeutralBuildings" Content="Show Neutral Building Icons" IsChecked="True" FontSize="11.5" Checked="LayerCheckbox_Changed" Unchecked="LayerCheckbox_Changed"/>
                             </Border>
-                            <Border Background="#FFFFFF" BorderBrush="#404040" BorderThickness="1" Padding="4,2" Margin="0,1">
+                            <Border Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="5,3" Margin="0,1">
                                 <CheckBox x:Name="ChkCreepCamps" Content="Show Creep Camp Icons" IsChecked="True" FontSize="11.5" Checked="LayerCheckbox_Changed" Unchecked="LayerCheckbox_Changed"/>
                             </Border>
-                            <Border Background="#FFFFFF" BorderBrush="#404040" BorderThickness="1" Padding="4,2" Margin="0,1">
+                            <Border Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="5,3" Margin="0,1">
                                 <CheckBox x:Name="ChkViewGameMinimap" Content="View Game Minimap" IsChecked="True" FontSize="11.5" Checked="LayerCheckbox_Changed" Unchecked="LayerCheckbox_Changed"/>
                             </Border>
-                            <Border Background="#FFFFFF" BorderBrush="#404040" BorderThickness="1" Padding="4,2" Margin="0,1">
+                            <Border Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="5,3" Margin="0,1">
                                 <CheckBox x:Name="ChkShowDoodads" Content="Show Trees &amp; Doodads" IsChecked="True" FontSize="11.5" Checked="LayerCheckbox_Changed" Unchecked="LayerCheckbox_Changed"/>
                             </Border>
-                            <Border Background="#FFFFFF" BorderBrush="#404040" BorderThickness="1" Padding="4,2" Margin="0,1">
+                            <Border Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="5,3" Margin="0,1">
                                 <CheckBox x:Name="ChkShowRegions" Content="Show Regions (Rects)" IsChecked="False" FontSize="11.5" Checked="LayerCheckbox_Changed" Unchecked="LayerCheckbox_Changed"/>
                             </Border>
-                            <Border Background="#FFFFFF" BorderBrush="#404040" BorderThickness="1" Padding="4,2" Margin="0,1">
+                            <Border Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="5,3" Margin="0,1">
                                 <CheckBox x:Name="ChkShowGrid" Content="Show Terrain Grid (G)" IsChecked="False" FontSize="11.5" Checked="LayerCheckbox_Changed" Unchecked="LayerCheckbox_Changed"/>
                             </Border>
                         </StackPanel>
                     </Border>
 
                     <!-- MINIMAPA INTERACTIVO EN VIVO (Con rectángulo blanco de cámara) -->
-                    <Border Grid.Row="1" Background="#D8D8D8" BorderBrush="#505050" BorderThickness="0,1,0,1" Padding="6">
-                        <Border Width="200" Height="200" Background="#242424" BorderBrush="#404040" BorderThickness="1"
+                    <Border Grid.Row="1" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,1,0,1" Padding="6">
+                        <Border Width="200" Height="200" Background="#242424" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1"
                                 MouseLeftButtonDown="MinimapBox_MouseDown"
                                 MouseMove="MinimapBox_MouseMove">
                             <Grid Width="198" Height="198" ClipToBounds="True">
@@ -315,8 +315,8 @@
                         </Border>
                     </Border>
 
-                    <!-- Controles Distance / Rotate / Lighting (Idénticos a la captura) -->
-                    <Border Grid.Row="2" Background="#E6E6E6" BorderBrush="#505050" BorderThickness="0,0,0,1" Padding="5,4">
+                    <!-- Controles Distance / Rotate / Lighting -->
+                    <Border Grid.Row="2" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="5,4">
                         <StackPanel>
                             <Grid Margin="0,1">
                                 <Grid.ColumnDefinitions>
@@ -360,20 +360,20 @@
                     </Border>
 
                     <!-- Inspector del Elemento Seleccionado en el Mapa -->
-                    <Border Grid.Row="3" Background="#808080" Padding="6">
-                        <Border Background="#F0F0F0" BorderBrush="#404040" BorderThickness="1" Padding="6">
+                    <Border Grid.Row="3" Background="{DynamicResource Win10SidebarGray}" Padding="6">
+                        <Border Background="{DynamicResource Win10WindowBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="6">
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                                 <StackPanel>
-                                    <TextBlock Text="OBJETO SELECCIONADO EN MAPA" FontWeight="Bold" FontSize="11" Foreground="#005499" Margin="0,0,0,4"/>
+                                    <TextBlock Text="OBJETO SELECCIONADO EN MAPA" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,4"/>
                                     <TextBlock x:Name="TxtSelectedMapEntityTitle" Text="Ninguno (Haz clic en el mapa)" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,2"/>
-                                    <TextBlock x:Name="TxtSelectedMapEntityVar" Text="Var: -" Foreground="#333333" FontSize="10.5" TextWrapping="Wrap" Margin="0,0,0,2"/>
-                                    <TextBlock x:Name="TxtSelectedMapEntityPos" Text="Pos: -" Foreground="#444444" FontSize="10.5" Margin="0,0,0,2"/>
-                                    <TextBlock x:Name="TxtSelectedMapEntityOwner" Text="Dueño: -" Foreground="#444444" FontSize="10.5" Margin="0,0,0,6"/>
+                                    <TextBlock x:Name="TxtSelectedMapEntityVar" Text="Var: -" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" TextWrapping="Wrap" Margin="0,0,0,2"/>
+                                    <TextBlock x:Name="TxtSelectedMapEntityPos" Text="Pos: -" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" Margin="0,0,0,2"/>
+                                    <TextBlock x:Name="TxtSelectedMapEntityOwner" Text="Dueño: -" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" Margin="0,0,0,6"/>
 
                                     <!-- Editor Rápido de Propiedades (Unidades / Doodads en 3D) -->
                                     <StackPanel x:Name="PnlSelectedEntityEditor" Visibility="Collapsed" Margin="0,0,0,6">
                                         <StackPanel x:Name="PnlUnitOwnerRow" Margin="0,0,0,4">
-                                            <TextBlock Text="Dueño (Player):" FontSize="10.5" Foreground="#222"/>
+                                            <TextBlock Text="Dueño (Player):" FontSize="10.5" Foreground="{DynamicResource Win10Text}"/>
                                             <ComboBox x:Name="CmbSelectedEntityOwner" FontSize="11" Padding="4,2" SelectionChanged="CmbSelectedEntityOwner_SelectionChanged"/>
                                         </StackPanel>
 
@@ -386,7 +386,7 @@
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0">
-                                                <TextBlock Text="Ángulo (°):" FontSize="10.5" Foreground="#222"/>
+                                                <TextBlock Text="Ángulo (°):" FontSize="10.5" Foreground="{DynamicResource Win10Text}"/>
                                                 <TextBox x:Name="TxtSelectedEntityAngle" Style="{StaticResource Win10TextBox}" Padding="3,1" FontSize="11"/>
                                             </StackPanel>
                                             <Button Grid.Column="2" Content="⟲" Width="24" Height="22" VerticalAlignment="Bottom" Style="{StaticResource Win10ClassicButton}" ToolTip="Rotar -45°" Click="BtnRotateEntityLeft_Click"/>
@@ -400,11 +400,11 @@
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0">
-                                                <TextBlock Text="Escala:" FontSize="10.5" Foreground="#222"/>
+                                                <TextBlock Text="Escala:" FontSize="10.5" Foreground="{DynamicResource Win10Text}"/>
                                                 <TextBox x:Name="TxtSelectedEntityScale" Style="{StaticResource Win10TextBox}" Padding="3,1" FontSize="11"/>
                                             </StackPanel>
                                             <StackPanel Grid.Column="2">
-                                                <TextBlock x:Name="LblSelectedEntityHp" Text="Vida (% / -1):" FontSize="10.5" Foreground="#222"/>
+                                                <TextBlock x:Name="LblSelectedEntityHp" Text="Vida (% / -1):" FontSize="10.5" Foreground="{DynamicResource Win10Text}"/>
                                                 <TextBox x:Name="TxtSelectedEntityHp" Style="{StaticResource Win10TextBox}" Padding="3,1" FontSize="11"/>
                                             </StackPanel>
                                         </Grid>
@@ -416,28 +416,28 @@
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0">
-                                                <TextBlock Text="Maná (-1=def):" FontSize="10.5" Foreground="#222"/>
+                                                <TextBlock Text="Maná (-1=def):" FontSize="10.5" Foreground="{DynamicResource Win10Text}"/>
                                                 <TextBox x:Name="TxtSelectedEntityMp" Style="{StaticResource Win10TextBox}" Padding="3,1" FontSize="11"/>
                                             </StackPanel>
                                             <StackPanel Grid.Column="2">
-                                                <TextBlock Text="Nivel Héroe:" FontSize="10.5" Foreground="#222"/>
+                                                <TextBlock Text="Nivel Héroe:" FontSize="10.5" Foreground="{DynamicResource Win10Text}"/>
                                                 <TextBox x:Name="TxtSelectedEntityLevel" Style="{StaticResource Win10TextBox}" Padding="3,1" FontSize="11"/>
                                             </StackPanel>
                                         </Grid>
 
                                         <StackPanel x:Name="PnlDoodadVarRow" Visibility="Collapsed" Margin="0,0,0,4">
-                                            <TextBlock Text="Variación (0..N):" FontSize="10.5" Foreground="#222"/>
+                                            <TextBlock Text="Variación (0..N):" FontSize="10.5" Foreground="{DynamicResource Win10Text}"/>
                                             <TextBox x:Name="TxtSelectedEntityVariation" Style="{StaticResource Win10TextBox}" Padding="3,1" FontSize="11"/>
                                         </StackPanel>
 
                                         <UniformGrid Columns="2" Margin="0,2,0,2">
-                                            <Button Height="23" Style="{StaticResource Win10ClassicButton}" Background="#DFF0D8" BorderBrush="#3C763D" Margin="0,0,2,0" Click="BtnApplyEntityProps_Click">
+                                            <Button Height="23" Style="{StaticResource Win10ClassicButton}" Background="{DynamicResource ThemeSuccessBg}" BorderBrush="{DynamicResource ThemeSuccessBorder}" Foreground="{DynamicResource ThemeSuccessText}" Margin="0,0,2,0" Click="BtnApplyEntityProps_Click">
                                                 <StackPanel Orientation="Horizontal">
                                                     <Image Source="pack://application:,,,/Assets/Icons/apply.png" Width="13" Height="13" Margin="0,0,4,0"/>
                                                     <TextBlock Text="Aplicar" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                             </Button>
-                                            <Button Height="23" Style="{StaticResource Win10ClassicButton}" Background="#F9E2E2" BorderBrush="#C44" Margin="2,0,0,0" Click="BtnDeleteSelectedEntity_Click">
+                                            <Button Height="23" Style="{StaticResource Win10ClassicButton}" Background="{DynamicResource ThemeDangerBg}" BorderBrush="{DynamicResource ThemeDangerBorder}" Foreground="{DynamicResource ThemeDangerText}" Margin="2,0,0,0" Click="BtnDeleteSelectedEntity_Click">
                                                 <StackPanel Orientation="Horizontal">
                                                     <Image Source="pack://application:,,,/Assets/Icons/delete.png" Width="13" Height="13" Margin="0,0,4,0"/>
                                                     <TextBlock Text="Eliminar" VerticalAlignment="Center"/>
@@ -468,7 +468,7 @@
                 </Grid>
             </Border>
 
-            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="#B0B0B0"/>
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="{DynamicResource Win10Border}"/>
 
             <!-- ÁREA PRINCIPAL (SIN PESTAÑAS REDUNDANTES - CONTROLADA DESDE LA BARRA DE HERRAMIENTAS) -->
             <TabControl Grid.Column="2" x:Name="MainWorkspaceTabs"
@@ -494,60 +494,15 @@
                         <!-- Lienzo interactivo 2D del Mapa (Esquemático rápido) -->
                         <controls:WorldMapViewport x:Name="MapViewport" Visibility="Collapsed" />
 
-                        <!-- Selector de Modo de Vista 3D Oficial / 2D -->
-                        <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,10,265,0"
-                                Background="#D8181A1F" BorderBrush="#808080" BorderThickness="1" CornerRadius="4" Padding="6,3">
-                            <StackPanel Orientation="Horizontal">
-                                <RadioButton x:Name="RadioViewport3D"
-                                             IsChecked="True"
-                                             GroupName="MapViewportMode"
-                                             Style="{StaticResource {x:Type ToggleButton}}"
-                                             Padding="8,3"
-                                             Margin="0,0,4,0"
-                                             Checked="ViewportMode_Checked">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Image Source="pack://application:,,,/Assets/Icons/mode_3d.png" Width="15" Height="15" Margin="0,0,5,0"/>
-                                        <TextBlock Text="Modo 3D (World Editor Oficial)" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </RadioButton>
-                                <RadioButton x:Name="RadioViewport2D"
-                                             GroupName="MapViewportMode"
-                                             Style="{StaticResource {x:Type ToggleButton}}"
-                                             Padding="8,3"
-                                             Checked="ViewportMode_Checked">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Image Source="pack://application:,,,/Assets/Icons/mode_2d.png" Width="15" Height="15" Margin="0,0,5,0"/>
-                                        <TextBlock Text="Modo 2D Esquemático" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </RadioButton>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Leyenda Superior Flotante Discreta -->
-                        <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,10,0,0"
-                                Background="#D8181A1F" BorderBrush="#808080" BorderThickness="1" Padding="10,5" IsHitTestVisible="False">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock x:Name="TxtMapOverlayHeader"
-                                           Text="Mapa: Cargando..."
-                                           Foreground="#FFCC00"
-                                           FontWeight="Bold"
-                                           FontSize="12.5"/>
-                                <TextBlock Text="   |   Rueda: Zoom   •   Clic Izq/Der + Arrastrar: Mover Cámara   •   Clic en Unidad/Región: Inspeccionar"
-                                           Foreground="#E0E0E0"
-                                           FontSize="11.5"
-                                           VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- VENTANA FLOTANTE CLÁSICA "Tool Palette" (Idéntica a la derecha de la captura del usuario) -->
+                        <!-- VENTANA FLOTANTE CLÁSICA "Tool Palette" (Adaptable al tema activo) -->
                         <Border x:Name="FloatingToolPalette"
                                 Width="245"
                                 Height="540"
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center"
                                 Margin="0,12,18,12"
-                                Background="#F0F0F0"
-                                BorderBrush="#606060"
+                                Background="{DynamicResource Win10WindowBg}"
+                                BorderBrush="{DynamicResource Win10Border}"
                                 BorderThickness="1">
                             <Grid>
                                 <Grid.RowDefinitions>
@@ -558,11 +513,11 @@
                                 </Grid.RowDefinitions>
 
                                 <!-- Barra de título estilo ventana Windows 10 -->
-                                <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#C8C8C8" BorderThickness="0,0,0,1" Padding="8,0">
+                                <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="8,0">
                                     <Grid>
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Image Source="pack://application:,,,/Assets/Icons/terrain.png" Width="14" Height="14" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                                            <TextBlock Text="Tool Palette" VerticalAlignment="Center" FontSize="12" Foreground="#111111" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Tool Palette" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource Win10Text}" FontWeight="SemiBold"/>
                                         </StackPanel>
                                         <Button Content="✕" HorizontalAlignment="Right" VerticalAlignment="Center"
                                                 Width="22" Height="20" Background="Transparent" BorderThickness="0"
@@ -612,13 +567,13 @@
 
                                     <!-- Botones verdes clásicos de selección/rotación de la Tool Palette -->
                                     <StackPanel x:Name="PnlPaletteActions" Orientation="Horizontal" Margin="0,0,0,4">
-                                        <Button Width="76" Height="26" Style="{StaticResource Win10ClassicButton}" Background="#DDF4DF" BorderBrush="#3A8E42" Margin="0,0,4,0" Click="BtnPaletteCenterSelected_Click">
+                                        <Button Width="76" Height="26" Style="{StaticResource Win10ClassicButton}" Background="{DynamicResource ThemeSuccessBg}" BorderBrush="{DynamicResource ThemeSuccessBorder}" Foreground="{DynamicResource ThemeSuccessText}" Margin="0,0,4,0" Click="BtnPaletteCenterSelected_Click">
                                             <StackPanel Orientation="Horizontal">
                                                 <Image Source="pack://application:,,,/Assets/Icons/center.png" Width="13" Height="13" Margin="0,0,4,0"/>
                                                 <TextBlock Text="Centrar" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Button>
-                                        <Button Width="76" Height="26" Style="{StaticResource Win10ClassicButton}" Background="#DDF4DF" BorderBrush="#3A8E42" Margin="0,0,4,0" Click="BtnResetMapCamera_Click">
+                                        <Button Width="76" Height="26" Style="{StaticResource Win10ClassicButton}" Background="{DynamicResource ThemeSuccessBg}" BorderBrush="{DynamicResource ThemeSuccessBorder}" Foreground="{DynamicResource ThemeSuccessText}" Margin="0,0,4,0" Click="BtnResetMapCamera_Click">
                                             <StackPanel Orientation="Horizontal">
                                                 <Image Source="pack://application:,,,/Assets/Icons/fit_all.png" Width="13" Height="13" Margin="0,0,4,0"/>
                                                 <TextBlock Text="Ver Todo" VerticalAlignment="Center"/>
@@ -633,13 +588,13 @@
                                     </StackPanel>
                                 </StackPanel>
 
-                                <!-- Lista Blanca Clásica de Elementos de la Paleta -->
+                                <!-- Lista de Elementos de la Paleta -->
                                 <ListBox Grid.Row="2"
                                          x:Name="LstToolPalette"
                                          Margin="8,0,8,6"
-                                         Background="#FFFFFF"
-                                         Foreground="#111111"
-                                         BorderBrush="#808080"
+                                         Background="{DynamicResource ThemeInputBg}"
+                                         Foreground="{DynamicResource Win10Text}"
+                                         BorderBrush="{DynamicResource Win10Border}"
                                          BorderThickness="1"
                                          FontSize="11.5"
                                          DisplayMemberPath="PaletteDisplay"
@@ -651,24 +606,24 @@
                                               Visibility="Collapsed"
                                               Margin="8,0,8,6"
                                               VerticalScrollBarVisibility="Auto"
-                                              Foreground="#111111">
+                                              Foreground="{DynamicResource Win10Text}">
                                     <StackPanel>
                                         <!-- 1. Apply Texture -->
                                         <CheckBox x:Name="ChkApplyTexture"
                                                   Content="Apply Texture"
                                                   FontSize="11.5"
                                                   FontWeight="SemiBold"
-                                                  Foreground="#111111"
+                                                  Foreground="{DynamicResource Win10Text}"
                                                   Checked="TerrainOption_Changed"
                                                   Unchecked="TerrainOption_Changed"/>
-                                        <Border Background="#FFFFFF" BorderBrush="#A0A0A0" BorderThickness="1" Margin="14,3,0,4" Padding="4">
+                                        <Border Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Margin="14,3,0,4" Padding="4">
                                             <WrapPanel x:Name="WpTerrainTextures"/>
                                         </Border>
                                         <CheckBox x:Name="ChkApplyBlight"
                                                   Content="Blight (Tierra Maldita)"
                                                   Margin="14,0,0,7"
                                                   FontSize="11"
-                                                  Foreground="#2A1F3D"
+                                                  Foreground="{DynamicResource Win10Text}"
                                                   Checked="TerrainOption_Changed"
                                                   Unchecked="TerrainOption_Changed"/>
 
@@ -677,10 +632,10 @@
                                                   Content="Apply Cliff: NONE"
                                                   FontSize="11.5"
                                                   FontWeight="SemiBold"
-                                                  Foreground="#111111"
+                                                  Foreground="{DynamicResource Win10Text}"
                                                   Checked="TerrainOption_Changed"
                                                   Unchecked="TerrainOption_Changed"/>
-                                        <Border Background="#FFFFFF" BorderBrush="#A0A0A0" BorderThickness="1" Margin="14,3,0,7" Padding="4">
+                                        <Border Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Margin="14,3,0,7" Padding="4">
                                             <StackPanel>
                                                 <UniformGrid Columns="3" Margin="0,0,0,3">
                                                     <ToggleButton x:Name="BtnCliffDec" Tag="DecreaseOne" Height="24" Margin="1" FontSize="10.5" Content="▼ Bajar" ToolTip="Decrease One (Bajar precipicio 1 nivel)" Click="BtnCliffTool_Click"/>
@@ -688,13 +643,13 @@
                                                     <ToggleButton x:Name="BtnCliffInc" Tag="IncreaseOne" Height="24" Margin="1" FontSize="10.5" Content="▲ Subir" ToolTip="Increase One (Subir precipicio 1 nivel)" Click="BtnCliffTool_Click"/>
                                                 </UniformGrid>
                                                 <UniformGrid Columns="2">
-                                                    <ToggleButton x:Name="BtnCliffWater" Tag="Water" Height="24" Margin="1" FontSize="10.5" Foreground="#0B4F9C" ToolTip="Water (Crear cuenca de agua)" Click="BtnCliffTool_Click">
+                                                    <ToggleButton x:Name="BtnCliffWater" Tag="Water" Height="24" Margin="1" FontSize="10.5" ToolTip="Water (Crear cuenca de agua)" Click="BtnCliffTool_Click">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Image Source="pack://application:,,,/Assets/Icons/terrain_water.png" Width="13" Height="13" Margin="0,0,4,0"/>
                                                             <TextBlock Text="Agua" VerticalAlignment="Center"/>
                                                         </StackPanel>
                                                     </ToggleButton>
-                                                    <ToggleButton x:Name="BtnCliffRamp" Tag="Ramp" Height="24" Margin="1" FontSize="10.5" Foreground="#265C1A" FontWeight="SemiBold" ToolTip="Ramp (Rampa / Precipicio transitable entre niveles)" Click="BtnCliffTool_Click">
+                                                    <ToggleButton x:Name="BtnCliffRamp" Tag="Ramp" Height="24" Margin="1" FontSize="10.5" FontWeight="SemiBold" ToolTip="Ramp (Rampa / Precipicio transitable entre niveles)" Click="BtnCliffTool_Click">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Image Source="pack://application:,,,/Assets/Icons/terrain_ramp.png" Width="13" Height="13" Margin="0,0,4,0"/>
                                                             <TextBlock Text="Rampa" VerticalAlignment="Center"/>
@@ -709,10 +664,10 @@
                                                   Content="Apply Height: NONE"
                                                   FontSize="11.5"
                                                   FontWeight="SemiBold"
-                                                  Foreground="#111111"
+                                                  Foreground="{DynamicResource Win10Text}"
                                                   Checked="TerrainOption_Changed"
                                                   Unchecked="TerrainOption_Changed"/>
-                                        <Border Background="#FFFFFF" BorderBrush="#A0A0A0" BorderThickness="1" Margin="14,3,0,5" Padding="3">
+                                        <Border Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Margin="14,3,0,5" Padding="3">
                                             <UniformGrid Columns="5">
                                                 <!-- Raise -->
                                                 <ToggleButton x:Name="BtnHeightRaise" Tag="Raise" Height="32" Margin="1" ToolTip="Raise (Elevar terreno)" Click="BtnHeightTool_Click">
@@ -767,27 +722,27 @@
 
                                         <TextBlock Text="Clic Izq: Aplicar pincel | Ctrl+Clic: Rotar vista | Esc: Cámara"
                                                    FontSize="10"
-                                                   Foreground="#555555"
+                                                   Foreground="{DynamicResource ThemeTextMuted}"
                                                    TextWrapping="Wrap"
                                                    Margin="2,2,2,0"/>
                                     </StackPanel>
                                 </ScrollViewer>
 
-                                <!-- Sección inferior Size: 1..8 y Shape: Circle / Square (Idéntica a la captura) -->
+                                <!-- Sección inferior Size: 1..8 y Shape: Circle / Square -->
                                 <StackPanel Grid.Row="3" Margin="8,0,8,8">
-                                    <TextBlock x:Name="TxtBrushSizeLabel" Text="Size: 2" FontSize="11" Foreground="#111111" Margin="0,0,0,3"/>
+                                    <TextBlock x:Name="TxtBrushSizeLabel" Text="Size: 2" FontSize="11" Foreground="{DynamicResource Win10Text}" Margin="0,0,0,3"/>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                         <Button x:Name="BtnSize1" Tag="1" Content="•" Width="28" Height="24" Style="{StaticResource Win10ClassicButton}" Margin="0,0,3,0" Click="BtnBrushSize_Click"/>
-                                        <Button x:Name="BtnSize2" Tag="2" Content="●" Width="28" Height="24" Style="{StaticResource Win10ClassicButton}" Background="#CDE8FF" BorderBrush="#2673C5" Margin="0,0,3,0" FontSize="9" Click="BtnBrushSize_Click"/>
+                                        <Button x:Name="BtnSize2" Tag="2" Content="●" Width="28" Height="24" Style="{StaticResource Win10ClassicButton}" Margin="0,0,3,0" FontSize="9" Click="BtnBrushSize_Click"/>
                                         <Button x:Name="BtnSize3" Tag="3" Content="●" Width="28" Height="24" Style="{StaticResource Win10ClassicButton}" Margin="0,0,3,0" FontSize="12" Click="BtnBrushSize_Click"/>
-                                        <Button x:Name="BtnSize5" Tag="5" Content="⬤" Width="28" Height="24" Style="{StaticResource Win10ClassicButton}" Margin="0,0,3,0" Foreground="#2B7A78" Click="BtnBrushSize_Click"/>
-                                        <Button x:Name="BtnSize8" Tag="8" Content="⬛" Width="28" Height="24" Style="{StaticResource Win10ClassicButton}" Foreground="#2B7A78" Click="BtnBrushSize_Click"/>
+                                        <Button x:Name="BtnSize5" Tag="5" Content="⬤" Width="28" Height="24" Style="{StaticResource Win10ClassicButton}" Margin="0,0,3,0" Click="BtnBrushSize_Click"/>
+                                        <Button x:Name="BtnSize8" Tag="8" Content="⬛" Width="28" Height="24" Style="{StaticResource Win10ClassicButton}" Click="BtnBrushSize_Click"/>
                                     </StackPanel>
 
-                                    <TextBlock x:Name="TxtBrushShapeLabel" Text="Shape: Circle" FontSize="11" Foreground="#111111" Margin="0,0,0,3"/>
+                                    <TextBlock x:Name="TxtBrushShapeLabel" Text="Shape: Circle" FontSize="11" Foreground="{DynamicResource Win10Text}" Margin="0,0,0,3"/>
                                     <StackPanel Orientation="Horizontal">
-                                        <Button x:Name="BtnShapeCircle" Tag="Circle" Content="●" Width="28" Height="24" Style="{StaticResource Win10ClassicButton}" Background="#CDE8FF" BorderBrush="#2673C5" Margin="0,0,3,0" Foreground="#2B7A78" Click="BtnBrushShape_Click"/>
-                                        <Button x:Name="BtnShapeSquare" Tag="Square" Content="■" Width="28" Height="24" Style="{StaticResource Win10ClassicButton}" Foreground="#2B7A78" Click="BtnBrushShape_Click"/>
+                                        <Button x:Name="BtnShapeCircle" Tag="Circle" Content="●" Width="28" Height="24" Style="{StaticResource Win10ClassicButton}" Margin="0,0,3,0" Click="BtnBrushShape_Click"/>
+                                        <Button x:Name="BtnShapeSquare" Tag="Square" Content="■" Width="28" Height="24" Style="{StaticResource Win10ClassicButton}" Click="BtnBrushShape_Click"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Grid>
@@ -797,7 +752,7 @@
 
                 <!-- ==================== PESTAÑA 2: TRIGGER EDITOR (F4) (ABRE EN VENTANA FLOTANTE COMO WARCRAFT III) ==================== -->
                 <TabItem x:Name="TabTriggers" Visibility="Collapsed">
-                    <Grid Background="#F0F0F0">
+                    <Grid Background="{DynamicResource Win10WindowBg}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="310"/>
                             <ColumnDefinition Width="4"/>
@@ -805,13 +760,13 @@
                         </Grid.ColumnDefinitions>
 
                         <!-- Árbol de Triggers y Categorías WTG/WCT -->
-                        <Grid Grid.Column="0" Background="#F0F0F0">
+                        <Grid Grid.Column="0" Background="{DynamicResource Win10WindowBg}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="34"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
-                            <Border Grid.Row="0" Background="#E6E6E6" BorderBrush="#A0A0A0" BorderThickness="0,0,0,1" Padding="6,4">
+                            <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="6,4">
                                 <DockPanel>
                                     <TextBlock Text="Filtrar:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                     <TextBox x:Name="TxtTreeFilter" Style="{StaticResource Win10TextBox}" TextChanged="TxtTreeFilter_TextChanged"/>
@@ -820,14 +775,15 @@
 
                             <TreeView Grid.Row="1"
                                       x:Name="TreeTriggers"
-                                      Background="#FFFFFF"
-                                      Foreground="#111111"
+                                      Background="{DynamicResource ThemeInputBg}"
+                                      Foreground="{DynamicResource Win10Text}"
                                       BorderThickness="0"
                                       SelectedItemChanged="TreeTriggers_SelectedItemChanged">
                                 <TreeView.ItemContainerStyle>
                                     <Style TargetType="TreeViewItem">
                                         <Setter Property="IsExpanded" Value="True"/>
                                         <Setter Property="Padding" Value="2,1"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
                                     </Style>
                                 </TreeView.ItemContainerStyle>
                                 <TreeView.ItemTemplate>
@@ -841,7 +797,7 @@
                             </TreeView>
                         </Grid>
 
-                        <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="#A0A0A0"/>
+                        <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="{DynamicResource Win10Border}"/>
 
                         <!-- Editor de Código vJASS + Consola JassHelper Inferior -->
                         <Grid Grid.Column="2">
@@ -852,7 +808,7 @@
                                 <RowDefinition Height="155"/>
                             </Grid.RowDefinitions>
 
-                            <Border Grid.Row="0" Background="#E6E6E6" BorderBrush="#A0A0A0" BorderThickness="0,0,0,1" Padding="8,0">
+                            <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="8,0">
                                 <DockPanel>
                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                                         <TextBlock Text="Buscar:" VerticalAlignment="Center" Margin="0,0,5,0"/>
@@ -862,7 +818,7 @@
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                         <TextBlock x:Name="TxtActiveTriggerTitle" Text="📜 war3map.j" FontWeight="Bold" VerticalAlignment="Center"/>
-                                        <TextBlock x:Name="TxtActiveTriggerMeta" Text="" Foreground="#505050" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                        <TextBlock x:Name="TxtActiveTriggerMeta" Text="" Foreground="{DynamicResource ThemeTextMuted}" VerticalAlignment="Center" Margin="8,0,0,0"/>
                                     </StackPanel>
                                 </DockPanel>
                             </Border>
@@ -879,7 +835,7 @@
                                                    VerticalScrollBarVisibility="Auto"
                                                    TextChanged="CodeEditor_TextChanged"/>
 
-                            <GridSplitter Grid.Row="2" Height="4" HorizontalAlignment="Stretch" Background="#A0A0A0"/>
+                            <GridSplitter Grid.Row="2" Height="4" HorizontalAlignment="Stretch" Background="{DynamicResource Win10Border}"/>
 
                             <DataGrid Grid.Row="3"
                                       x:Name="GridDiagnostics"
@@ -906,13 +862,13 @@
 
                 <!-- ==================== PESTAÑA 4: IMPORT MANAGER (F12) ==================== -->
                 <TabItem x:Name="TabImports" Header=" 📦 Import Manager (F12) ">
-                    <Grid Background="#F0F0F0" AllowDrop="True" Drop="ImportsGrid_Drop" DragOver="ImportsGrid_DragOver">
+                    <Grid Background="{DynamicResource Win10WindowBg}" AllowDrop="True" Drop="ImportsGrid_Drop" DragOver="ImportsGrid_DragOver">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="36"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <Border Grid.Row="0" Background="#E6E6E6" BorderBrush="#A0A0A0" BorderThickness="0,0,0,1" Padding="8,0">
+                        <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="8,0">
                             <DockPanel>
                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                                     <TextBlock Text="Filtrar:" VerticalAlignment="Center" Margin="0,0,6,0"/>
@@ -961,7 +917,7 @@
 
                 <!-- ==================== PESTAÑA 5: VARIABLES GLOBALES (1,836) Y BÚSQUEDA GLOBAL ==================== -->
                 <TabItem x:Name="TabGlobalSearch" Header=" 📊 Variables Globales (WTG) &amp; Búsqueda Global ">
-                    <Grid Background="#F0F0F0">
+                    <Grid Background="{DynamicResource Win10WindowBg}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="460"/>
                             <ColumnDefinition Width="4"/>
@@ -974,7 +930,7 @@
                                 <RowDefinition Height="36"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
-                            <Border Grid.Row="0" Background="#E6E6E6" BorderBrush="#A0A0A0" BorderThickness="0,0,0,1" Padding="8,0">
+                            <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="8,0">
                                 <DockPanel>
                                     <TextBlock Text="Variables WTG (udg_*):" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBox x:Name="TxtVarFilter" Style="{StaticResource Win10TextBox}" TextChanged="TxtVarFilter_TextChanged"/>
@@ -990,7 +946,7 @@
                             </DataGrid>
                         </Grid>
 
-                        <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="#A0A0A0"/>
+                        <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="{DynamicResource Win10Border}"/>
 
                         <!-- Buscador Global en Todo el Mapa -->
                         <Grid Grid.Column="2">
@@ -998,7 +954,7 @@
                                 <RowDefinition Height="36"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
-                            <Border Grid.Row="0" Background="#E6E6E6" BorderBrush="#A0A0A0" BorderThickness="0,0,0,1" Padding="8,0">
+                            <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="8,0">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <TextBlock Text="Buscar en todo el mapa:" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBox x:Name="TxtGlobalSearchQuery" Width="260" Style="{StaticResource Win10TextBox}" KeyDown="TxtGlobalSearchQuery_KeyDown"/>
@@ -1008,7 +964,7 @@
                                             <TextBlock Text="Buscar" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Button>
-                                    <TextBlock x:Name="TxtGlobalSearchCount" Text="" Foreground="#005499" FontWeight="SemiBold" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                    <TextBlock x:Name="TxtGlobalSearchCount" Text="" Foreground="{DynamicResource ThemeAccentText}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="10,0,0,0"/>
                                 </StackPanel>
                             </Border>
                             <DataGrid Grid.Row="1"

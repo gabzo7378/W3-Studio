@@ -32,7 +32,7 @@
                 </Grid.ColumnDefinitions>
 
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Mapa Origen:" VerticalAlignment="Center" FontWeight="SemiBold"/>
-                <TextBox x:Name="TxtSourcePath" Grid.Row="0" Grid.Column="1" VerticalContentAlignment="Center" Padding="6,4" Margin="0,0,6,0" IsReadOnly="True" Background="#FAFAFA" BorderBrush="{DynamicResource Win10Border}"/>
+                <TextBox x:Name="TxtSourcePath" Grid.Row="0" Grid.Column="1" VerticalContentAlignment="Center" Padding="6,4" Margin="0,0,6,0" IsReadOnly="True" Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}"/>
                 <Button x:Name="BtnUseActiveMap" Grid.Row="0" Grid.Column="2" Style="{StaticResource Win10ClassicButton}" Padding="10,4" Margin="0,0,6,0" Click="BtnUseActiveMap_Click" ToolTip="Cargar la ruta del mapa actualmente abierto en W3 Studio">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="pack://application:,,,/Assets/Icons/map_active.png" Width="14" Height="14" Margin="0,0,5,0"/>
@@ -58,7 +58,7 @@
         </Border>
 
         <!-- Barra de Presets rápidos (estilo WC3 Map Optimizer 5.0) -->
-        <Border Grid.Row="1" Background="#F4F7FA" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="10,6" Margin="0,0,0,8">
+        <Border Grid.Row="1" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="10,6" Margin="0,0,0,8">
             <DockPanel LastChildFill="False">
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="Perfiles Rápidos:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
@@ -68,7 +68,7 @@
                             <TextBlock Text="Recomendado (Equilibrado)" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <Button Style="{StaticResource Win10ClassicButton}" Padding="9,3" Margin="0,0,6,0" Click="BtnPresetMaxProtect_Click" Background="#FFF5EA" BorderBrush="#D27A1E">
+                    <Button Style="{StaticResource Win10ClassicButton}" Padding="9,3" Margin="0,0,6,0" Click="BtnPresetMaxProtect_Click" Background="{DynamicResource ThemeWarningBg}" BorderBrush="{DynamicResource ThemeWarningBorder}" Foreground="{DynamicResource ThemeWarningText}">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/Icons/protect.png" Width="14" Height="14" Margin="0,0,5,0"/>
                             <TextBlock Text="Máxima Compresión + Proteger Mapa" VerticalAlignment="Center"/>
@@ -81,7 +81,7 @@
                         </StackPanel>
                     </Button>
                 </StackPanel>
-                <TextBlock x:Name="TxtSourceBadge" DockPanel.Dock="Right" VerticalAlignment="Center" FontSize="11.5" FontWeight="SemiBold" Foreground="#2673C5" Text="Sin mapa seleccionado"/>
+                <TextBlock x:Name="TxtSourceBadge" DockPanel.Dock="Right" VerticalAlignment="Center" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource ThemeAccentText}" Text="Sin mapa seleccionado"/>
             </DockPanel>
         </Border>
 
@@ -99,7 +99,7 @@
                     <!-- Sección 1: Tweaks / Script JASS -->
                     <Border Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="10,8" Margin="0,0,0,8">
                         <StackPanel>
-                            <TextBlock Text="1. TWEAKS / OPTIMIZACIÓN DE SCRIPT (war3map.j)" FontWeight="Bold" FontSize="12" Foreground="#1E5CA8" Margin="0,0,0,8"/>
+                            <TextBlock Text="1. TWEAKS / OPTIMIZACIÓN DE SCRIPT (war3map.j)" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,8"/>
 
                             <CheckBox x:Name="ChkRemoveJassComments" Content="Eliminar comentarios (// ...) y líneas vacías del JASS" IsChecked="True" Margin="0,0,0,5"/>
                             <CheckBox x:Name="ChkCompactJassWhitespace" Content="Compactar espacios e indentación innecesaria" IsChecked="True" Margin="0,0,0,5"/>
@@ -113,7 +113,7 @@
                     <!-- Sección 2: Remove / Limpieza de Editor -->
                     <Border Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="10,8" Margin="0,0,0,8">
                         <StackPanel>
-                            <TextBlock Text="2. ELIMINAR ARCHIVOS SOLO-EDITOR Y LIMPIEZA (BLOAT)" FontWeight="Bold" FontSize="12" Foreground="#1E5CA8" Margin="0,0,0,8"/>
+                            <TextBlock Text="2. ELIMINAR ARCHIVOS SOLO-EDITOR Y LIMPIEZA (BLOAT)" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,8"/>
 
                             <CheckBox x:Name="ChkRemoveEditorTriggerFiles" Content="Eliminar archivos GUI de editor (.wtg, .wct, .imp) [Protege Triggers]" IsChecked="True" Margin="0,0,0,5" ToolTip="Warcraft III ejecuta únicamente war3map.j; quitar .wtg/.wct ahorra espacio e impide abrir los triggers en World Editor."/>
                             <CheckBox x:Name="ChkCleanUnusedWtsStrings" Content="Depurar war3map.wts eliminando strings huérfanos sin usar" IsChecked="True" Margin="0,0,0,5"/>
@@ -127,7 +127,7 @@
                     <!-- Sección 3: MPQ & Protección -->
                     <Border Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="10,8">
                         <StackPanel>
-                            <TextBlock Text="3. COMPRESIÓN MPQ Y PROTECCIÓN CLÁSICA" FontWeight="Bold" FontSize="12" Foreground="#1E5CA8" Margin="0,0,0,8"/>
+                            <TextBlock Text="3. COMPRESIÓN MPQ Y PROTECCIÓN CLÁSICA" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,8"/>
 
                             <CheckBox x:Name="ChkRecompressAllMpqFiles" Content="Reempaquetar y recomprimir todos los archivos del archivo MPQ" IsChecked="True" Margin="0,0,0,6"/>
                             <CheckBox x:Name="ChkRemoveListfileAndAttributes" IsChecked="False" Margin="0,0,0,8">
@@ -168,7 +168,7 @@
                 <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="10,8" Margin="0,0,0,8">
                     <StackPanel>
                         <DockPanel LastChildFill="False" Margin="0,0,0,6">
-                            <TextBlock DockPanel.Dock="Left" Text="ANÁLISIS DE PESO DEL MAPA ORIGEN" FontWeight="Bold" FontSize="12" Foreground="#1E5CA8"/>
+                            <TextBlock DockPanel.Dock="Left" Text="ANÁLISIS DE PESO DEL MAPA ORIGEN" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource ThemeAccentText}"/>
                             <Button DockPanel.Dock="Right" Content="🔄 Reanalizar" Style="{StaticResource Win10ClassicButton}" Padding="8,2" FontSize="11" Click="BtnAnalyze_Click"/>
                         </DockPanel>
 
@@ -195,7 +195,7 @@
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Script JASS (war3map.j):" Margin="0,2"/>
                             <TextBlock x:Name="LblJassSize" Grid.Row="1" Grid.Column="1" Text="—" Margin="0,2"/>
                             <TextBlock Grid.Row="1" Grid.Column="3" Text="Solo Editor (.wtg/.wct/.imp):" Margin="0,2"/>
-                            <TextBlock x:Name="LblEditorSize" Grid.Row="1" Grid.Column="4" Text="—" Foreground="#C85000" FontWeight="SemiBold" Margin="0,2"/>
+                            <TextBlock x:Name="LblEditorSize" Grid.Row="1" Grid.Column="4" Text="—" Foreground="{DynamicResource ThemeAccentText}" FontWeight="SemiBold" Margin="0,2"/>
 
                             <TextBlock Grid.Row="2" Grid.Column="0" Text="Object Data (.w3u/.w3a...):" Margin="0,2"/>
                             <TextBlock x:Name="LblObjectSize" Grid.Row="2" Grid.Column="1" Text="—" Margin="0,2"/>
@@ -211,7 +211,7 @@
                 </Border>
 
                 <!-- Resumen de Optimización -->
-                <Border Grid.Row="1" Background="#F4F9F4" BorderBrush="#6EB073" BorderThickness="1" Padding="10,8" Margin="0,0,0,8">
+                <Border Grid.Row="1" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="10,8" Margin="0,0,0,8">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -220,18 +220,18 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="ANTES ➔ DESPUÉS" FontSize="10.5" Foreground="#555" FontWeight="SemiBold"/>
-                            <TextBlock x:Name="LblBeforeAfter" Text="— ➔ —" FontSize="13.5" FontWeight="Bold" Foreground="#222" Margin="0,2,0,0"/>
+                            <TextBlock Text="ANTES ➔ DESPUÉS" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="LblBeforeAfter" Text="— ➔ —" FontSize="13.5" FontWeight="Bold" Foreground="{DynamicResource Win10Text}" Margin="0,2,0,0"/>
                         </StackPanel>
 
                         <StackPanel Grid.Column="1">
-                            <TextBlock Text="ESPACIO AHORRADO" FontSize="10.5" Foreground="#555" FontWeight="SemiBold"/>
-                            <TextBlock x:Name="LblSavedStats" Text="0 KB (0%)" FontSize="13.5" FontWeight="Bold" Foreground="#1E7E34" Margin="0,2,0,0"/>
+                            <TextBlock Text="ESPACIO AHORRADO" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="LblSavedStats" Text="0 KB (0%)" FontSize="13.5" FontWeight="Bold" Foreground="{DynamicResource ThemeAccentText}" Margin="0,2,0,0"/>
                         </StackPanel>
 
                         <StackPanel Grid.Column="2">
-                            <TextBlock Text="IDENTIFICADORES / PJASS" FontSize="10.5" Foreground="#555" FontWeight="SemiBold"/>
-                            <TextBlock x:Name="LblScriptStats" Text="Pendiente" FontSize="12.5" FontWeight="SemiBold" Foreground="#1E5CA8" Margin="0,2,0,0"/>
+                            <TextBlock Text="IDENTIFICADORES / PJASS" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="LblScriptStats" Text="Pendiente" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource ThemeAccentText}" Margin="0,2,0,0"/>
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -239,7 +239,7 @@
                 <!-- Log de Ejecución -->
                 <Border Grid.Row="2" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="8">
                     <DockPanel>
-                        <TextBlock DockPanel.Dock="Top" Text="REGISTRO DE OPTIMIZACIÓN" FontWeight="Bold" FontSize="11.5" Foreground="#1E5CA8" Margin="0,0,0,6"/>
+                        <TextBlock DockPanel.Dock="Top" Text="REGISTRO DE OPTIMIZACIÓN" FontWeight="Bold" FontSize="11.5" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,6"/>
                         <TextBox x:Name="TxtLog"
                                  IsReadOnly="True"
                                  TextWrapping="Wrap"
@@ -263,7 +263,7 @@
                            DockPanel.Dock="Left"
                            VerticalAlignment="Center"
                            FontSize="11.5"
-                           Foreground="#666"
+                           Foreground="{DynamicResource ThemeTextMuted}"
                            Text="💡 Siempre se genera un archivo nuevo (_optimized.w3x) para no dañar tu mapa editable original."/>
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
@@ -273,10 +273,10 @@
                             <TextBlock Text="Abrir Carpeta Destino" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <Button x:Name="BtnRunOptimize" Style="{StaticResource Win10ClassicButton}" Padding="16,5" FontWeight="Bold" Background="#DFF0D8" BorderBrush="#3C763D" Click="BtnRunOptimize_Click">
+                    <Button x:Name="BtnRunOptimize" Style="{StaticResource Win10ClassicButton}" Padding="16,5" FontWeight="Bold" Background="{DynamicResource ThemeSuccessBg}" BorderBrush="{DynamicResource ThemeSuccessBorder}" Foreground="{DynamicResource ThemeSuccessText}" Click="BtnRunOptimize_Click">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/Icons/optimizer.png" Width="15" Height="15" Margin="0,0,6,0"/>
-                            <TextBlock Text="Optimizar Mapa" Foreground="#111111" VerticalAlignment="Center"/>
+                            <TextBlock Text="Optimizar Mapa" Foreground="{DynamicResource ThemeSuccessText}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
                 </StackPanel>

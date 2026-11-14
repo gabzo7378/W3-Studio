@@ -155,7 +155,7 @@
                 </StackPanel>
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock x:Name="TxtStatusNodeInfo" Text="Listo" Foreground="#606060" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="11"/>
+                    <TextBlock x:Name="TxtStatusNodeInfo" Text="Listo" Foreground="{DynamicResource ThemeTextMuted}" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="11"/>
                     <ToggleButton x:Name="BtnToggleInspector"
                                   IsChecked="True"
                                   Padding="8,3"
@@ -194,13 +194,13 @@
                             <TextBlock Text="Filtrar:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11.5"/>
                             <TextBox x:Name="TxtTreeFilter" Style="{DynamicResource Win10TextBox}" TextChanged="TxtTreeFilter_TextChanged"/>
                         </DockPanel>
-                        <CheckBox x:Name="ChkFilterInsideCode" Content="Buscar también dentro del código JASS" FontSize="11" Foreground="#606060" Checked="TxtTreeFilter_TextChanged" Unchecked="TxtTreeFilter_TextChanged"/>
+                        <CheckBox x:Name="ChkFilterInsideCode" Content="Buscar también dentro del código JASS" FontSize="11" Foreground="{DynamicResource ThemeTextMuted}" Checked="TxtTreeFilter_TextChanged" Unchecked="TxtTreeFilter_TextChanged"/>
                     </StackPanel>
                 </Border>
 
                 <TreeView Grid.Row="1"
                           x:Name="TreeTriggers"
-                          Background="{DynamicResource Win10WindowBg}"
+                          Background="{DynamicResource ThemeInputBg}"
                           Foreground="{DynamicResource Win10Text}"
                           BorderThickness="0"
                           SelectedItemChanged="TreeTriggers_SelectedItemChanged">
@@ -208,6 +208,7 @@
                         <Style TargetType="TreeViewItem">
                             <Setter Property="IsExpanded" Value="True"/>
                             <Setter Property="Padding" Value="3,1.5"/>
+                            <Setter Property="Foreground" Value="{DynamicResource Win10Text}"/>
                         </Style>
                     </TreeView.ItemContainerStyle>
                     <TreeView.ItemTemplate>
@@ -284,7 +285,7 @@
                     <!-- Comentario del Trigger -->
                     <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="8,4">
                         <DockPanel>
-                            <TextBlock Text="Comentario:" FontWeight="SemiBold" Foreground="#606060" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <TextBlock Text="Comentario:" FontWeight="SemiBold" Foreground="{DynamicResource ThemeTextMuted}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                             <TextBox x:Name="TxtTriggerComment" Style="{DynamicResource Win10TextBox}" VerticalContentAlignment="Center" TextChanged="TxtTriggerComment_TextChanged"/>
                         </DockPanel>
                     </Border>
@@ -298,8 +299,8 @@
                         <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1,1,1,0" CornerRadius="3,3,0,0" Padding="6,2">
                             <DockPanel>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="Eventos" FontWeight="Bold" Foreground="#0066CC" Margin="0,0,6,0"/>
-                                    <TextBlock x:Name="TxtEventsCount" Text="(0)" Foreground="#666666"/>
+                                    <TextBlock Text="Eventos" FontWeight="Bold" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,6,0"/>
+                                    <TextBlock x:Name="TxtEventsCount" Text="(0)" Foreground="{DynamicResource ThemeTextMuted}"/>
                                 </StackPanel>
                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
                                     <Button Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,4,0" Click="BtnAddEvent_Click">
@@ -343,8 +344,8 @@
                         <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1,1,1,0" CornerRadius="3,3,0,0" Padding="6,2">
                             <DockPanel>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="Condiciones" FontWeight="Bold" Foreground="#990099" Margin="0,0,6,0"/>
-                                    <TextBlock x:Name="TxtConditionsCount" Text="(0)" Foreground="#666666"/>
+                                    <TextBlock Text="Condiciones" FontWeight="Bold" Foreground="#C060E0" Margin="0,0,6,0"/>
+                                    <TextBlock x:Name="TxtConditionsCount" Text="(0)" Foreground="{DynamicResource ThemeTextMuted}"/>
                                 </StackPanel>
                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
                                     <Button Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,4,0" Click="BtnAddCondition_Click">
@@ -388,8 +389,8 @@
                         <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1,1,1,0" CornerRadius="3,3,0,0" Padding="6,2">
                             <DockPanel>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="Acciones" FontWeight="Bold" Foreground="#CC6600" Margin="0,0,6,0"/>
-                                    <TextBlock x:Name="TxtActionsCount" Text="(0)" Foreground="#666666"/>
+                                    <TextBlock Text="Acciones" FontWeight="Bold" Foreground="#E68A00" Margin="0,0,6,0"/>
+                                    <TextBlock x:Name="TxtActionsCount" Text="(0)" Foreground="{DynamicResource ThemeTextMuted}"/>
                                 </StackPanel>
                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
                                     <Button Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,4,0" Click="BtnAddAction_Click">
@@ -452,7 +453,7 @@
                                 </StackPanel>
                             </Button>
                             <TextBlock Text="Puedes activar/desactivar eventos, condiciones o acciones individuales con su casilla."
-                                       Foreground="#666666"
+                                       Foreground="{DynamicResource ThemeTextMuted}"
                                        FontStyle="Italic"
                                        VerticalAlignment="Center"
                                        HorizontalAlignment="Right"
@@ -483,7 +484,7 @@
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock x:Name="TxtCodeModeTitle" Text="Código JASS / vJASS" FontWeight="Bold"/>
-                                <TextBlock x:Name="TxtCodeModeMeta" Text="" Foreground="#666666" Margin="8,0,0,0"/>
+                                <TextBlock x:Name="TxtCodeModeMeta" Text="" Foreground="{DynamicResource ThemeTextMuted}" Margin="8,0,0,0"/>
                             </StackPanel>
                         </DockPanel>
                     </Border>
@@ -510,7 +511,7 @@
                         </Grid.RowDefinitions>
                         <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="8,2">
                             <DockPanel>
-                                <TextBlock x:Name="TxtDiagnosticsSummary" Text="Diagnósticos y Detector de Leaks (WC3 1.27b) — Ctrl+Space autocompletado • ( para parámetros" Foreground="#505050" FontSize="11.5" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TxtDiagnosticsSummary" Text="Diagnósticos y Detector de Leaks (WC3 1.27b) — Ctrl+Space autocompletado • ( para parámetros" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11.5" VerticalAlignment="Center"/>
                                 <Button DockPanel.Dock="Right" Content="Validar + Leaks (F8)" Style="{DynamicResource Win10ClassicButton}" Padding="8,1" Click="BtnValidateScript_Click"/>
                             </DockPanel>
                         </Border>
@@ -582,8 +583,8 @@
 
                             <Border Grid.Row="3" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" CornerRadius="3" Padding="8" Margin="0,6,0,0">
                                 <StackPanel>
-                                    <TextBlock x:Name="TxtNativeSignature" Text="Selecciona una nativa o snippet (doble clic para insertar)." FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" Foreground="#0066CC" Margin="0,0,0,4"/>
-                                    <TextBlock x:Name="TxtNativeDesc" Text="" FontSize="11" Foreground="#606060" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                                    <TextBlock x:Name="TxtNativeSignature" Text="Selecciona una nativa o snippet (doble clic para insertar)." FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,4"/>
+                                    <TextBlock x:Name="TxtNativeDesc" Text="" FontSize="11" Foreground="{DynamicResource ThemeTextMuted}" TextWrapping="Wrap" Margin="0,0,0,6"/>
                                     <Button Content="Insertar en Editor" Style="{DynamicResource Win10ClassicButton}" Padding="8,3" HorizontalAlignment="Right" Click="BtnInsertSelectedNative_Click"/>
                                 </StackPanel>
                             </Border>
@@ -691,10 +692,10 @@
                                     <DataTemplate>
                                         <StackPanel Margin="2">
                                             <DockPanel>
-                                                <TextBlock DockPanel.Dock="Right" Text="{Binding DisplayKind}" Foreground="#6B7280" FontSize="10.5"/>
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding DisplayKind}" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5"/>
                                                 <TextBlock Text="{Binding Name}" FontFamily="Consolas" FontWeight="SemiBold"/>
                                             </DockPanel>
-                                            <TextBlock Text="{Binding Description}" Foreground="#666666" FontSize="10.5" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding Description}" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>

@@ -63,11 +63,11 @@
                             <DataGridTextColumn Header="Parámetro (Gameplay Constant)" Binding="{Binding DisplayName}" Width="290" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Clave" Binding="{Binding Key}" Width="140" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Valor Actual (Editable)" Binding="{Binding CurrentValue, UpdateSourceTrigger=PropertyChanged}" Width="250" FontWeight="SemiBold"/>
-                            <DataGridTextColumn Header="Por Defecto (WC3)" Binding="{Binding DefaultValue}" Width="180" IsReadOnly="True" Foreground="#666"/>
+                            <DataGridTextColumn Header="Por Defecto (WC3)" Binding="{Binding DefaultValue}" Width="180" IsReadOnly="True" Foreground="{DynamicResource ThemeTextMuted}"/>
                         </DataGrid.Columns>
                     </DataGrid>
 
-                    <TextBlock Grid.Row="2" x:Name="TxtMiscSummary" Text="0 modificados" Foreground="#1E5CA8" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                    <TextBlock Grid.Row="2" x:Name="TxtMiscSummary" Text="0 modificados" Foreground="{DynamicResource ThemeAccentText}" FontWeight="SemiBold" Margin="0,6,0,0"/>
                 </Grid>
             </TabItem>
 
@@ -133,21 +133,21 @@
                             <DataGridTextColumn Header="Sección" Binding="{Binding Section}" Width="110" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Clave (Key)" Binding="{Binding Key}" Width="210" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Valor Actual (Editable)" Binding="{Binding CurrentValue, UpdateSourceTrigger=PropertyChanged}" Width="290" FontWeight="SemiBold"/>
-                            <DataGridTextColumn Header="Por Defecto (WC3)" Binding="{Binding DefaultValue}" Width="220" IsReadOnly="True" Foreground="#666"/>
+                            <DataGridTextColumn Header="Por Defecto (WC3)" Binding="{Binding DefaultValue}" Width="220" IsReadOnly="True" Foreground="{DynamicResource ThemeTextMuted}"/>
                         </DataGrid.Columns>
                     </DataGrid>
 
-                    <TextBlock Grid.Row="2" x:Name="TxtSkinSummary" Text="0 modificados" Foreground="#1E5CA8" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                    <TextBlock Grid.Row="2" x:Name="TxtSkinSummary" Text="0 modificados" Foreground="{DynamicResource ThemeAccentText}" FontWeight="SemiBold" Margin="0,6,0,0"/>
                 </Grid>
             </TabItem>
         </TabControl>
 
         <Border Grid.Row="1" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="10,8" Margin="0,8,0,0">
             <DockPanel LastChildFill="False">
-                <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="11.5" Foreground="#555" Text="💡 Solo los valores distintos al predeterminado de Warcraft III se escriben en war3mapMisc.txt / war3mapSkin.txt."/>
+                <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="11.5" Foreground="{DynamicResource ThemeTextMuted}" Text="💡 Solo los valores distintos al predeterminado de Warcraft III se escriben en war3mapMisc.txt / war3mapSkin.txt."/>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                     <Button Content="Cancelar" Style="{StaticResource Win10ClassicButton}" Padding="14,5" Margin="0,0,8,0" Click="BtnCancel_Click"/>
-                    <Button Content="✓ Aplicar Cambios al Mapa" Style="{StaticResource Win10ClassicButton}" Padding="16,5" FontWeight="Bold" Background="#DFF0D8" BorderBrush="#3C763D" Click="BtnApply_Click"/>
+                    <Button Content="✓ Aplicar Cambios al Mapa" Style="{StaticResource Win10ClassicButton}" Padding="16,5" FontWeight="Bold" Background="{DynamicResource ThemeSuccessBg}" BorderBrush="{DynamicResource ThemeSuccessBorder}" Foreground="{DynamicResource ThemeSuccessText}" Click="BtnApply_Click"/>
                 </StackPanel>
             </DockPanel>
         </Border>

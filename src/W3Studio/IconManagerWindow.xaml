@@ -26,8 +26,6 @@
                     <Button Style="{StaticResource Win10ClassicButton}"
                             Padding="10,4"
                             FontWeight="SemiBold"
-                            Background="#E8F2FF"
-                            BorderBrush="#2C74C8"
                             Click="BtnImportExternal_Click">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/Icons/image_file.png" Width="15" Height="15" Margin="0,0,5,0"/>
@@ -45,7 +43,7 @@
                            VerticalAlignment="Center"
                            FontSize="11.5"
                            FontWeight="SemiBold"
-                           Foreground="#2673C5"
+                           Foreground="{DynamicResource ThemeAccentText}"
                            Text="Mapa activo"/>
             </DockPanel>
         </Border>
@@ -70,14 +68,14 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0" Text="ICONOS BASE DE WARCRAFT III / MAPA" FontWeight="Bold" FontSize="11" Foreground="#005499" Margin="0,0,0,5"/>
+                    <TextBlock Grid.Row="0" Text="ICONOS BASE DE WARCRAFT III / MAPA" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,5"/>
                     <TextBox Grid.Row="1" x:Name="TxtSearchIcons" Style="{StaticResource Win10TextBox}" ToolTip="Filtrar iconos (ej: Paladin, Fire, Sword, BTN...)" Margin="0,0,0,5" TextChanged="TxtSearchIcons_TextChanged"/>
-                    <TextBlock Grid.Row="2" x:Name="TxtIconsCount" Text="Cargando lista..." FontSize="10.5" Foreground="#666666" Margin="0,0,0,4"/>
+                    <TextBlock Grid.Row="2" x:Name="TxtIconsCount" Text="Cargando lista..." FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" Margin="0,0,0,4"/>
                     <ListBox Grid.Row="3"
                              x:Name="LstWc3Icons"
-                             Background="#FFFFFF"
-                             Foreground="#111111"
-                             BorderBrush="#808080"
+                             Background="{DynamicResource ThemeInputBg}"
+                             Foreground="{DynamicResource Win10Text}"
+                             BorderBrush="{DynamicResource Win10Border}"
                              BorderThickness="1"
                              FontSize="11"
                              DisplayMemberPath="DisplayName"
@@ -94,7 +92,7 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0" Text="PREVISUALIZACIÓN EN VIVO (64x64 Y AMPLIADO)" FontWeight="Bold" FontSize="11.5" Foreground="#005499" Margin="0,0,0,8"/>
+                    <TextBlock Grid.Row="0" Text="PREVISUALIZACIÓN EN VIVO (64x64 Y AMPLIADO)" FontWeight="Bold" FontSize="11.5" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,8"/>
 
                     <!-- Escenario oscuro estilo HUD de Warcraft III -->
                     <Border Grid.Row="1" Background="#0C0F16" BorderBrush="#C8A858" BorderThickness="1.5" CornerRadius="4" Padding="14">
@@ -140,26 +138,26 @@
                     </Border>
 
                     <!-- Nomenclatura y rutas resultantes en el mapa -->
-                    <Border Grid.Row="2" Background="#F5F7FA" BorderBrush="#C0C8D4" BorderThickness="1" Padding="10" Margin="0,10,0,0">
+                    <Border Grid.Row="2" Background="{DynamicResource Win10WindowBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="10" Margin="0,10,0,0">
                         <StackPanel>
-                            <TextBlock Text="NOMBRE DE ARCHIVO Y RUTAS MPQ RESULTANTES" FontWeight="Bold" FontSize="11" Foreground="#00458B" Margin="0,0,0,6"/>
+                            <TextBlock Text="NOMBRE DE ARCHIVO Y RUTAS MPQ RESULTANTES" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,6"/>
                             <Grid Margin="0,0,0,6">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Nombre base:" Foreground="#111111" VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="SemiBold"/>
+                                <TextBlock Grid.Column="0" Text="Nombre base:" Foreground="{DynamicResource Win10Text}" VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="SemiBold"/>
                                 <TextBox Grid.Column="1" x:Name="TxtOutputName" Style="{StaticResource Win10TextBox}" Text="CustomIcon01" TextChanged="TxtOutputName_TextChanged"/>
-                                <CheckBox Grid.Column="2" x:Name="ChkAutoDisbtn" Content="Crear DISBTN automático" IsChecked="True" VerticalAlignment="Center" Foreground="#111111" Margin="10,0,0,0" Checked="IconOutputOption_Changed" Unchecked="IconOutputOption_Changed"/>
+                                <CheckBox Grid.Column="2" x:Name="ChkAutoDisbtn" Content="Crear DISBTN automático" IsChecked="True" VerticalAlignment="Center" Foreground="{DynamicResource Win10Text}" Margin="10,0,0,0" Checked="IconOutputOption_Changed" Unchecked="IconOutputOption_Changed"/>
                             </Grid>
 
                             <DockPanel Margin="0,2">
                                 <Button DockPanel.Dock="Right" Content="📋 Copiar" Style="{StaticResource Win10ClassicButton}" Padding="6,1" FontSize="10.5" Click="BtnCopyMainPath_Click"/>
-                                <TextBlock x:Name="TxtMainMpqPath" FontFamily="Consolas" FontSize="11" Foreground="#14491D" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="TxtMainMpqPath" FontFamily="Consolas" FontSize="11" Foreground="{DynamicResource ThemeAccentText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                             </DockPanel>
                             <DockPanel Margin="0,2" x:Name="PnlDisMpqPath">
-                                <TextBlock x:Name="TxtDisMpqPath" FontFamily="Consolas" FontSize="11" Foreground="#555555" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="TxtDisMpqPath" FontFamily="Consolas" FontSize="11" Foreground="{DynamicResource ThemeTextMuted}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                             </DockPanel>
                         </StackPanel>
                     </Border>
@@ -170,7 +168,7 @@
             <ScrollViewer Grid.Column="4" VerticalScrollBarVisibility="Auto" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="10">
                 <StackPanel>
                     <!-- 1. ESTILO DE BORDE (BTN, PAS, ATC, UPG, INF, NONE) -->
-                    <TextBlock Text="1. ESTILO DE BOTÓN (BUTTON MANAGER)" FontWeight="Bold" FontSize="11" Foreground="#005499" Margin="0,0,0,6"/>
+                    <TextBlock Text="1. ESTILO DE BOTÓN (BUTTON MANAGER)" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,6"/>
                     <UniformGrid Columns="3" Margin="0,0,0,6">
                         <RadioButton x:Name="RbBorderBtn" Content="BTN (Activo)" GroupName="BorderPreset" IsChecked="True" Tag="Btn" Margin="2" Checked="BorderPreset_Changed"/>
                         <RadioButton x:Name="RbBorderPas" Content="PAS (Pasivo)" GroupName="BorderPreset" Tag="Pas" Margin="2" Checked="BorderPreset_Changed"/>
@@ -193,14 +191,14 @@
                               Content="2. AGREGAR RECUADRO DE COLOR"
                               FontWeight="Bold"
                               FontSize="11"
-                              Foreground="#005499"
+                              Foreground="{DynamicResource ThemeAccentText}"
                               Margin="0,0,0,6"
                               Checked="EditOption_Changed"
                               Unchecked="EditOption_Changed"/>
 
-                    <Border BorderBrush="#C0C0C0" BorderThickness="1" Padding="8" Margin="0,0,0,10" Background="#FFFFFF">
+                    <Border BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="8" Margin="0,0,0,10" Background="{DynamicResource Win10WindowBg}">
                         <StackPanel>
-                            <TextBlock Text="Colores rápidos o HEX (#RRGGBB):" FontSize="11" Foreground="#222222" Margin="0,0,0,4"/>
+                            <TextBlock Text="Colores rápidos o HEX (#RRGGBB):" FontSize="11" Foreground="{DynamicResource Win10Text}" Margin="0,0,0,4"/>
                             <WrapPanel Margin="0,0,0,6">
                                 <Button Width="22" Height="22" Margin="0,0,4,4" Background="#FFD700" Tag="#FFD700" ToolTip="Oro" Click="BtnFrameColorSwatch_Click"/>
                                 <Button Width="22" Height="22" Margin="0,0,4,4" Background="#E53935" Tag="#E53935" ToolTip="Rojo" Click="BtnFrameColorSwatch_Click"/>
@@ -214,7 +212,7 @@
 
                             <DockPanel Margin="0,0,0,6">
                                 <Border x:Name="BorderSelectedFrameColor" DockPanel.Dock="Left" Width="26" Height="22" BorderBrush="#444444" BorderThickness="1" Background="#FFD228" Margin="0,0,6,0"/>
-                                <TextBox x:Name="TxtFrameColorHex" Style="{StaticResource Win10TextBox}" Text="#FFD228" Foreground="#111111" TextChanged="TxtFrameColorHex_TextChanged"/>
+                                <TextBox x:Name="TxtFrameColorHex" Style="{StaticResource Win10TextBox}" Text="#FFD228" TextChanged="TxtFrameColorHex_TextChanged"/>
                             </DockPanel>
 
                             <Grid Margin="0,0,0,4">
@@ -222,7 +220,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Estilo:" Foreground="#222222" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11"/>
+                                <TextBlock Grid.Column="0" Text="Estilo:" Foreground="{DynamicResource Win10Text}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11"/>
                                 <ComboBox Grid.Column="1" x:Name="CmbColorFrameStyle" SelectedIndex="0" FontSize="11" SelectionChanged="CmbColorFrameStyle_SelectionChanged">
                                     <ComboBoxItem Content="Recuadro Sólido" Tag="SolidBox"/>
                                     <ComboBoxItem Content="Resplandor / Glow" Tag="GlowingBox"/>
@@ -231,8 +229,8 @@
                             </Grid>
 
                             <DockPanel>
-                                <TextBlock x:Name="TxtFrameThickness" DockPanel.Dock="Right" Text="3 px" Width="34" TextAlignment="Right" Foreground="#222222" FontSize="11"/>
-                                <TextBlock DockPanel.Dock="Left" Text="Grosor:" Foreground="#222222" Margin="0,0,6,0" FontSize="11"/>
+                                <TextBlock x:Name="TxtFrameThickness" DockPanel.Dock="Right" Text="3 px" Width="34" TextAlignment="Right" Foreground="{DynamicResource Win10Text}" FontSize="11"/>
+                                <TextBlock DockPanel.Dock="Left" Text="Grosor:" Foreground="{DynamicResource Win10Text}" Margin="0,0,6,0" FontSize="11"/>
                                 <Slider x:Name="SldFrameThickness" Minimum="1" Maximum="6" Value="3" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="SliderOption_Changed"/>
                             </DockPanel>
                         </StackPanel>
@@ -241,7 +239,7 @@
                     <Separator Margin="0,2,0,8"/>
 
                     <!-- 3. AJUSTES DE IMAGEN Y TINTE -->
-                    <TextBlock Text="3. AJUSTES DE IMAGEN" FontWeight="Bold" FontSize="11" Foreground="#005499" Margin="0,0,0,6"/>
+                    <TextBlock Text="3. AJUSTES DE IMAGEN" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,6"/>
 
                     <DockPanel Margin="0,2">
                         <TextBlock x:Name="TxtZoomVal" DockPanel.Dock="Right" Text="100%" Width="40" TextAlignment="Right" FontSize="11"/>
@@ -298,13 +296,14 @@
                     <Button x:Name="BtnSaveToImports"
                             Style="{StaticResource Win10ClassicButton}"
                             Padding="12,5"
-                            Background="#DDF4DF"
-                            BorderBrush="#2EA043"
+                            Background="{DynamicResource ThemeSuccessBg}"
+                            BorderBrush="{DynamicResource ThemeSuccessBorder}"
+                            Foreground="{DynamicResource ThemeSuccessText}"
                             FontWeight="Bold"
                             Click="BtnSaveToImports_Click">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/Icons/save_compile.png" Width="15" Height="15" Margin="0,0,5,0"/>
-                            <TextBlock Text="Guardar en Importaciones (+ DISBTN)" Foreground="#111111" VerticalAlignment="Center"/>
+                            <TextBlock Text="Guardar en Importaciones (+ DISBTN)" Foreground="{DynamicResource ThemeSuccessText}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
                 </StackPanel>

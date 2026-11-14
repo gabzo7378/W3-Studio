@@ -1164,19 +1164,6 @@ public class WorldMapViewport : FrameworkElement
 
         if (_project == null)
         {
-            var formattedText = new FormattedText(
-                "Ningún mapa cargado\nUsa Archivo → Abrir Mapa (Ctrl+O)",
-                CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight,
-                new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal),
-                15,
-                new SolidColorBrush(Color.FromRgb(110, 120, 110)),
-                VisualTreeHelper.GetDpi(this).PixelsPerDip)
-            {
-                TextAlignment = TextAlignment.Center
-            };
-            var pt = new Point((ActualWidth - formattedText.Width) * 0.5, (ActualHeight - formattedText.Height) * 0.5);
-            dc.DrawText(formattedText, pt);
             return;
         }
 
