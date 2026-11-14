@@ -58,6 +58,7 @@ public class FieldMetaDefinition
         $"{LocalizationService.TranslateFieldSection(SectionKey)} - {LocalizationService.LocalizeFieldTitle(FieldId, TitleEs, TitleEn)}";
 
     public ObjectDataType DataType { get; set; } = ObjectDataType.String;
+    public string SlkTypeName { get; set; } = string.Empty;
     public string SlkColumn { get; set; } = string.Empty;
     public int Index { get; set; } = -1;
     public int DataPointer { get; set; }
@@ -1191,6 +1192,8 @@ public class WarcraftBaseDataService
 
             if (_fieldCatalog.TryGetValue(fieldId, out var existing))
             {
+                if (!string.IsNullOrWhiteSpace(typeStr))
+                    existing.SlkTypeName = typeStr;
                 if (!string.IsNullOrWhiteSpace(slkCol) && string.IsNullOrWhiteSpace(existing.SlkColumn))
                     existing.SlkColumn = slkCol;
                 if (!string.IsNullOrWhiteSpace(useSpecStr))
@@ -1219,6 +1222,7 @@ public class WarcraftBaseDataService
                     TitleEn = resolvedEnTitle,
                     TitleEs = LocalizationService.TranslateEnglishFieldNameToSpanish(resolvedEnTitle),
                     DataType = mappedType,
+                    SlkTypeName = typeStr,
                     SlkColumn = slkCol,
                     Index = parsedIndex,
                     DataPointer = parsedDataPtr,
@@ -1658,6 +1662,7 @@ public class WarcraftBaseDataService
                 {
                     existingMod.FieldName = def.DisplayName;
                     existingMod.DataType = def.DataType;
+                    existingMod.SlkTypeName = def.SlkTypeName;
                     existingMod.Choices = def.Choices;
                     existingMod.MinInt = def.MinInt;
                     existingMod.MaxInt = def.MaxInt;
@@ -1676,6 +1681,7 @@ public class WarcraftBaseDataService
                         FieldId = def.FieldId,
                         FieldName = def.DisplayName,
                         DataType = def.DataType,
+                        SlkTypeName = def.SlkTypeName,
                         Level = fieldLevel,
                         DataPointer = def.DataPointer,
                         RawValue = defVal,

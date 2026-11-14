@@ -1026,6 +1026,11 @@ public partial class ObjectEditorView : UserControl
         foreach (var f in list)
         {
             f.FieldName = _baseDataService.GetFieldDisplayName(f.FieldId, showRaw);
+            f.FormattedDisplayOverride = showRaw
+                ? null
+                : (FlagsChecklistWindow.FormatValueForDisplay(f)
+                   ?? ObjectListPickerWindow.FormatValueForDisplay(f, _baseDataService, _currentProject));
+            f.NotifyLocalizationChanged();
         }
 
         if (onlyModified)
@@ -1099,6 +1104,43 @@ public partial class ObjectEditorView : UserControl
         }
 
         var win = Window.GetWindow(this);
+
+        // Campos de Banderas por Casillas (Targets Allowed, Clasificación de Unidad, Colocación, Tilesets)
+        if (FlagsChecklistWindow.TryGetFlagFieldKind(field, out var flagKind))
+        {
+            var dlgFlags = new FlagsChecklistWindow(_selectedEntry, field, flagKind)
+            {
+                Owner = win
+            };
+
+            if (dlgFlags.ShowDialog() == true)
+            {
+                ApplyEditedFieldValue(field, dlgFlags.SelectedValue);
+            }
+            return;
+        }
+
+        // Campos de Listas de Objetos / Árbol Tecnológico (Habilidades de Héroe/Unidad, Upgrades, Requisitos, Entrenamiento, etc.)
+        if (ObjectListPickerWindow.TryGetObjectPickerKind(field, out var objPickerKind) &&
+            _baseDataService != null && _blpIconService != null)
+        {
+            var dlgObjList = new ObjectListPickerWindow(
+                _baseDataService,
+                _blpIconService,
+                _currentProject,
+                _selectedEntry,
+                field,
+                objPickerKind)
+            {
+                Owner = win
+            };
+
+            if (dlgObjList.ShowDialog() == true)
+            {
+                ApplyEditedFieldValue(field, dlgObjList.SelectedCsvValue);
+            }
+            return;
+        }
 
         // Campos de Modelo 3D -> Selector con todas las rutas + previsualización 3D
         if (IsModelField(field.FieldId) && _blpIconService != null)

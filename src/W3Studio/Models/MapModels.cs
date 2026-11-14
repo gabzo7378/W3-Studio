@@ -310,6 +310,9 @@ public class TriggerNode : ObservableObject
     private static string GenerateEventJass(string cleanName, GuiTriggerElement ev)
     {
         var p = ev.Parameters;
+        if (p.TryGetValue("RawJass", out var rawJass) && !string.IsNullOrWhiteSpace(rawJass))
+            return rawJass;
+
         string GetParam(string key, string fallback) => p.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v : fallback;
 
         return ev.FunctionName switch
@@ -357,6 +360,9 @@ public class TriggerNode : ObservableObject
     private static string GenerateConditionJass(GuiTriggerElement cond)
     {
         var p = cond.Parameters;
+        if (p.TryGetValue("RawJass", out var rawJass) && !string.IsNullOrWhiteSpace(rawJass))
+            return rawJass;
+
         string GetParam(string key, string fallback) => p.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v : fallback;
 
         return cond.FunctionName switch
@@ -380,6 +386,9 @@ public class TriggerNode : ObservableObject
     private static string GenerateActionJass(GuiTriggerElement act)
     {
         var p = act.Parameters;
+        if (p.TryGetValue("RawJass", out var rawJass) && !string.IsNullOrWhiteSpace(rawJass))
+            return rawJass;
+
         string GetParam(string key, string fallback) => p.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v : fallback;
 
         return act.FunctionName switch
@@ -715,6 +724,7 @@ public class W3ObjectField : ObservableObject
     public int Variation { get; set; }
     public int DataPointer { get; set; }
     public ObjectDataType DataType { get; set; } = ObjectDataType.String;
+    public string SlkTypeName { get; set; } = string.Empty;
 
     // Validación y límites específicos de Warcraft III
     public List<FieldChoiceOption>? Choices { get; set; }
@@ -770,6 +780,8 @@ public class W3ObjectField : ObservableObject
         }
     }
 
+    public string? FormattedDisplayOverride { get; set; }
+
     public string DisplayValueText
     {
         get
@@ -780,6 +792,8 @@ public class W3ObjectField : ObservableObject
                 if (match != null)
                     return match.DisplayText;
             }
+            if (!string.IsNullOrEmpty(FormattedDisplayOverride))
+                return FormattedDisplayOverride;
             return _resolvedValue;
         }
     }
@@ -981,6 +995,34 @@ public class W3ImportedFile : ObservableObject
     public bool IsPendingWrite { get; set; }
     public bool IsDeleted { get; set; }
 
+    public bool IsInternalSystemFile => IsStandardInternalMapFile(MpqPath);
+
+    public static bool IsStandardInternalMapFile(string? mpqPath)
+    {
+        if (string.IsNullOrWhiteSpace(mpqPath))
+            return false;
+
+        var norm = mpqPath.Trim().Replace('/', '\\');
+        if (norm.Equals(@"Scripts\war3map.j", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var ext = System.IO.Path.GetExtension(norm).ToLowerInvariant();
+        if (ext is ".w3e" or ".w3i" or ".wtg" or ".wct" or ".wts" or ".wpm" or ".shd" or ".doo" or ".w3r" or ".w3c" or ".w3s" or ".mmp" or ".imp"
+            or ".w3u" or ".w3t" or ".w3a" or ".w3b" or ".w3d" or ".w3q" or ".w3h")
+            return true;
+
+        var fileName = System.IO.Path.GetFileName(norm);
+        return fileName.Equals("war3map.j", StringComparison.OrdinalIgnoreCase)
+            || fileName.Equals("war3mapMap.blp", StringComparison.OrdinalIgnoreCase)
+            || fileName.Equals("war3mapMap.tga", StringComparison.OrdinalIgnoreCase)
+            || fileName.Equals("war3mapMap.b00", StringComparison.OrdinalIgnoreCase)
+            || fileName.Equals("war3mapPreview.tga", StringComparison.OrdinalIgnoreCase)
+            || fileName.Equals("war3mapMisc.txt", StringComparison.OrdinalIgnoreCase)
+            || fileName.Equals("war3mapSkin.txt", StringComparison.OrdinalIgnoreCase)
+            || fileName.Equals("war3mapExtra.txt", StringComparison.OrdinalIgnoreCase)
+            || fileName.StartsWith("(", StringComparison.Ordinal);
+    }
+
     public string SizeFormatted => SizeBytes < 1024
         ? $"{SizeBytes} B"
         : SizeBytes < 1024 * 1024
@@ -991,18 +1033,18 @@ public class W3ImportedFile : ObservableObject
     {
         get
         {
+            if (IsInternalSystemFile)
+                return Services.LocalizationService.L("⚠ Sistema / Interno del Mapa", "⚠ System / Internal Map File");
+
             var ext = System.IO.Path.GetExtension(MpqPath).ToLowerInvariant();
             return ext switch
             {
-                ".mdx" or ".mdl" => "Modelo 3D (.mdx)",
-                ".blp" or ".tga" or ".dds" => "Textura / Icono (.blp/.tga)",
-                ".mp3" or ".wav" => "Audio / Sonido",
-                ".j" or ".ai" or ".pld" => "Script JASS / AI",
-                ".w3u" or ".w3t" or ".w3a" or ".w3h" or ".w3b" or ".w3d" or ".w3q" => "Datos de Objetos (F6)",
-                ".wtg" or ".wct" or ".wts" or ".w3i" => "Metadatos / Triggers",
-                ".w3e" or ".doo" or ".shd" or ".wpm" or ".mmp" => "Terreno / Entorno",
-                ".slk" or ".txt" or ".fdf" or ".toc" => "Tablas SLK / UI / Config",
-                _ => "Archivo Interno"
+                ".mdx" or ".mdl" => Services.LocalizationService.L("Modelo 3D (.mdx)", "3D Model (.mdx)"),
+                ".blp" or ".tga" or ".dds" => Services.LocalizationService.L("Textura / Icono (.blp/.tga)", "Texture / Icon (.blp/.tga)"),
+                ".mp3" or ".wav" => Services.LocalizationService.L("Audio / Sonido", "Audio / Sound"),
+                ".j" or ".ai" or ".pld" => Services.LocalizationService.L("Script JASS / AI", "JASS / AI Script"),
+                ".slk" or ".txt" or ".fdf" or ".toc" => Services.LocalizationService.L("Tablas SLK / UI / Config", "SLK / UI / Config"),
+                _ => Services.LocalizationService.L("Recurso Importado", "Imported Asset")
             };
         }
     }

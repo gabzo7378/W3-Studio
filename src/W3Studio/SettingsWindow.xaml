@@ -179,12 +179,25 @@
                     <!-- SECCIÓN 3: EDITOR Y PREFERENCIAS -->
                     <ScrollViewer x:Name="SecEditor" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
-                            <TextBlock Text="Comportamiento del Editor:" FontWeight="Bold" FontSize="13" Margin="0,0,0,8"/>
+                            <TextBlock x:Name="LblEditorBehaviorTitle" Text="Comportamiento del Editor:" FontWeight="Bold" FontSize="13" Margin="0,0,0,8"/>
 
-                            <CheckBox x:Name="ChkAutoSaveBeforeTest" Content="Guardar mapa automáticamente antes de Probar (F9)" IsChecked="True" Margin="0,3,0,10"/>
-                            <CheckBox x:Name="ChkShowGridByDefault" Content="Mostrar cuadrícula de terreno (Terrain Grid) por defecto" Margin="0,3,0,10"/>
+                            <CheckBox x:Name="ChkAutoSaveBeforeTest" Content="Guardar mapa automáticamente antes de Probar (F9)" IsChecked="True" Margin="0,3,0,8"/>
+                            <CheckBox x:Name="ChkShowGridByDefault" Content="Mostrar cuadrícula de terreno (Terrain Grid) por defecto" Margin="0,3,0,12"/>
 
-                            <TextBlock Text="Herramientas de Compilación Integradas:" FontWeight="Bold" FontSize="12" Margin="0,10,0,4"/>
+                            <TextBlock x:Name="LblAdvancedViewTitle" Text="Modo Inspector Avanzado (Archivos Internos del Mapa):" FontWeight="Bold" FontSize="13" Margin="0,4,0,4"/>
+                            <TextBlock x:Name="LblAdvancedViewWarning" Text="⚠ Por defecto se ocultan los archivos internos del sistema de Warcraft III (war3map.w3e, war3map.wtg, war3map.shd, etc.) para evitar modificaciones accidentales que corrompan el mapa." Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                            <Border BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" CornerRadius="3" Background="{DynamicResource ThemeInputBg}" Padding="10,8" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock x:Name="LblAdvImportsCat" Text="📦 Gestor de Importaciones (F12)" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4"/>
+                                    <CheckBox x:Name="ChkShowInternalImports" Content="Mostrar archivos binarios internos del mapa (war3map.w3e, .w3i, .wtg, .doo, .shd, etc.)" Margin="0,0,0,10"/>
+
+                                    <TextBlock x:Name="LblAdvTriggersCat" Text="⚡ Editor de Triggers (F4)" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4"/>
+                                    <CheckBox x:Name="ChkShowCompiledTriggerScript" Content="Mostrar nodo de script compilado completo (war3map.j) en el árbol de Triggers" Margin="0,0,0,2"/>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="Herramientas de Compilación Integradas:" FontWeight="Bold" FontSize="12" Margin="0,4,0,4"/>
                             <TextBlock Text="W3 Studio cuenta con compilador JassHelper y PJass 100% integrados sin requerir JNGP externo." Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" Margin="0,0,0,8"/>
                             <Border BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" CornerRadius="3" Background="{DynamicResource ThemeInputBg}" Padding="10,8">
                                 <StackPanel>

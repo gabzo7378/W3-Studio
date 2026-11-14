@@ -49,6 +49,8 @@ public partial class SettingsWindow : Window
         // Preferencias del Editor
         ChkAutoSaveBeforeTest.IsChecked = _settings.AutoSaveBeforeTest;
         ChkShowGridByDefault.IsChecked = _settings.ShowGridByDefault;
+        ChkShowInternalImports.IsChecked = _settings.ShowInternalMapFilesInImports;
+        ChkShowCompiledTriggerScript.IsChecked = _settings.ShowCompiledScriptInTriggers;
 
         ApplyWindowLocalization();
         UpdateComponentStatus();
@@ -90,6 +92,27 @@ public partial class SettingsWindow : Window
         if (ChkShowGridByDefault != null) ChkShowGridByDefault.Content = LocalizationService.L(
             "Mostrar cuadrícula de terreno por defecto",
             "Show terrain grid by default");
+        if (LblEditorBehaviorTitle != null) LblEditorBehaviorTitle.Text = LocalizationService.L(
+            "Comportamiento del Editor:",
+            "Editor Behavior:");
+        if (LblAdvancedViewTitle != null) LblAdvancedViewTitle.Text = LocalizationService.L(
+            "Modo Inspector Avanzado (Archivos Internos del Mapa):",
+            "Advanced Inspector Mode (Internal Map Files):");
+        if (LblAdvancedViewWarning != null) LblAdvancedViewWarning.Text = LocalizationService.L(
+            "⚠ Por defecto se ocultan los archivos internos del sistema de Warcraft III (war3map.w3e, war3map.wtg, war3map.shd, etc.) para evitar modificaciones accidentales que corrompan el mapa.",
+            "⚠ Internal Warcraft III system files (war3map.w3e, war3map.wtg, war3map.shd, etc.) are hidden by default to prevent accidental edits that could corrupt the map.");
+        if (LblAdvImportsCat != null) LblAdvImportsCat.Text = LocalizationService.L(
+            "📦 Gestor de Importaciones (F12)",
+            "📦 Import Manager (F12)");
+        if (ChkShowInternalImports != null) ChkShowInternalImports.Content = LocalizationService.L(
+            "Mostrar archivos binarios internos del mapa (war3map.w3e, .w3i, .wtg, .doo, .shd, etc.)",
+            "Show internal binary map files (war3map.w3e, .w3i, .wtg, .doo, .shd, etc.)");
+        if (LblAdvTriggersCat != null) LblAdvTriggersCat.Text = LocalizationService.L(
+            "⚡ Editor de Triggers (F4)",
+            "⚡ Trigger Editor (F4)");
+        if (ChkShowCompiledTriggerScript != null) ChkShowCompiledTriggerScript.Content = LocalizationService.L(
+            "Mostrar nodo de script compilado completo (war3map.j) en el árbol de Triggers",
+            "Show full compiled script node (war3map.j) in the Trigger tree");
         if (ChkWindowed != null) ChkWindowed.Content = LocalizationService.L(
             "Ejecutar Warcraft III en Modo Ventana (-window)",
             "Run Warcraft III in Windowed Mode (-window)");
@@ -176,6 +199,8 @@ public partial class SettingsWindow : Window
         _settings.AdditionalLaunchArgs = TxtExtraArgs.Text.Trim();
         _settings.AutoSaveBeforeTest = ChkAutoSaveBeforeTest.IsChecked == true;
         _settings.ShowGridByDefault = ChkShowGridByDefault.IsChecked == true;
+        _settings.ShowInternalMapFilesInImports = ChkShowInternalImports.IsChecked == true;
+        _settings.ShowCompiledScriptInTriggers = ChkShowCompiledTriggerScript.IsChecked == true;
         _settings.AppThemeName = ThemeService.CurrentTheme.ToString();
         if (CmbAppLanguage.SelectedItem is ComboBoxItem { Tag: string langTag })
         {
@@ -183,6 +208,7 @@ public partial class SettingsWindow : Window
             LocalizationService.SetLanguage(_settings.AppLanguage, notify: true);
         }
         _settings.Save();
+        WorkspaceSettings.NotifyAdvancedViewSettingsChanged();
     }
 
     private void BtnApply_Click(object sender, RoutedEventArgs e)

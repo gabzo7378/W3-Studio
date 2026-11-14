@@ -748,24 +748,29 @@ public class MapMpqService
         project.AllTriggerNodes.Clear();
 
         var jass = project.RawMapScript ?? string.Empty;
+        var settings = WorkspaceSettings.Load();
 
-        // 1. Root Script & Header
+        // 1. Root Script (siempre en AllTriggerNodes, visible en TriggerTree solo si ShowCompiledScriptInTriggers está activo)
         var fullScriptNode = new TriggerNode
         {
-            Name = "war3map.j (Script Compilado Completo)",
+            Name = LocalizationService.L("war3map.j (Script Compilado Completo)", "war3map.j (Full Compiled Script)"),
             Kind = TriggerNodeKind.RootScript,
             CategoryName = "Mapa",
             Code = jass,
             StartLineInMapJ = 1
         };
-        project.TriggerTree.Add(fullScriptNode);
         project.AllTriggerNodes.Add(fullScriptNode);
+        if (settings.ShowCompiledScriptInTriggers)
+        {
+            project.TriggerTree.Add(fullScriptNode);
+        }
 
+        // 2. Cabecera del Mapa (Custom Script Header)
         if (!string.IsNullOrWhiteSpace(wctHeader))
         {
             var headerNode = new TriggerNode
             {
-                Name = "Cabecera del Mapa (Custom Script Header)",
+                Name = LocalizationService.L("Cabecera del Mapa (Custom Script Header)", "Map Header (Custom Script Header)"),
                 Kind = TriggerNodeKind.MapHeader,
                 CategoryName = "Mapa",
                 Code = wctHeader,
@@ -775,15 +780,114 @@ public class MapMpqService
             project.AllTriggerNodes.Add(headerNode);
         }
 
-        // 2. WCT Custom Text Triggers (Original vJASS source blocks from war3map.wct!)
-        if (wctBlocks.Count > 0)
+        // 3. Crear carpetas de Categorías WTG directamente en la raíz del árbol (como en World Editor)
+        var categoryNodes = new List<TriggerNode>();
+        foreach (var c in wtgCategories)
         {
-            var wctFolder = new TriggerNode
+            var catNode = new TriggerNode
             {
-                Name = $"Scripts vJASS en war3map.wct ({wctBlocks.Count})",
+                Name = c.Name,
+                CategoryId = c.Id,
+                Kind = TriggerNodeKind.Category,
+                Code = $"// Categoría: {c.Name}"
+            };
+            categoryNodes.Add(catNode);
+            project.TriggerTree.Add(catNode);
+        }
+
+        TriggerNode GetOrCreateDefaultCategory()
+        {
+            if (categoryNodes.Count > 0)
+                return categoryNodes[0];
+
+            var defCat = new TriggerNode
+            {
+                Name = "Initialization",
+                CategoryId = 0,
                 Kind = TriggerNodeKind.Category
             };
+            categoryNodes.Add(defCat);
+            project.TriggerTree.Add(defCat);
+            return defCat;
+        }
 
+        // Detectar qué triggers se ejecutan en RunInitializationTriggers (Map Initialization)
+        var mapInitTriggerVars = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var runInitMatch = Regex.Match(jass, @"function\s+RunInitializationTriggers\s+takes\s+nothing\s+returns\s+nothing(.*?)endfunction", RegexOptions.Singleline);
+        if (runInitMatch.Success)
+        {
+            foreach (Match mInit in Regex.Matches(runInitMatch.Groups[1].Value, @"gg_trg_[A-Za-z0-9_]+"))
+            {
+                mapInitTriggerVars.Add(mInit.Value);
+            }
+        }
+
+        // 4. Extraer cada Trigger completo de war3map.j (sin cortar en //===== intermedios)
+        var guiMatches = Regex.Matches(
+            jass,
+            @"// Trigger:\s*([^\r\n]+)\r?\n(.*?)(?=(?:\r?\n//={10,})?\r?\n// Trigger:|\r?\n//\*{10,}|\r?\n(?://={10,}\r?\n)?function\s+InitCustomTriggers|\r?\n(?://={10,}\r?\n)?function\s+main\b|$)",
+            RegexOptions.Singleline);
+
+        foreach (Match m in guiMatches)
+        {
+            var trigName = m.Groups[1].Value.Trim();
+            var rawBody = m.Groups[2].Value.Trim();
+            var fullBlock = $"// Trigger: {trigName}\r\n{rawBody}";
+            var cleanId = Regex.Replace(trigName, @"[^A-Za-z0-9_]", "_");
+            var ggVarName = $"gg_trg_{cleanId}";
+
+            // Extraer comentario inicial debajo de // Trigger: <Name>
+            var commentLines = new List<string>();
+            using (var sr = new StringReader(rawBody))
+            {
+                string? line;
+                while ((line = sr.ReadLine()) != null)
+                {
+                    var trimmed = line.Trim();
+                    if (trimmed.StartsWith("//===") || trimmed.StartsWith("function ") || trimmed.StartsWith("globals"))
+                        break;
+                    if (trimmed.StartsWith("//"))
+                    {
+                        var cText = trimmed.Length > 2 ? trimmed[2..].Trim() : string.Empty;
+                        if (!string.IsNullOrEmpty(cText))
+                            commentLines.Add(cText);
+                    }
+                }
+            }
+
+            bool isGuiTrigger = Regex.IsMatch(rawBody, $@"function\s+InitTrig_{Regex.Escape(cleanId)}\b") &&
+                                rawBody.Contains("CreateTrigger", StringComparison.Ordinal);
+
+            var targetCat = ChooseBestCategoryForTrigger(trigName, categoryNodes) ?? GetOrCreateDefaultCategory();
+
+            var node = new TriggerNode
+            {
+                Name = trigName,
+                Kind = isGuiTrigger ? TriggerNodeKind.GuiTrigger : TriggerNodeKind.CustomTextTrigger,
+                IsCustomText = !isGuiTrigger,
+                CategoryId = targetCat.CategoryId,
+                CategoryName = targetCat.Name,
+                Comment = string.Join(Environment.NewLine, commentLines),
+                Code = fullBlock,
+                StartLineInMapJ = GetLineNumber(jass, m.Index),
+                IsEnabled = !rawBody.Contains($"DisableTrigger( {ggVarName} )", StringComparison.Ordinal) &&
+                            !rawBody.Contains($"DisableTrigger({ggVarName})", StringComparison.Ordinal),
+                IsInitiallyOn = true
+            };
+
+            if (isGuiTrigger)
+            {
+                PopulateGuiElementsFromTriggerJass(node, rawBody, cleanId, mapInitTriggerVars.Contains(ggVarName));
+            }
+
+            targetCat.Children.Add(node);
+            project.AllTriggerNodes.Add(node);
+        }
+
+        // 5. Bloques vJASS / Custom Text adicionales en war3map.wct que no estén ya en el árbol
+        if (wctBlocks.Count > 0)
+        {
+            TriggerNode? wctFolder = null;
             var idx = 1;
             foreach (var block in wctBlocks)
             {
@@ -792,11 +896,26 @@ public class MapMpqService
                     ? (!string.IsNullOrEmpty(nameMatch.Groups[1].Value) ? nameMatch.Groups[1].Value : nameMatch.Groups[2].Value)
                     : $"vJASS_Script_{idx}";
 
+                var normalizedTitle = blockTitle.Replace('_', ' ');
+                if (project.AllTriggerNodes.Any(n =>
+                    n.Name.Equals(blockTitle, StringComparison.OrdinalIgnoreCase) ||
+                    n.Name.Equals(normalizedTitle, StringComparison.OrdinalIgnoreCase)))
+                {
+                    idx++;
+                    continue;
+                }
+
+                wctFolder ??= new TriggerNode
+                {
+                    Name = "Scripts vJASS (war3map.wct)",
+                    Kind = TriggerNodeKind.Category
+                };
+
                 var node = new TriggerNode
                 {
                     Name = blockTitle,
                     Kind = TriggerNodeKind.LibraryOrScope,
-                    CategoryName = "Scripts vJASS (war3map.wct)",
+                    CategoryName = wctFolder.Name,
                     Code = block,
                     StartLineInMapJ = 1
                 };
@@ -804,59 +923,288 @@ public class MapMpqService
                 project.AllTriggerNodes.Add(node);
                 idx++;
             }
-            project.TriggerTree.Add(wctFolder);
-        }
 
-        // 3. GUI / Compiled Triggers from war3map.j
-        var trigCategory = new TriggerNode
-        {
-            Name = "Triggers del Mapa (war3map.j)",
-            Kind = TriggerNodeKind.Category
-        };
-
-        var guiMatches = Regex.Matches(jass, @"// Trigger:\s*([^\r\n]+)\r?\n(.*?)(?=\r?\n// Trigger:|\r?\n//={15,}|\r?\n//\*{15,}|$)", RegexOptions.Singleline);
-        foreach (Match m in guiMatches)
-        {
-            var trigName = m.Groups[1].Value.Trim();
-            var fullBlock = $"// Trigger: {trigName}\r\n{m.Groups[2].Value.Trim()}";
-            var node = new TriggerNode
+            if (wctFolder != null && wctFolder.Children.Count > 0)
             {
-                Name = trigName,
-                Kind = TriggerNodeKind.CustomTextTrigger,
-                CategoryName = "Triggers del Mapa",
-                Code = fullBlock,
-                StartLineInMapJ = GetLineNumber(jass, m.Index)
-            };
-            trigCategory.Children.Add(node);
-            project.AllTriggerNodes.Add(node);
-        }
-        if (trigCategory.Children.Count > 0)
-        {
-            trigCategory.Name = $"Triggers del Mapa ({trigCategory.Children.Count})";
-            project.TriggerTree.Add(trigCategory);
-        }
-
-        // 4. WTG Categories Folder Reference (54 folders)
-        if (wtgCategories.Count > 0)
-        {
-            var catsRoot = new TriggerNode
-            {
-                Name = $"Categorías WTG del Editor ({wtgCategories.Count})",
-                Kind = TriggerNodeKind.Category
-            };
-            foreach (var c in wtgCategories)
-            {
-                var catNode = new TriggerNode
-                {
-                    Name = c.Name,
-                    CategoryId = c.Id,
-                    Kind = TriggerNodeKind.Category,
-                    Code = $"// Categoría WTG #{c.Id}: {c.Name}"
-                };
-                catsRoot.Children.Add(catNode);
+                project.TriggerTree.Add(wctFolder);
             }
-            project.TriggerTree.Add(catsRoot);
         }
+    }
+
+    public static void RefreshTriggerTreeAdvancedVisibility(MapProject? project, bool showCompiledScript)
+    {
+        if (project == null) return;
+        var rootScript = project.AllTriggerNodes.FirstOrDefault(n => n.Kind == TriggerNodeKind.RootScript);
+        if (rootScript == null) return;
+
+        bool currentlyInTree = project.TriggerTree.Contains(rootScript);
+        if (showCompiledScript && !currentlyInTree)
+        {
+            project.TriggerTree.Insert(0, rootScript);
+        }
+        else if (!showCompiledScript && currentlyInTree)
+        {
+            project.TriggerTree.Remove(rootScript);
+        }
+    }
+
+    private static TriggerNode? ChooseBestCategoryForTrigger(string trigName, List<TriggerNode> categories)
+    {
+        if (categories.Count == 0) return null;
+        if (categories.Count == 1) return categories[0];
+
+        foreach (var cat in categories)
+        {
+            if (trigName.Contains(cat.Name, StringComparison.OrdinalIgnoreCase))
+                return cat;
+        }
+        return categories[0];
+    }
+
+    private static void PopulateGuiElementsFromTriggerJass(
+        TriggerNode node,
+        string rawBody,
+        string cleanId,
+        bool isMapInit)
+    {
+        // 1. Eventos (Events)
+        if (isMapInit)
+        {
+            node.Events.Add(new GuiTriggerElement
+            {
+                ElementType = GuiTriggerElementType.Event,
+                Category = "Map",
+                FunctionName = "MapInitialization",
+                DisplayText = LocalizationService.L("Map Initialization (Al iniciar el mapa)", "Map Initialization"),
+                IsEnabled = true
+            });
+        }
+
+        var initMatch = Regex.Match(
+            rawBody,
+            $@"function\s+InitTrig_{Regex.Escape(cleanId)}\s+takes\s+nothing\s+returns\s+nothing(.*?)endfunction",
+            RegexOptions.Singleline);
+
+        if (initMatch.Success)
+        {
+            using var sr = new StringReader(initMatch.Groups[1].Value);
+            string? line;
+            while ((line = sr.ReadLine()) != null)
+            {
+                var trimmed = line.Trim();
+                if (!trimmed.StartsWith("call TriggerRegister", StringComparison.Ordinal))
+                    continue;
+
+                var ev = CreateGuiEventFromJassLine(trimmed);
+                node.Events.Add(ev);
+            }
+        }
+
+        // 2. Condiciones (Conditions)
+        var condMatch = Regex.Match(
+            rawBody,
+            $@"function\s+Trig_{Regex.Escape(cleanId)}_Conditions\s+takes\s+nothing\s+returns\s+boolean(.*?)endfunction",
+            RegexOptions.Singleline);
+
+        if (condMatch.Success)
+        {
+            var condBody = condMatch.Groups[1].Value;
+            foreach (Match ifMatch in Regex.Matches(condBody, @"if\s*\((.*?)\)\s*then\s*\r?\n\s*return\s+false\s*\r?\n\s*endif", RegexOptions.Singleline))
+            {
+                var rawIf = ifMatch.Value.Trim();
+                var expr = ifMatch.Groups[1].Value.Trim();
+                node.Conditions.Add(new GuiTriggerElement
+                {
+                    ElementType = GuiTriggerElementType.Condition,
+                    Category = "Condition",
+                    FunctionName = "CustomScript",
+                    DisplayText = FormatJassConditionForGui(expr),
+                    IsEnabled = true,
+                    Parameters = { ["RawJass"] = rawIf, ["Script"] = expr }
+                });
+            }
+        }
+
+        // 3. Acciones (Actions)
+        var actMatch = Regex.Match(
+            rawBody,
+            $@"function\s+Trig_{Regex.Escape(cleanId)}_Actions\s+takes\s+nothing\s+returns\s+nothing(.*?)endfunction",
+            RegexOptions.Singleline);
+
+        if (actMatch.Success)
+        {
+            using var sr = new StringReader(actMatch.Groups[1].Value);
+            string? line;
+            while ((line = sr.ReadLine()) != null)
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("//"))
+                    continue;
+
+                node.Actions.Add(CreateGuiActionFromJassLine(trimmed));
+            }
+        }
+    }
+
+    private static GuiTriggerElement CreateGuiEventFromJassLine(string jassLine)
+    {
+        string category = "Event";
+        string funcName = "CustomEventScript";
+        string display = jassLine;
+
+        if (jassLine.Contains("TriggerRegisterTimerEventPeriodic", StringComparison.Ordinal))
+        {
+            category = "Time";
+            funcName = "PeriodicTimer";
+            var m = Regex.Match(jassLine, @",\s*([0-9.]+)\s*\)");
+            var sec = m.Success ? m.Groups[1].Value : "1.00";
+            display = LocalizationService.L($"Tiempo - Cada {sec} segundos de juego", $"Time - Every {sec} seconds of game time");
+        }
+        else if (jassLine.Contains("TriggerRegisterTimerEvent", StringComparison.Ordinal))
+        {
+            category = "Time";
+            funcName = "ElapsedTime";
+            var m = Regex.Match(jassLine, @",\s*([0-9.]+)\s*,");
+            var sec = m.Success ? m.Groups[1].Value : "0.00";
+            display = LocalizationService.L($"Tiempo - Tiempo transcurrido es {sec} segundos", $"Time - Elapsed game time is {sec} seconds");
+        }
+        else if (jassLine.Contains("EVENT_PLAYER_UNIT_DEATH", StringComparison.Ordinal))
+        {
+            category = "Unit";
+            funcName = "UnitDies";
+            display = LocalizationService.L("Unidad - Una unidad muere", "Unit - A unit Dies");
+        }
+        else if (jassLine.Contains("EVENT_PLAYER_UNIT_ATTACKED", StringComparison.Ordinal))
+        {
+            category = "Unit";
+            funcName = "UnitAttacked";
+            display = LocalizationService.L("Unidad - Una unidad es atacada", "Unit - A unit Is attacked");
+        }
+        else if (jassLine.Contains("EVENT_PLAYER_UNIT_SPELL_EFFECT", StringComparison.Ordinal))
+        {
+            category = "Unit";
+            funcName = "UnitSpell";
+            display = LocalizationService.L("Unidad - Una unidad inicia el efecto de una habilidad", "Unit - A unit Starts the effect of an ability");
+        }
+        else if (jassLine.Contains("TriggerRegisterEnterRectSimple", StringComparison.Ordinal))
+        {
+            category = "Unit";
+            funcName = "UnitEntersRegion";
+            display = LocalizationService.L($"Unidad - Una unidad entra en región ({ExtractLastIdentifier(jassLine)})", $"Unit - A unit enters Region ({ExtractLastIdentifier(jassLine)})");
+        }
+        else if (jassLine.Contains("TriggerRegisterPlayerChatEvent", StringComparison.Ordinal))
+        {
+            category = "Player";
+            funcName = "PlayerChat";
+            display = LocalizationService.L($"Jugador - Mensaje de chat ({jassLine})", $"Player - Chat message ({jassLine})");
+        }
+
+        return new GuiTriggerElement
+        {
+            ElementType = GuiTriggerElementType.Event,
+            Category = category,
+            FunctionName = funcName,
+            DisplayText = display,
+            IsEnabled = true,
+            Parameters = { ["RawJass"] = jassLine, ["Code"] = jassLine }
+        };
+    }
+
+    private static string FormatJassConditionForGui(string expr)
+    {
+        if (expr.StartsWith("not (", StringComparison.Ordinal) && expr.EndsWith(")"))
+            expr = expr[5..^1].Trim();
+        return expr;
+    }
+
+    private static GuiTriggerElement CreateGuiActionFromJassLine(string jassLine)
+    {
+        string category = "Action";
+        string display = jassLine;
+
+        if (jassLine.Contains("MeleeStartingVisibility", StringComparison.Ordinal))
+        {
+            category = "Melee Game";
+            display = LocalizationService.L("Partida Melee - Usar ciclo de día/noche melee (para todos los jugadores)", "Melee Game - Use melee time of day (for all players)");
+        }
+        else if (jassLine.Contains("MeleeStartingHeroLimit", StringComparison.Ordinal))
+        {
+            category = "Melee Game";
+            display = LocalizationService.L("Partida Melee - Limitar Héroes a 1 por tipo de Héroe (para todos los jugadores)", "Melee Game - Limit Heroes to 1 per Hero-type (for all players)");
+        }
+        else if (jassLine.Contains("MeleeGrantHeroItems", StringComparison.Ordinal))
+        {
+            category = "Melee Game";
+            display = LocalizationService.L("Partida Melee - Entregar pergamino de teletransporte inicial a Héroes (para todos los jugadores)", "Melee Game - Give heroicUnits starting items (for all players)");
+        }
+        else if (jassLine.Contains("MeleeStartingResources", StringComparison.Ordinal))
+        {
+            category = "Melee Game";
+            display = LocalizationService.L("Partida Melee - Establecer recursos iniciales (para todos los jugadores)", "Melee Game - Set starting resources (for all players)");
+        }
+        else if (jassLine.Contains("MeleeClearExcessUnits", StringComparison.Ordinal))
+        {
+            category = "Melee Game";
+            display = LocalizationService.L("Partida Melee - Eliminar creeps y criaturas cerca de posiciones iniciales (para todos los jugadores)", "Melee Game - Remove creeps and critters from used start locations (for all players)");
+        }
+        else if (jassLine.Contains("MeleeStartingUnits", StringComparison.Ordinal))
+        {
+            category = "Melee Game";
+            display = LocalizationService.L("Partida Melee - Crear unidades iniciales (para todos los jugadores)", "Melee Game - Create starting units (for all players)");
+        }
+        else if (jassLine.Contains("MeleeStartingAI", StringComparison.Ordinal))
+        {
+            category = "Melee Game";
+            display = LocalizationService.L("Partida Melee - Ejecutar scripts de IA melee (para jugadores de computadora)", "Melee Game - Run melee AI scripts (for all computer players)");
+        }
+        else if (jassLine.Contains("MeleeInitVictoryDefeat", StringComparison.Ordinal))
+        {
+            category = "Melee Game";
+            display = LocalizationService.L("Partida Melee - Imponer condiciones de victoria/derrota melee (para todos los jugadores)", "Melee Game - Enforce victory/defeat conditions (for all players)");
+        }
+        else if (jassLine.StartsWith("call ", StringComparison.Ordinal))
+        {
+            var callExpr = jassLine[5..].Trim();
+            var paren = callExpr.IndexOf('(');
+            var fn = paren > 0 ? callExpr[..paren].Trim() : callExpr;
+            category = GuessGuiCategoryFromFunction(fn);
+            display = $"{category} - {callExpr}";
+        }
+        else if (jassLine.StartsWith("set ", StringComparison.Ordinal))
+        {
+            category = "Set Variable";
+            display = $"Set {jassLine[4..].Trim()}";
+        }
+
+        return new GuiTriggerElement
+        {
+            ElementType = GuiTriggerElementType.Action,
+            Category = category,
+            FunctionName = "CustomScript",
+            DisplayText = display,
+            IsEnabled = true,
+            Parameters = { ["RawJass"] = jassLine, ["Code"] = jassLine }
+        };
+    }
+
+    private static string GuessGuiCategoryFromFunction(string fn)
+    {
+        if (fn.Contains("Unit", StringComparison.OrdinalIgnoreCase)) return "Unit";
+        if (fn.Contains("Hero", StringComparison.OrdinalIgnoreCase)) return "Hero";
+        if (fn.Contains("Player", StringComparison.OrdinalIgnoreCase)) return "Player";
+        if (fn.Contains("Item", StringComparison.OrdinalIgnoreCase)) return "Item";
+        if (fn.Contains("Effect", StringComparison.OrdinalIgnoreCase)) return "Special Effect";
+        if (fn.Contains("Sound", StringComparison.OrdinalIgnoreCase)) return "Sound";
+        if (fn.Contains("Camera", StringComparison.OrdinalIgnoreCase)) return "Camera";
+        if (fn.Contains("Trigger", StringComparison.OrdinalIgnoreCase)) return "Trigger";
+        if (fn.Contains("Display", StringComparison.OrdinalIgnoreCase) || fn.Contains("Text", StringComparison.OrdinalIgnoreCase)) return "Game";
+        return "Action";
+    }
+
+    private static string ExtractLastIdentifier(string line)
+    {
+        var m = Regex.Match(line, @"([A-Za-z0-9_]+)\s*\)\s*$");
+        return m.Success ? m.Groups[1].Value : line;
     }
 
     private static int GetLineNumber(string text, int charIndex)

@@ -83,6 +83,7 @@ public partial class MainWindow : Window
         _settings = WorkspaceSettings.Load();
         LocalizationService.SetLanguage(_settings.AppLanguage, notify: false);
         LocalizationService.LanguageChanged += OnAppLanguageChanged;
+        WorkspaceSettings.AdvancedViewSettingsChanged += OnAdvancedViewSettingsChanged;
         ApplyMainWindowLocalization();
 
         TxtTopWar3Dir.Text = _settings.Warcraft3Dir;
@@ -1099,6 +1100,11 @@ endlibrary
             return;
 
         IEnumerable<W3ImportedFile> list = _currentProject.Imports.Where(i => !i.IsDeleted);
+        if (!_settings.ShowInternalMapFilesInImports)
+        {
+            list = list.Where(i => !i.IsInternalSystemFile);
+        }
+
         var filter = TxtImportFilter.Text.Trim();
         if (!string.IsNullOrEmpty(filter))
         {
@@ -1243,6 +1249,19 @@ endlibrary
     {
         if (GridImports.SelectedItem is not W3ImportedFile item)
             return;
+
+        if (item.IsInternalSystemFile)
+        {
+            MessageBox.Show(
+                this,
+                LocalizationService.L(
+                    $"El archivo '{item.MpqPath}' es un archivo interno esencial del sistema de Warcraft III y está protegido contra eliminación para evitar corromper el mapa.",
+                    $"The file '{item.MpqPath}' is an essential internal Warcraft III system file and is protected from deletion to prevent map corruption."),
+                LocalizationService.L("Archivo del Sistema Protegido", "Protected System File"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
 
         item.IsDeleted = true;
         RefreshImportsGrid();
@@ -1823,6 +1842,25 @@ endlibrary
             _baseDataService.RefreshLocalization(_currentProject);
             ApplyMainWindowLocalization();
             RefreshToolPaletteList();
+            RefreshImportsGrid();
+        });
+    }
+
+    private void OnAdvancedViewSettingsChanged()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            RefreshImportsGrid();
+            MapMpqService.RefreshTriggerTreeAdvancedVisibility(_currentProject, _settings.ShowCompiledScriptInTriggers);
+            if (_currentProject != null)
+            {
+                TreeTriggers.ItemsSource = null;
+                TreeTriggers.ItemsSource = _currentProject.TriggerTree;
+            }
+            if (_standaloneTriggerEditorWindow != null && _standaloneTriggerEditorWindow.IsLoaded)
+            {
+                _standaloneTriggerEditorWindow.LoadProject(_currentProject);
+            }
         });
     }
 

@@ -14,7 +14,12 @@ public class WorkspaceSettings
     public string AppLanguage { get; set; } = "es";
     public bool AutoSaveBeforeTest { get; set; } = true;
     public bool ShowGridByDefault { get; set; } = false;
+    public bool ShowInternalMapFilesInImports { get; set; } = false;
+    public bool ShowCompiledScriptInTriggers { get; set; } = false;
     public string AdditionalLaunchArgs { get; set; } = string.Empty;
+
+    public static event Action? AdvancedViewSettingsChanged;
+    public static void NotifyAdvancedViewSettingsChanged() => AdvancedViewSettingsChanged?.Invoke();
 
     public string TestCommandArgs
     {
