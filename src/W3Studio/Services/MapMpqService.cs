@@ -239,6 +239,16 @@ public class MapMpqService
             catch { }
         }
 
+        if (archive.FileExists("war3map.w3c"))
+        {
+            try
+            {
+                using var cStream = archive.OpenFile("war3map.w3c");
+                ParseCameras(cStream, project);
+            }
+            catch { }
+        }
+
         // 9. Read WTG Categories + Variables and WCT Custom Text Triggers
         onProgress?.Invoke(62, "Cargando disparadores (triggers), variables y script JASS...");
         var wtgCategories = new List<(int Id, string Name, bool IsComment)>();
@@ -560,8 +570,8 @@ public class MapMpqService
             var top = br.ReadSingle();
             var name = ReadNullTerminatedString(br);
             var creationNum = br.ReadInt32();
-            _ = br.ReadInt32(); // weatherId
-            _ = ReadNullTerminatedString(br); // ambientSound
+            var weatherId = br.ReadInt32();
+            var ambientSound = ReadNullTerminatedString(br);
             var b = br.ReadByte();
             var g = br.ReadByte();
             var r = br.ReadByte();
@@ -575,11 +585,84 @@ public class MapMpqService
                 Right = Math.Max(left, right),
                 Bottom = Math.Min(bottom, top),
                 Top = Math.Max(bottom, top),
+                WeatherId = weatherId,
+                AmbientSound = ambientSound,
                 ColorR = r,
                 ColorG = g,
                 ColorB = b
             });
         }
+    }
+
+    public static void ParseCameras(Stream stream, MapProject project)
+    {
+        using var br = new BinaryReader(stream, Encoding.UTF8, true);
+        if (stream.Length < 8) return;
+
+        _ = br.ReadInt32(); // version (0)
+        uint count = br.ReadUInt32();
+        bool hasReforged = project.MapInfo != null && (int)project.MapInfo.EditorVersion > 131 && project.FormatVersion >= 31;
+        project.HasReforgedCameras = hasReforged;
+
+        for (uint i = 0; i < count && stream.Position + 41 <= stream.Length; i++)
+        {
+            var cam = new W3MapCamera
+            {
+                TargetX = br.ReadSingle(),
+                TargetY = br.ReadSingle(),
+                ZOffset = br.ReadSingle(),
+                Rotation = br.ReadSingle(),
+                AngleOfAttack = br.ReadSingle(),
+                Distance = br.ReadSingle(),
+                Roll = br.ReadSingle(),
+                FieldOfView = br.ReadSingle(),
+                FarClip = br.ReadSingle(),
+                NearClip = br.ReadSingle(),
+                Name = ReadNullTerminatedString(br)
+            };
+
+            if (hasReforged && stream.Position + 12 <= stream.Length)
+            {
+                cam.LocalPitch = br.ReadSingle();
+                cam.LocalYaw = br.ReadSingle();
+                cam.LocalRoll = br.ReadSingle();
+                cam.HasReforgedLocalAngles = true;
+            }
+
+            project.Cameras.Add(cam);
+        }
+    }
+
+    public static byte[] WriteCamerasW3c(MapProject project)
+    {
+        using var ms = new MemoryStream();
+        using var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
+        bw.Write(0); // version 0
+        bw.Write((uint)project.Cameras.Count);
+        bool writeReforged = project.HasReforgedCameras || project.Cameras.Any(c => c.HasReforgedLocalAngles);
+
+        foreach (var cam in project.Cameras)
+        {
+            bw.Write(cam.TargetX);
+            bw.Write(cam.TargetY);
+            bw.Write(cam.ZOffset);
+            bw.Write(cam.Rotation);
+            bw.Write(cam.AngleOfAttack);
+            bw.Write(cam.Distance);
+            bw.Write(cam.Roll);
+            bw.Write(cam.FieldOfView);
+            bw.Write(cam.FarClip);
+            bw.Write(cam.NearClip);
+            WriteNullTerminatedString(bw, cam.Name ?? string.Empty);
+            if (writeReforged)
+            {
+                bw.Write(cam.LocalPitch);
+                bw.Write(cam.LocalYaw);
+                bw.Write(cam.LocalRoll);
+            }
+        }
+        bw.Flush();
+        return ms.ToArray();
     }
 
     private static void ParseWtgCategoriesAndVariables(
@@ -1881,11 +1964,28 @@ public class MapMpqService
             MapScriptSyncService.SyncUnitsAndDoodadsToDooAndJass(project, _baseDataService);
         }
 
+        if (project.HasRegionEdits)
+        {
+            MapScriptSyncService.SyncRegionsToW3rAndJass(project);
+        }
+
+        if (project.HasCameraEdits)
+        {
+            project.RawMpqFiles["war3map.w3c"] = WriteCamerasW3c(project);
+        }
+
         project.RawMpqFiles["war3map.j"] = Encoding.UTF8.GetBytes(project.RawMapScript);
 
         if (project.Terrain.RawW3eBytes != null && project.HasTerrainEdits)
         {
             project.RawMpqFiles["war3map.w3e"] = project.Terrain.RawW3eBytes;
+            project.RawMpqFiles["war3mapMap.blp"] = MapShadowAndMinimapService.GenerateMinimapBlp(project);
+        }
+
+        if (project.HasTerrainEdits || project.HasUnitDoodadEdits)
+        {
+            onProgress?.Invoke(58, "Recalculando mapa de sombras estáticas (war3map.shd)...");
+            project.RawMpqFiles["war3map.shd"] = MapShadowAndMinimapService.GenerateShadowMapShd(project);
         }
 
         if (project.TriggerStrings.Count > 0 && project.RawMpqFiles.ContainsKey("war3map.wts"))
@@ -1975,6 +2075,8 @@ public class MapMpqService
         project.HasMiscEdits = false;
         project.HasSkinEdits = false;
         project.HasUnitDoodadEdits = false;
+        project.HasRegionEdits = false;
+        project.HasCameraEdits = false;
         foreach (var obj in project.Objects)
         {
             obj.IsModified = false;

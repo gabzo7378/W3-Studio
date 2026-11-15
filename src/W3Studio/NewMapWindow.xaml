@@ -1,0 +1,93 @@
+<Window x:Class="W3Studio.NewMapWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Nuevo Mapa de Warcraft III (.w3m)"
+        Icon="pack://application:,,,/Assets/W3Studio.ico"
+        Width="490" Height="450"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Win10WindowBg}"
+        Foreground="{DynamicResource Win10Text}">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="12">
+            <StackPanel>
+                <TextBlock Text="CONFIGURACIÓN DEL NUEVO MAPA (1.27b)" FontWeight="Bold" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,10"/>
+
+                <TextBlock Text="Nombre del Mapa:" FontWeight="SemiBold" Margin="0,0,0,2"/>
+                <TextBox x:Name="TxtMapName" Style="{StaticResource Win10TextBox}" Text="Nuevo Mapa W3 Studio" Padding="5,3" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Autor:" FontWeight="SemiBold" Margin="0,0,0,2"/>
+                <TextBox x:Name="TxtAuthor" Style="{StaticResource Win10TextBox}" Text="Creador" Padding="5,3" Margin="0,0,0,8"/>
+
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Tamaño de Terreno (Celdas):" FontWeight="SemiBold" Margin="0,0,0,2"/>
+                        <ComboBox x:Name="CmbMapSize" SelectedIndex="1">
+                            <ComboBoxItem Content="64 × 64 (Muy Pequeño)" Tag="64"/>
+                            <ComboBoxItem Content="96 × 96 (Pequeño / 1v1)" Tag="96"/>
+                            <ComboBoxItem Content="128 × 128 (Mediano / 2v2)" Tag="128"/>
+                            <ComboBoxItem Content="160 × 160 (Grande)" Tag="160"/>
+                            <ComboBoxItem Content="192 × 192 (Muy Grande / RPG)" Tag="192"/>
+                            <ComboBoxItem Content="256 × 256 (Máximo Clásico)" Tag="256"/>
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Tileset (Ambientación):" FontWeight="SemiBold" Margin="0,0,0,2"/>
+                        <ComboBox x:Name="CmbTileset" SelectedIndex="0">
+                            <ComboBoxItem Content="Lordaeron Summer (L)" Tag="L"/>
+                            <ComboBoxItem Content="Ashenvale (A)" Tag="A"/>
+                            <ComboBoxItem Content="Barrens (B)" Tag="B"/>
+                            <ComboBoxItem Content="Northrend (N)" Tag="N"/>
+                            <ComboBoxItem Content="Felwood (F)" Tag="F"/>
+                            <ComboBoxItem Content="Village (V)" Tag="V"/>
+                            <ComboBoxItem Content="Cityscape (Y)" Tag="Y"/>
+                            <ComboBoxItem Content="Icecrown Glacier (I)" Tag="I"/>
+                        </ComboBox>
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="Nivel Base Inicial:" FontWeight="SemiBold" Margin="0,0,0,2"/>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                    <RadioButton x:Name="RadGroundPlain" Content="Tierra Plana (Nivel 2)" IsChecked="True" GroupName="BaseTerrain" Foreground="{DynamicResource Win10Text}" Margin="0,0,16,0"/>
+                    <RadioButton x:Name="RadDeepWater" Content="Agua Profunda (Oceánico)" GroupName="BaseTerrain" Foreground="{DynamicResource Win10Text}"/>
+                </StackPanel>
+
+                <TextBlock Text="Guardar archivo en:" FontWeight="SemiBold" Margin="0,0,0,2"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="6"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="TxtOutputPath" Grid.Column="0" Style="{StaticResource Win10TextBox}" Padding="5,3"/>
+                    <Button Grid.Column="2" Content="Examinar..." Padding="10,3" Style="{StaticResource Win10ClassicButton}" Click="BtnBrowsePath_Click"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Crear Mapa y Abrir Editor 3D" Width="195" Height="28" Margin="0,0,8,0"
+                    Style="{StaticResource Win10ClassicButton}"
+                    Background="{DynamicResource ThemeSuccessBg}"
+                    BorderBrush="{DynamicResource ThemeSuccessBorder}"
+                    Foreground="{DynamicResource ThemeSuccessText}"
+                    FontWeight="SemiBold"
+                    IsDefault="True"
+                    Click="BtnCreate_Click"/>
+            <Button Content="Cancelar" Width="90" Height="28"
+                    Style="{StaticResource Win10ClassicButton}"
+                    IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>
+

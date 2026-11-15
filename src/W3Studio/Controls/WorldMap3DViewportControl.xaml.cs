@@ -25,11 +25,17 @@ public partial class WorldMap3DViewportControl : UserControl
     public event Action? MapLoadedSuccess;
     public event Action<int, string>? MapLoadProgress;
     public event Action<float, float, bool>? TerrainBrushDabReceived;
+    public event Action? TerrainBrushStrokeEnded;
     public event Action<string?, int>? EntitySelected;
     public event Action<string, int, float, float, float>? EntityMoved;
     public event Action<string, string, float, float, float, float, float, int, int>? EntityPlaceRequested;
     public event Action<string, int>? EntityDeleteRequested;
+    public event Action<int>? RegionSelected;
+    public event Action<int, float, float, float, float>? RegionUpdated;
+    public event Action<float, float, float, float>? RegionCreateRequested;
+    public event Action<int>? RegionDeleteRequested;
     public event Action? PlacementCancelled;
+    private TaskCompletionSource<W3MapCamera?>? _captureCameraTcs;
 
     public WorldMap3DViewportControl()
     {
@@ -51,7 +57,8 @@ public partial class WorldMap3DViewportControl : UserControl
     public Task EnsureEngineInitializedAsync()
     {
         if (_isInitialized) return Task.CompletedTask;
-        _initTask ??= InitializeInternalAsync();
+        if (_initTask == null || _initTask.IsFaulted || (_initTask.IsCompleted && !_isInitialized))
+            _initTask = InitializeInternalAsync();
         return _initTask;
     }
 
@@ -140,7 +147,23 @@ public partial class WorldMap3DViewportControl : UserControl
             // 2. MPQ asset lookups (/mpq/...)
             if (path.StartsWith("/mpq/", StringComparison.OrdinalIgnoreCase))
             {
-                var subPath = Uri.UnescapeDataString(path.Substring(5)).Replace('/', '\\');
+                var subPath = Uri.UnescapeDataString(path.Substring(5)).Replace('/', '\\').Trim();
+                var fileName = Path.GetFileName(subPath);
+                if (string.IsNullOrWhiteSpace(subPath) ||
+                    subPath.StartsWith(".", StringComparison.Ordinal) ||
+                    fileName.Equals("none.blp", StringComparison.OrdinalIgnoreCase) ||
+                    fileName.Equals("_.blp", StringComparison.OrdinalIgnoreCase) ||
+                    fileName.Equals("0.blp", StringComparison.OrdinalIgnoreCase) ||
+                    fileName.Equals(".mdx", StringComparison.OrdinalIgnoreCase) ||
+                    fileName.Equals("none.mdx", StringComparison.OrdinalIgnoreCase))
+                {
+                    e.Response = WvMap.CoreWebView2.Environment.CreateWebResourceResponse(
+                        new MemoryStream(),
+                        404,
+                        "Not Found",
+                        "Content-Type: text/plain\r\nAccess-Control-Allow-Origin: *");
+                    return;
+                }
                 string? tileset = null;
                 if (!string.IsNullOrEmpty(uri.Query))
                 {
@@ -267,6 +290,53 @@ public partial class WorldMap3DViewportControl : UserControl
                     TerrainBrushDabReceived?.Invoke(wx, wy, isStart);
                 }
             }
+            else if (msgType == "terrain_brush_end")
+            {
+                TerrainBrushStrokeEnded?.Invoke();
+            }
+            else if (msgType == "region_selected")
+            {
+                int cnum = root.TryGetProperty("creationNumber", out var cProp) ? cProp.GetInt32() : -1;
+                RegionSelected?.Invoke(cnum);
+            }
+            else if (msgType == "region_updated")
+            {
+                int cnum = root.GetProperty("creationNumber").GetInt32();
+                float l = (float)root.GetProperty("left").GetDouble();
+                float b = (float)root.GetProperty("bottom").GetDouble();
+                float r = (float)root.GetProperty("right").GetDouble();
+                float t = (float)root.GetProperty("top").GetDouble();
+                RegionUpdated?.Invoke(cnum, l, b, r, t);
+            }
+            else if (msgType == "region_create_request")
+            {
+                float l = (float)root.GetProperty("left").GetDouble();
+                float b = (float)root.GetProperty("bottom").GetDouble();
+                float r = (float)root.GetProperty("right").GetDouble();
+                float t = (float)root.GetProperty("top").GetDouble();
+                RegionCreateRequested?.Invoke(l, b, r, t);
+            }
+            else if (msgType == "region_delete_request")
+            {
+                int cnum = root.GetProperty("creationNumber").GetInt32();
+                RegionDeleteRequested?.Invoke(cnum);
+            }
+            else if (msgType == "camera_state_captured")
+            {
+                var cam = new W3MapCamera
+                {
+                    TargetX = (float)root.GetProperty("targetX").GetDouble(),
+                    TargetY = (float)root.GetProperty("targetY").GetDouble(),
+                    ZOffset = (float)root.GetProperty("zOffset").GetDouble(),
+                    Rotation = (float)root.GetProperty("rotation").GetDouble(),
+                    AngleOfAttack = (float)root.GetProperty("angleOfAttack").GetDouble(),
+                    Distance = (float)root.GetProperty("distance").GetDouble(),
+                    FieldOfView = 70f,
+                    FarClip = 5000f,
+                    NearClip = 100f
+                };
+                _captureCameraTcs?.TrySetResult(cam);
+            }
             else if (msgType == "entity_selected")
             {
                 if (root.TryGetProperty("entity", out var entProp) && entProp.ValueKind == JsonValueKind.Object)
@@ -330,7 +400,8 @@ public partial class WorldMap3DViewportControl : UserControl
             return;
         }
 
-        await EnsureEngineInitializedAsync();
+        onProgress?.Invoke(78, "Inicializando motor 3D WebGL...");
+        await Task.WhenAny(EnsureEngineInitializedAsync(), Task.Delay(Math.Max(timeoutMs, 10000)));
 
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         _loadTcs = tcs;
@@ -378,6 +449,13 @@ public partial class WorldMap3DViewportControl : UserControl
     {
         if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
         var json = JsonSerializer.Serialize(new { action = "reset_camera" });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
+    public void SetLightingPreset(string preset)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null || string.IsNullOrWhiteSpace(preset)) return;
+        var json = JsonSerializer.Serialize(new { action = "set_lighting", preset });
         WvMap.CoreWebView2.PostWebMessageAsJson(json);
     }
 
@@ -483,5 +561,95 @@ public partial class WorldMap3DViewportControl : UserControl
         if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
         var json = JsonSerializer.Serialize(new { action = "delete_entity", kind, creationNumber });
         WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
+    public void SetLayerVisibility(
+        bool showUnits,
+        bool showDoodads,
+        bool showRegions,
+        bool showGrid,
+        bool showPathing = false,
+        bool showBounds = false,
+        bool showWeather = true,
+        string? weatherOverride = null)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
+        var json = JsonSerializer.Serialize(new
+        {
+            action = "set_layer_visibility",
+            showUnits,
+            showDoodads,
+            showRegions,
+            showGrid,
+            showPathing,
+            showBounds,
+            showWeather,
+            weatherOverride
+        });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
+    public void SyncRegions(System.Collections.Generic.IEnumerable<W3MapRegion> regions)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
+        var dto = new System.Collections.Generic.List<object>();
+        foreach (var r in regions)
+        {
+            dto.Add(new
+            {
+                creationNumber = r.CreationNumber,
+                name = r.Name,
+                left = r.Left,
+                bottom = r.Bottom,
+                right = r.Right,
+                top = r.Top,
+                colorR = r.ColorR,
+                colorG = r.ColorG,
+                colorB = r.ColorB
+            });
+        }
+        var json = JsonSerializer.Serialize(new { action = "set_regions", regions = dto });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
+    public void SelectRegion(int creationNumber, bool focus = false, float distance = 2200f)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
+        var json = JsonSerializer.Serialize(new { action = "select_region", creationNumber, focus, distance });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
+    public void FocusCameraPreset(W3MapCamera camera)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null || camera == null) return;
+        var json = JsonSerializer.Serialize(new
+        {
+            action = "focus_camera_preset",
+            camera = new
+            {
+                targetX = camera.TargetX,
+                targetY = camera.TargetY,
+                zOffset = camera.ZOffset,
+                rotation = camera.Rotation,
+                angleOfAttack = camera.AngleOfAttack,
+                distance = camera.Distance
+            }
+        });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
+    public async Task<W3MapCamera?> CaptureCurrentCameraAsync(int timeoutMs = 1500)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null)
+            return null;
+
+        var tcs = new TaskCompletionSource<W3MapCamera?>();
+        _captureCameraTcs = tcs;
+        var json = JsonSerializer.Serialize(new { action = "request_camera_state", requestId = Guid.NewGuid().ToString("N") });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+        await Task.WhenAny(tcs.Task, Task.Delay(timeoutMs));
+        if (ReferenceEquals(_captureCameraTcs, tcs))
+            _captureCameraTcs = null;
+        return tcs.Task.IsCompleted ? await tcs.Task : null;
     }
 }

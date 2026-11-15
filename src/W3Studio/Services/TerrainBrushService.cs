@@ -424,38 +424,7 @@ namespace W3Studio.Services
                         result.CliffsChanged = true;
                     }
 
-                    ushort gHeightRaw = BitConverter.ToUInt16(raw, off);
-                    byte flagsAndTex = raw[off + 4];
-                    int groundTex = flagsAndTex & 0x0F;
-                    int layer = newCliffLayer & 0x0F;
-                    float realHeight = ((gHeightRaw - 8192f) / 4f) + ((layer - 2) * 128f);
-                    float parsedWaterHeight = (((newWaterRaw & 0x3FFF) - 8192f) / 4f) - 89.6f;
-                    bool hasWater = (newFlags & 0x40) != 0;
-                    float waterDepth = hasWater ? (parsedWaterHeight - realHeight) : -64f;
-
-                    if (t.TextureIndices != null && sx < t.TextureIndices.GetLength(0) && sy < t.TextureIndices.GetLength(1))
-                        t.TextureIndices[sx, sy] = (byte)groundTex;
-                    if (t.CliffLevels != null && sx < t.CliffLevels.GetLength(0) && sy < t.CliffLevels.GetLength(1))
-                        t.CliffLevels[sx, sy] = (byte)layer;
-                    if (t.WaterFlags != null && sx < t.WaterFlags.GetLength(0) && sy < t.WaterFlags.GetLength(1))
-                        t.WaterFlags[sx, sy] = hasWater && waterDepth > 0f;
-                    if (t.WaterDepths != null && sx < t.WaterDepths.GetLength(0) && sy < t.WaterDepths.GetLength(1))
-                        t.WaterDepths[sx, sy] = waterDepth;
-                    if (t.RampFlags != null && sx < t.RampFlags.GetLength(0) && sy < t.RampFlags.GetLength(1))
-                        t.RampFlags[sx, sy] = (newFlags & 0x10) != 0;
-                    if (t.GroundHeights != null && sx < t.GroundHeights.GetLength(0) && sy < t.GroundHeights.GetLength(1))
-                        t.GroundHeights[sx, sy] = realHeight;
-
-                    result.Patches.Add(new TerrainCornerPatch
-                    {
-                        X = sx,
-                        Y = sy,
-                        GroundHeightRaw = gHeightRaw,
-                        WaterRaw = newWaterRaw,
-                        FlagsAndTex = flagsAndTex,
-                        Variations = raw[off + 5],
-                        CliffAndLayer = newCliffLayer
-                    });
+                    result.Patches.Add(SyncCornerArraysFromRaw(t, raw, sx, sy, off));
                 }
             }
 
@@ -468,6 +437,141 @@ namespace W3Studio.Services
                 project.HasTerrainEdits = true;
                 if (project.RawMpqFiles != null)
                     project.RawMpqFiles["war3map.w3e"] = raw;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Decodes a single 7-byte corner entry in <paramref name="raw"/> into <see cref="W3TerrainData"/> arrays
+        /// and returns its <see cref="TerrainCornerPatch"/> representation.
+        /// </summary>
+        public static TerrainCornerPatch SyncCornerArraysFromRaw(W3TerrainData t, byte[] raw, int sx, int sy, int off)
+        {
+            ushort gHeightRaw = BitConverter.ToUInt16(raw, off);
+            ushort waterRaw = BitConverter.ToUInt16(raw, off + 2);
+            byte flagsAndTex = raw[off + 4];
+            byte variations = raw[off + 5];
+            byte cliffAndLayer = raw[off + 6];
+
+            int groundTex = flagsAndTex & 0x0F;
+            byte flags = (byte)(flagsAndTex & 0xF0);
+            int layer = cliffAndLayer & 0x0F;
+            float realHeight = ((gHeightRaw - 8192f) / 4f) + ((layer - 2) * 128f);
+            float parsedWaterHeight = (((waterRaw & 0x3FFF) - 8192f) / 4f) - 89.6f;
+            bool hasWater = (flags & 0x40) != 0;
+            float waterDepth = hasWater ? (parsedWaterHeight - realHeight) : -64f;
+
+            if (t.TextureIndices != null && sx < t.TextureIndices.GetLength(0) && sy < t.TextureIndices.GetLength(1))
+                t.TextureIndices[sx, sy] = (byte)groundTex;
+            if (t.CliffLevels != null && sx < t.CliffLevels.GetLength(0) && sy < t.CliffLevels.GetLength(1))
+                t.CliffLevels[sx, sy] = (byte)layer;
+            if (t.WaterFlags != null && sx < t.WaterFlags.GetLength(0) && sy < t.WaterFlags.GetLength(1))
+                t.WaterFlags[sx, sy] = hasWater && waterDepth > 0f;
+            if (t.WaterDepths != null && sx < t.WaterDepths.GetLength(0) && sy < t.WaterDepths.GetLength(1))
+                t.WaterDepths[sx, sy] = waterDepth;
+            if (t.RampFlags != null && sx < t.RampFlags.GetLength(0) && sy < t.RampFlags.GetLength(1))
+                t.RampFlags[sx, sy] = (flags & 0x10) != 0;
+            if (t.GroundHeights != null && sx < t.GroundHeights.GetLength(0) && sy < t.GroundHeights.GetLength(1))
+                t.GroundHeights[sx, sy] = realHeight;
+
+            return new TerrainCornerPatch
+            {
+                X = sx,
+                Y = sy,
+                GroundHeightRaw = gHeightRaw,
+                WaterRaw = waterRaw,
+                FlagsAndTex = flagsAndTex,
+                Variations = variations,
+                CliffAndLayer = cliffAndLayer
+            };
+        }
+
+        /// <summary>
+        /// Computes the exact header byte offset where the 7-byte terrain corners start inside war3map.w3e.
+        /// </summary>
+        public static int GetW3eCornerDataOffset(byte[] raw)
+        {
+            // Layout: "W3E!" (4) + version (4) + tileset (1) + customFlag (4) = 13 bytes before groundCount
+            if (raw.Length < 37) return -1;
+            int groundCount = BitConverter.ToInt32(raw, 13);
+            if (groundCount < 0 || groundCount > 64) return -1;
+            int off = 17 + groundCount * 4;
+            if (off + 4 > raw.Length) return -1;
+            int cliffCount = BitConverter.ToInt32(raw, off);
+            if (cliffCount < 0 || cliffCount > 64) return -1;
+            off += 4 + cliffCount * 4 + 16;
+            return off;
+        }
+
+        /// <summary>
+        /// Applies a sparse list of corner byte tuples to <paramref name="project"/>'s W3E buffer and returns a <see cref="TerrainDabResult"/>
+        /// for incremental 3D patching (used by Undo/Redo).
+        /// </summary>
+        public static TerrainDabResult ApplyCornerBytePatches(
+            MapProject project,
+            IReadOnlyList<(int CornerIndex, byte[] Bytes7)> patches)
+        {
+            var result = new TerrainDabResult();
+            var t = project.Terrain;
+            var raw = t.RawW3eBytes;
+            if (raw == null || patches.Count == 0)
+                return result;
+
+            int headerLen = GetW3eCornerDataOffset(raw);
+            int w = t.GridWidth;
+            int h = t.GridHeight;
+            if (headerLen < 0 || w <= 1 || h <= 1)
+                return result;
+
+            int minX = int.MaxValue, maxX = int.MinValue;
+            int minY = int.MaxValue, maxY = int.MinValue;
+
+            foreach (var (cornerIdx, bytes7) in patches)
+            {
+                if (cornerIdx < 0 || cornerIdx >= w * h || bytes7.Length < 7)
+                    continue;
+
+                int off = headerLen + cornerIdx * 7;
+                if (off + 7 > raw.Length)
+                    continue;
+
+                byte oldFlags = (byte)(raw[off + 4] & 0xF0);
+                ushort oldWater = BitConverter.ToUInt16(raw, off + 2);
+                byte oldCliff = raw[off + 6];
+
+                Buffer.BlockCopy(bytes7, 0, raw, off, 7);
+
+                byte newFlags = (byte)(bytes7[4] & 0xF0);
+                ushort newWater = BitConverter.ToUInt16(bytes7, 2);
+                byte newCliff = bytes7[6];
+
+                if (oldCliff != newCliff ||
+                    ((oldFlags & 0x50) != (newFlags & 0x50)) ||
+                    (oldWater != newWater && (newFlags & 0x40) != 0))
+                {
+                    result.CliffsChanged = true;
+                }
+
+                int sy = cornerIdx / w;
+                int sx = cornerIdx % w;
+                minX = Math.Min(minX, sx);
+                maxX = Math.Max(maxX, sx);
+                minY = Math.Min(minY, sy);
+                maxY = Math.Max(maxY, sy);
+
+                result.Patches.Add(SyncCornerArraysFromRaw(t, raw, sx, sy, off));
+                result.Modified = true;
+            }
+
+            if (result.Modified)
+            {
+                result.MinX = minX;
+                result.MaxX = maxX;
+                result.MinY = minY;
+                result.MaxY = maxY;
+                project.HasTerrainEdits = true;
+                project.RawMpqFiles["war3map.w3e"] = raw;
             }
 
             return result;

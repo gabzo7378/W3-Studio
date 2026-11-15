@@ -31,6 +31,7 @@ public partial class MainWindow
     }
 
     private object? _activeSelectedEntity;
+    private W3MapRegion? _selectedRegion;
     private bool _suppressInspectorEvents;
     private bool _suppressPaletteModeEvents;
 
@@ -75,6 +76,10 @@ public partial class MainWindow
         Map3DViewport.EntityMoved += Map3DViewport_EntityMoved;
         Map3DViewport.EntityPlaceRequested += Map3DViewport_EntityPlaceRequested;
         Map3DViewport.EntityDeleteRequested += Map3DViewport_EntityDeleteRequested;
+        Map3DViewport.RegionSelected += Map3DViewport_RegionSelected;
+        Map3DViewport.RegionUpdated += Map3DViewport_RegionUpdated;
+        Map3DViewport.RegionCreateRequested += Map3DViewport_RegionCreateRequested;
+        Map3DViewport.RegionDeleteRequested += Map3DViewport_RegionDeleteRequested;
         Map3DViewport.PlacementCancelled += Map3DViewport_PlacementCancelled;
     }
 
@@ -180,6 +185,15 @@ public partial class MainWindow
         if (mode == 3)
         {
             SyncTerrainBrushToViewport();
+            return;
+        }
+
+        if (mode == 2)
+        {
+            bool drawRegion = TglRegionPlace?.IsChecked == true &&
+                              _currentProject != null &&
+                              FloatingToolPalette?.Visibility == Visibility.Visible;
+            Map3DViewport.SetEditorMode(drawRegion ? "place_region" : "select_region", null);
             return;
         }
 
@@ -332,28 +346,53 @@ public partial class MainWindow
         {
             var u = _currentProject.PlacedUnits.FirstOrDefault(item => item.CreationNumber == creationNumber);
             if (u == null) return;
-            u.X = x; u.Y = y; u.Z = z;
-            if (u.IsStartLocation && _currentProject.MapInfo != null)
-            {
-                var p = _currentProject.MapInfo.Players.FirstOrDefault(pl => pl.Id == u.PlayerId);
-                if (p != null)
-                {
-                    p.StartPosition = new System.Numerics.Vector2(x, y);
-                    _currentProject.HasScenarioEdits = true;
-                }
-            }
-            MapViewport_SelectionChanged(u);
+            float ox = u.X, oy = u.Y, oz = u.Z;
+            ApplyUnitPosition(u, x, y, z);
+            _undoService.Record(new DelegateUndoEdit(
+                $"Mover {u.Name}",
+                () => { ApplyUnitPosition(u, ox, oy, oz); Map3DViewport.UpdateLiveEntity("unit", u.CreationNumber, new { x = ox, y = oy, z = oz }); RefreshEntityAfterEdit(u); },
+                () => { ApplyUnitPosition(u, x, y, z); Map3DViewport.UpdateLiveEntity("unit", u.CreationNumber, new { x, y, z }); RefreshEntityAfterEdit(u); }));
         }
         else
         {
             var d = _currentProject.PlacedDoodads.FirstOrDefault(item => item.CreationNumber == creationNumber);
             if (d == null) return;
+            float ox = d.X, oy = d.Y, oz = d.Z;
             d.X = x; d.Y = y; d.Z = z;
             MapViewport_SelectionChanged(d);
+            _undoService.Record(new DelegateUndoEdit(
+                $"Mover {d.Name}",
+                () => { d.X = ox; d.Y = oy; d.Z = oz; Map3DViewport.UpdateLiveEntity("doodad", d.CreationNumber, new { x = ox, y = oy, z = oz }); RefreshEntityAfterEdit(d); },
+                () => { d.X = x; d.Y = y; d.Z = z; Map3DViewport.UpdateLiveEntity("doodad", d.CreationNumber, new { x, y, z }); RefreshEntityAfterEdit(d); }));
         }
 
         _currentProject.HasUnitDoodadEdits = true;
         MapViewport.MarkViewportDirty();
+        UpdateTestButtonState();
+    }
+
+    private void ApplyUnitPosition(W3PlacedUnit u, float x, float y, float z)
+    {
+        u.X = x; u.Y = y; u.Z = z;
+        if (u.IsStartLocation && _currentProject?.MapInfo != null)
+        {
+            var p = _currentProject.MapInfo.Players.FirstOrDefault(pl => pl.Id == u.PlayerId);
+            if (p != null)
+            {
+                p.StartPosition = new System.Numerics.Vector2(x, y);
+                _currentProject.HasScenarioEdits = true;
+            }
+        }
+        MapViewport_SelectionChanged(u);
+    }
+
+    private void RefreshEntityAfterEdit(object entity)
+    {
+        if (_currentProject == null) return;
+        _currentProject.HasUnitDoodadEdits = true;
+        MapViewport.MarkViewportDirty();
+        MapViewport_SelectionChanged(entity);
+        UpdateMapHeaderOverlay();
         UpdateTestButtonState();
     }
 
@@ -405,14 +444,31 @@ public partial class MainWindow
             _currentProject.PlacedUnits.Add(placed);
             _currentProject.HasUnitDoodadEdits = true;
 
-            Map3DViewport.SpawnLiveEntity("unit", new
+            var spawnOpts = new
             {
                 id = rawcode,
                 creationNumber = nextNum,
                 x, y, z,
                 angle, scale, player,
                 modelPath
-            });
+            };
+            Map3DViewport.SpawnLiveEntity("unit", spawnOpts);
+
+            _undoService.Record(new DelegateUndoEdit(
+                $"Colocar {cleanName}",
+                () =>
+                {
+                    _currentProject.PlacedUnits.Remove(placed);
+                    Map3DViewport.DeleteLiveEntity("unit", placed.CreationNumber);
+                    RefreshAfterEntityListChange(null);
+                },
+                () =>
+                {
+                    if (!_currentProject.PlacedUnits.Contains(placed))
+                        _currentProject.PlacedUnits.Add(placed);
+                    Map3DViewport.SpawnLiveEntity("unit", spawnOpts);
+                    RefreshAfterEntityListChange(placed);
+                }));
 
             MapViewport.SelectedEntity = placed;
             MapViewport.MarkViewportDirty();
@@ -447,20 +503,50 @@ public partial class MainWindow
             _currentProject.PlacedDoodads.Add(placed);
             _currentProject.HasUnitDoodadEdits = true;
 
-            Map3DViewport.SpawnLiveEntity("doodad", new
+            var spawnOpts = new
             {
                 id = rawcode,
                 creationNumber = nextNum,
                 x, y, z,
                 angle, scale, variation, life = 100,
                 modelPath
-            });
+            };
+            Map3DViewport.SpawnLiveEntity("doodad", spawnOpts);
+
+            _undoService.Record(new DelegateUndoEdit(
+                $"Colocar {cleanName}",
+                () =>
+                {
+                    _currentProject.PlacedDoodads.Remove(placed);
+                    Map3DViewport.DeleteLiveEntity("doodad", placed.CreationNumber);
+                    RefreshAfterEntityListChange(null);
+                },
+                () =>
+                {
+                    if (!_currentProject.PlacedDoodads.Contains(placed))
+                        _currentProject.PlacedDoodads.Add(placed);
+                    Map3DViewport.SpawnLiveEntity("doodad", spawnOpts);
+                    RefreshAfterEntityListChange(placed);
+                }));
 
             MapViewport.SelectedEntity = placed;
             MapViewport.MarkViewportDirty();
             MapViewport_SelectionChanged(placed);
         }
 
+        UpdateMapHeaderOverlay();
+        UpdateTestButtonState();
+    }
+
+    private void RefreshAfterEntityListChange(object? selected)
+    {
+        if (_currentProject == null) return;
+        _currentProject.HasUnitDoodadEdits = true;
+        MapViewport.SelectedEntity = selected;
+        MapViewport.MarkViewportDirty();
+        MapViewport_SelectionChanged(selected);
+        if (CmbPaletteSource.SelectedIndex == 0)
+            RefreshToolPaletteList();
         UpdateMapHeaderOverlay();
         UpdateTestButtonState();
     }
@@ -474,8 +560,32 @@ public partial class MainWindow
             var u = _currentProject.PlacedUnits.FirstOrDefault(x => x.CreationNumber == creationNumber);
             if (u != null)
             {
+                string modelPath = ResolveModelPathForRawcode(u.Rawcode);
+                var spawnOpts = new
+                {
+                    id = u.Rawcode,
+                    creationNumber = u.CreationNumber,
+                    x = u.X, y = u.Y, z = u.Z,
+                    angle = u.AngleRadians, scale = u.Scale, player = u.PlayerId,
+                    modelPath
+                };
                 _currentProject.PlacedUnits.Remove(u);
                 Map3DViewport.DeleteLiveEntity("unit", creationNumber);
+                _undoService.Record(new DelegateUndoEdit(
+                    $"Eliminar {u.Name}",
+                    () =>
+                    {
+                        if (!_currentProject.PlacedUnits.Contains(u))
+                            _currentProject.PlacedUnits.Add(u);
+                        Map3DViewport.SpawnLiveEntity("unit", spawnOpts);
+                        RefreshAfterEntityListChange(u);
+                    },
+                    () =>
+                    {
+                        _currentProject.PlacedUnits.Remove(u);
+                        Map3DViewport.DeleteLiveEntity("unit", u.CreationNumber);
+                        RefreshAfterEntityListChange(null);
+                    }));
             }
         }
         else
@@ -483,20 +593,45 @@ public partial class MainWindow
             var d = _currentProject.PlacedDoodads.FirstOrDefault(x => x.CreationNumber == creationNumber);
             if (d != null)
             {
+                string modelPath = ResolveModelPathForRawcode(d.Rawcode);
+                var spawnOpts = new
+                {
+                    id = d.Rawcode,
+                    creationNumber = d.CreationNumber,
+                    x = d.X, y = d.Y, z = d.Z,
+                    angle = d.AngleRadians, scale = d.Scale, variation = d.Variation, life = (int)d.Life,
+                    modelPath
+                };
                 _currentProject.PlacedDoodads.Remove(d);
                 Map3DViewport.DeleteLiveEntity("doodad", creationNumber);
+                _undoService.Record(new DelegateUndoEdit(
+                    $"Eliminar {d.Name}",
+                    () =>
+                    {
+                        if (!_currentProject.PlacedDoodads.Contains(d))
+                            _currentProject.PlacedDoodads.Add(d);
+                        Map3DViewport.SpawnLiveEntity("doodad", spawnOpts);
+                        RefreshAfterEntityListChange(d);
+                    },
+                    () =>
+                    {
+                        _currentProject.PlacedDoodads.Remove(d);
+                        Map3DViewport.DeleteLiveEntity("doodad", d.CreationNumber);
+                        RefreshAfterEntityListChange(null);
+                    }));
             }
         }
 
-        _currentProject.HasUnitDoodadEdits = true;
-        MapViewport.SelectedEntity = null;
-        MapViewport.MarkViewportDirty();
-        MapViewport_SelectionChanged(null);
-        if (CmbPaletteSource.SelectedIndex == 0)
-            RefreshToolPaletteList();
-        UpdateMapHeaderOverlay();
-        UpdateTestButtonState();
+        RefreshAfterEntityListChange(null);
         TxtStatusBarLeft.Text = "Elemento eliminado del mapa (recuerda Guardar Ctrl+S).";
+    }
+
+    private string ResolveModelPathForRawcode(string rawcode)
+    {
+        var customObj = _currentProject?.Objects.FirstOrDefault(o => o.Rawcode.Equals(rawcode, StringComparison.OrdinalIgnoreCase));
+        return (customObj != null ? ResolveModelPathFromEntry(customObj) : null)
+               ?? _baseDataService.GetBaseObject(rawcode)?.ModelFile
+               ?? string.Empty;
     }
 
     private void Map3DViewport_PlacementCancelled()
@@ -504,8 +639,10 @@ public partial class MainWindow
         _suppressPaletteModeEvents = true;
         if (TglModePlace != null) TglModePlace.IsChecked = false;
         if (TglModeSelect != null) TglModeSelect.IsChecked = true;
+        if (TglRegionPlace != null) TglRegionPlace.IsChecked = false;
+        if (TglRegionSelect != null) TglRegionSelect.IsChecked = true;
         _suppressPaletteModeEvents = false;
-        TxtStatusBarLeft.Text = "Modo Selección activo (clic para seleccionar o arrastrar entidades).";
+        TxtStatusBarLeft.Text = "Modo Selección activo (clic para seleccionar o arrastrar elementos).";
     }
 
     // ==================== INSPECTOR LATERAL IZQUIERDO ====================
@@ -634,6 +771,209 @@ public partial class MainWindow
         _currentProject.HasUnitDoodadEdits = true;
         MapViewport.MarkViewportDirty();
         UpdateTestButtonState();
+    }
+
+    // ==================== REGIONES 3D (war3map.w3r) Y CÁMARAS (war3map.w3c) ====================
+
+    private void BtnRegionToolMode_Click(object sender, RoutedEventArgs e)
+    {
+        if (_suppressPaletteModeEvents || sender is not System.Windows.Controls.Primitives.ToggleButton btn)
+            return;
+
+        _suppressPaletteModeEvents = true;
+        bool wantPlace = (btn.Tag as string) == "place";
+        if (TglRegionSelect != null) TglRegionSelect.IsChecked = !wantPlace;
+        if (TglRegionPlace != null) TglRegionPlace.IsChecked = wantPlace;
+        _suppressPaletteModeEvents = false;
+        Sync3DEditorMode();
+    }
+
+    private void Map3DViewport_RegionSelected(int creationNumber)
+    {
+        if (_currentProject == null) return;
+        _selectedRegion = creationNumber >= 0
+            ? _currentProject.Regions.FirstOrDefault(r => r.CreationNumber == creationNumber)
+            : null;
+
+        if (_selectedRegion != null)
+        {
+            if (TxtSelectedRegionName != null) TxtSelectedRegionName.Text = _selectedRegion.Name;
+            TxtStatusBarLeft.Text = $"Región seleccionada: {_selectedRegion.Name} [{_selectedRegion.Width:F0}×{_selectedRegion.Height:F0}] ({_selectedRegion.JassVariableName})";
+            if (CmbPaletteMode.SelectedIndex == 2)
+                LstToolPalette.SelectedItem = _selectedRegion;
+        }
+        else if (TxtSelectedRegionName != null)
+        {
+            TxtSelectedRegionName.Text = string.Empty;
+        }
+    }
+
+    private void Map3DViewport_RegionUpdated(int creationNumber, float left, float bottom, float right, float top)
+    {
+        if (_currentProject == null) return;
+        var reg = _currentProject.Regions.FirstOrDefault(r => r.CreationNumber == creationNumber);
+        if (reg == null) return;
+
+        float ol = reg.Left, ob = reg.Bottom, orr = reg.Right, ot = reg.Top;
+        ApplyRegionRect(reg, left, bottom, right, top);
+        _undoService.Record(new DelegateUndoEdit(
+            $"Ajustar región {reg.Name}",
+            () => ApplyRegionRect(reg, ol, ob, orr, ot),
+            () => ApplyRegionRect(reg, left, bottom, right, top)));
+    }
+
+    private void ApplyRegionRect(W3MapRegion reg, float left, float bottom, float right, float top)
+    {
+        if (_currentProject == null) return;
+        reg.Left = Math.Min(left, right);
+        reg.Right = Math.Max(left, right);
+        reg.Bottom = Math.Min(bottom, top);
+        reg.Top = Math.Max(bottom, top);
+        _currentProject.HasRegionEdits = true;
+        Map3DViewport.SyncRegions(_currentProject.Regions);
+        MapViewport.MarkViewportDirty();
+        if (CmbPaletteMode.SelectedIndex == 2)
+            RefreshToolPaletteList();
+        UpdateTestButtonState();
+    }
+
+    private void Map3DViewport_RegionCreateRequested(float left, float bottom, float right, float top)
+    {
+        if (_currentProject == null) return;
+        int nextNum = _currentProject.Regions.Count > 0
+            ? _currentProject.Regions.Max(r => r.CreationNumber) + 1
+            : 0;
+
+        var reg = new W3MapRegion
+        {
+            CreationNumber = nextNum,
+            Name = $"Region {nextNum:D3}",
+            Left = Math.Min(left, right),
+            Right = Math.Max(left, right),
+            Bottom = Math.Min(bottom, top),
+            Top = Math.Max(bottom, top),
+            ColorR = 80,
+            ColorG = 190,
+            ColorB = 255
+        };
+
+        AddOrRemoveRegion(reg, add: true);
+        _undoService.Record(new DelegateUndoEdit(
+            $"Crear región {reg.Name}",
+            () => AddOrRemoveRegion(reg, add: false),
+            () => AddOrRemoveRegion(reg, add: true)));
+
+        Map3DViewport_RegionSelected(reg.CreationNumber);
+        Map3DViewport.SelectRegion(reg.CreationNumber, focus: false);
+    }
+
+    private void Map3DViewport_RegionDeleteRequested(int creationNumber)
+    {
+        if (_currentProject == null) return;
+        var reg = _currentProject.Regions.FirstOrDefault(r => r.CreationNumber == creationNumber);
+        if (reg == null) return;
+
+        AddOrRemoveRegion(reg, add: false);
+        _undoService.Record(new DelegateUndoEdit(
+            $"Eliminar región {reg.Name}",
+            () => AddOrRemoveRegion(reg, add: true),
+            () => AddOrRemoveRegion(reg, add: false)));
+    }
+
+    private void AddOrRemoveRegion(W3MapRegion reg, bool add)
+    {
+        if (_currentProject == null) return;
+        if (add)
+        {
+            if (!_currentProject.Regions.Contains(reg))
+                _currentProject.Regions.Add(reg);
+            _selectedRegion = reg;
+        }
+        else
+        {
+            _currentProject.Regions.Remove(reg);
+            if (ReferenceEquals(_selectedRegion, reg))
+                _selectedRegion = null;
+        }
+        _currentProject.HasRegionEdits = true;
+        Map3DViewport.SyncRegions(_currentProject.Regions);
+        MapViewport.MarkViewportDirty();
+        if (CmbPaletteMode.SelectedIndex == 2)
+            RefreshToolPaletteList();
+        UpdateMapHeaderOverlay();
+        UpdateTestButtonState();
+    }
+
+    private void BtnRenameSelectedRegion_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentProject == null) return;
+        var reg = _selectedRegion ?? LstToolPalette.SelectedItem as W3MapRegion;
+        if (reg == null) return;
+
+        string newName = TxtSelectedRegionName?.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(newName) || newName == reg.Name)
+            return;
+
+        string oldName = reg.Name;
+        reg.Name = newName;
+        _currentProject.HasRegionEdits = true;
+        Map3DViewport.SyncRegions(_currentProject.Regions);
+        RefreshToolPaletteList();
+        UpdateTestButtonState();
+
+        _undoService.Record(new DelegateUndoEdit(
+            $"Renombrar región {oldName}",
+            () => { reg.Name = oldName; if (TxtSelectedRegionName != null) TxtSelectedRegionName.Text = oldName; Map3DViewport.SyncRegions(_currentProject.Regions); RefreshToolPaletteList(); },
+            () => { reg.Name = newName; if (TxtSelectedRegionName != null) TxtSelectedRegionName.Text = newName; Map3DViewport.SyncRegions(_currentProject.Regions); RefreshToolPaletteList(); }));
+    }
+
+    private void BtnDeleteSelectedRegion_Click(object sender, RoutedEventArgs e)
+    {
+        var reg = _selectedRegion ?? LstToolPalette.SelectedItem as W3MapRegion;
+        if (reg != null)
+            Map3DViewport_RegionDeleteRequested(reg.CreationNumber);
+    }
+
+    private async void BtnCaptureCamera_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentProject == null) return;
+        var cam = await Map3DViewport.CaptureCurrentCameraAsync();
+        if (cam == null) return;
+
+        cam.Name = $"Camera {_currentProject.Cameras.Count + 1:D3}";
+        _currentProject.Cameras.Add(cam);
+        _currentProject.HasCameraEdits = true;
+        RefreshToolPaletteList();
+        LstToolPalette.SelectedItem = cam;
+        UpdateTestButtonState();
+
+        _undoService.Record(new DelegateUndoEdit(
+            $"Capturar cámara {cam.Name}",
+            () => { _currentProject.Cameras.Remove(cam); _currentProject.HasCameraEdits = true; RefreshToolPaletteList(); UpdateTestButtonState(); },
+            () => { if (!_currentProject.Cameras.Contains(cam)) _currentProject.Cameras.Add(cam); _currentProject.HasCameraEdits = true; RefreshToolPaletteList(); UpdateTestButtonState(); }));
+    }
+
+    private void BtnFocusSelectedCamera_Click(object sender, RoutedEventArgs e)
+    {
+        if (LstToolPalette.SelectedItem is W3MapCamera cam)
+            Map3DViewport.FocusCameraPreset(cam);
+    }
+
+    private void BtnDeleteSelectedCamera_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentProject == null || LstToolPalette.SelectedItem is not W3MapCamera cam)
+            return;
+
+        int idx = _currentProject.Cameras.IndexOf(cam);
+        _currentProject.Cameras.Remove(cam);
+        _currentProject.HasCameraEdits = true;
+        RefreshToolPaletteList();
+        UpdateTestButtonState();
+
+        _undoService.Record(new DelegateUndoEdit(
+            $"Eliminar cámara {cam.Name}",
+            () => { _currentProject.Cameras.Insert(Math.Clamp(idx, 0, _currentProject.Cameras.Count), cam); _currentProject.HasCameraEdits = true; RefreshToolPaletteList(); UpdateTestButtonState(); },
+            () => { _currentProject.Cameras.Remove(cam); _currentProject.HasCameraEdits = true; RefreshToolPaletteList(); UpdateTestButtonState(); }));
     }
 
     private void BtnDeleteSelectedEntity_Click(object sender, RoutedEventArgs e)

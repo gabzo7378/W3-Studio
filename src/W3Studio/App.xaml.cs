@@ -12,6 +12,7 @@ public partial class App : Application
     {
         DispatcherUnhandledException += (_, e) =>
         {
+            AppLogger.Error("App.Dispatcher", "Unhandled UI exception", e.Exception);
             var logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log");
             File.WriteAllText(logPath, e.Exception.ToString());
             MessageBox.Show($"Error inesperado:\n{e.Exception.Message}", "W3 Studio Error", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -20,6 +21,7 @@ public partial class App : Application
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
+            AppLogger.Error("App.Domain", $"Unhandled domain exception: {e.ExceptionObject}", e.ExceptionObject as Exception);
             var logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_domain.log");
             File.WriteAllText(logPath, e.ExceptionObject?.ToString() ?? "Unknown");
         };

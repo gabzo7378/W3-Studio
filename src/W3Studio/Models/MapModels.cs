@@ -576,6 +576,8 @@ public class W3MapRegion
     public float Bottom { get; set; }
     public float Right { get; set; }
     public float Top { get; set; }
+    public int WeatherId { get; set; }
+    public string AmbientSound { get; set; } = string.Empty;
     public byte ColorR { get; set; } = 128;
     public byte ColorG { get; set; } = 190;
     public byte ColorB { get; set; } = 255;
@@ -587,6 +589,62 @@ public class W3MapRegion
 
     public string JassVariableName => "gg_rct_" + Name.Replace(' ', '_');
     public string PaletteDisplay => $"[Rect #{CreationNumber}] {Name} ({(int)CenterX}, {(int)CenterY})";
+
+    public W3MapRegion Clone() => new()
+    {
+        Name = Name,
+        CreationNumber = CreationNumber,
+        Left = Left,
+        Bottom = Bottom,
+        Right = Right,
+        Top = Top,
+        WeatherId = WeatherId,
+        AmbientSound = AmbientSound,
+        ColorR = ColorR,
+        ColorG = ColorG,
+        ColorB = ColorB
+    };
+}
+
+public class W3MapCamera
+{
+    public string Name { get; set; } = "Camera 001";
+    public float TargetX { get; set; }
+    public float TargetY { get; set; }
+    public float ZOffset { get; set; }
+    public float Rotation { get; set; } = 90f;
+    public float AngleOfAttack { get; set; } = 304f;
+    public float Distance { get; set; } = 1650f;
+    public float Roll { get; set; }
+    public float FieldOfView { get; set; } = 70f;
+    public float FarClip { get; set; } = 5000f;
+    public float NearClip { get; set; } = 100f;
+    public float LocalPitch { get; set; }
+    public float LocalYaw { get; set; }
+    public float LocalRoll { get; set; }
+    public bool HasReforgedLocalAngles { get; set; }
+
+    public string JassVariableName => "gg_cam_" + Name.Replace(' ', '_');
+    public string PaletteDisplay => $"{Name} (Dist {Distance:F0}, Rot {Rotation:F0}°)";
+
+    public W3MapCamera Clone() => new()
+    {
+        Name = Name,
+        TargetX = TargetX,
+        TargetY = TargetY,
+        ZOffset = ZOffset,
+        Rotation = Rotation,
+        AngleOfAttack = AngleOfAttack,
+        Distance = Distance,
+        Roll = Roll,
+        FieldOfView = FieldOfView,
+        FarClip = FarClip,
+        NearClip = NearClip,
+        LocalPitch = LocalPitch,
+        LocalYaw = LocalYaw,
+        LocalRoll = LocalRoll,
+        HasReforgedLocalAngles = HasReforgedLocalAngles
+    };
 }
 
 public class W3TerrainData
@@ -1084,6 +1142,8 @@ public class MapProject : ObservableObject
     public List<W3PlacedUnit> PlacedUnits { get; } = new();
     public List<W3PlacedDoodad> PlacedDoodads { get; } = new();
     public List<W3MapRegion> Regions { get; } = new();
+    public List<W3MapCamera> Cameras { get; } = new();
+    public bool HasReforgedCameras { get; set; }
     public List<W3GlobalVariable> GlobalVariables { get; } = new();
 
     public Dictionary<string, byte[]> RawMpqFiles { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -1104,6 +1164,8 @@ public class MapProject : ObservableObject
     public bool HasMiscEdits { get; set; }
     public bool HasSkinEdits { get; set; }
     public bool HasUnitDoodadEdits { get; set; }
+    public bool HasRegionEdits { get; set; }
+    public bool HasCameraEdits { get; set; }
 
     public bool HasUnsavedChanges =>
         HasTerrainEdits ||
@@ -1111,6 +1173,8 @@ public class MapProject : ObservableObject
         HasMiscEdits ||
         HasSkinEdits ||
         HasUnitDoodadEdits ||
+        HasRegionEdits ||
+        HasCameraEdits ||
         Objects.Any(o => o.IsModified) ||
         AllTriggerNodes.Any(t => t.IsModified) ||
         Imports.Any(i => i.IsPendingWrite || i.IsDeleted);

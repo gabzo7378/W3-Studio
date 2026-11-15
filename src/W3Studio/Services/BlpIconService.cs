@@ -18,6 +18,7 @@ public class BlpIconService
     private readonly object _mpqLock = new();
     private List<string>? _cachedBaseIconPaths;
     private List<string>? _cachedBaseModelPaths;
+    private List<(MpqArchive Archive, Dictionary<string, string> ListfileMap)>? _cachedListfileMaps;
     private BitmapSource? _fallbackIcon;
 
     public BitmapSource FallbackIcon => _fallbackIcon ??= CreateFallbackIcon();
@@ -42,10 +43,18 @@ public class BlpIconService
             _openArchives.Clear();
             _cachedBaseIconPaths = null;
             _cachedBaseModelPaths = null;
+            _cachedListfileMaps = null;
             _iconCache.Clear();
 
-            // Search priority: War3Patch.mpq -> War3x.mpq -> war3.mpq
-            var paths = new[] { settings.War3PatchMpqPath, settings.War3xMpqPath, settings.War3MpqPath };
+            // Search priority: War3Patch.mpq -> War3xlocal.mpq -> War3x.mpq -> War3Local.mpq -> war3.mpq
+            var paths = new[]
+            {
+                settings.War3PatchMpqPath,
+                settings.War3xLocalMpqPath,
+                settings.War3xMpqPath,
+                settings.War3LocalMpqPath,
+                settings.War3MpqPath
+            };
             foreach (var mpqFile in paths)
             {
                 if (!File.Exists(mpqFile))
@@ -327,28 +336,117 @@ public class BlpIconService
         return null;
     }
 
+    private List<(MpqArchive Archive, Dictionary<string, string> ListfileMap)> GetOrBuildListfileMapsLocked()
+    {
+        if (_cachedListfileMaps != null)
+            return _cachedListfileMaps;
+
+        var result = new List<(MpqArchive, Dictionary<string, string>)>();
+        foreach (var archive in _openArchives)
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                if (archive.FileExists("(listfile)"))
+                {
+                    using var s = archive.OpenFile("(listfile)");
+                    using var sr = new StreamReader(s);
+                    string? line;
+                    while ((line = sr.ReadLine()) != null)
+                    {
+                        var trimmed = line.Trim();
+                        if (trimmed.Length > 0)
+                            map.TryAdd(trimmed, trimmed);
+                    }
+                }
+            }
+            catch
+            {
+            }
+            result.Add((archive, map));
+        }
+        _cachedListfileMaps = result;
+        return result;
+    }
+
     public byte[]? FindRawFileBytes(string path, MapProject? project = null, string? tileset = null)
     {
         if (string.IsNullOrWhiteSpace(path))
             return null;
 
-        var clean = path.Trim().Trim('"').Replace('/', '\\').Replace("\\\\", "\\");
+        var clean = path.Trim().Trim('"').Replace('/', '\\');
+        while (clean.Contains("\\\\", StringComparison.Ordinal))
+            clean = clean.Replace("\\\\", "\\");
+        clean = clean.TrimStart('\\');
+        if (clean.Length == 0)
+            return null;
+
         var candidates = new List<string> { clean };
+        void AddCandidate(string p)
+        {
+            if (!string.IsNullOrWhiteSpace(p) && !candidates.Contains(p, StringComparer.OrdinalIgnoreCase))
+                candidates.Add(p);
+        }
+
+        // Fix double extensions like ShadowCrates.tga.blp or Foo.mdl.mdx
+        if (clean.EndsWith(".tga.blp", StringComparison.OrdinalIgnoreCase) ||
+            clean.EndsWith(".blp.blp", StringComparison.OrdinalIgnoreCase) ||
+            clean.EndsWith(".dds.blp", StringComparison.OrdinalIgnoreCase))
+        {
+            AddCandidate(clean.Substring(0, clean.Length - 4));
+        }
+        if (clean.EndsWith(".mdl.mdx", StringComparison.OrdinalIgnoreCase) ||
+            clean.EndsWith(".mdx.mdx", StringComparison.OrdinalIgnoreCase))
+        {
+            AddCandidate(clean.Substring(0, clean.Length - 4));
+            AddCandidate(clean.Substring(0, clean.Length - 8) + ".mdx");
+        }
 
         if (clean.EndsWith(".mdl", StringComparison.OrdinalIgnoreCase))
-            candidates.Add(clean.Substring(0, clean.Length - 4) + ".mdx");
+            AddCandidate(clean.Substring(0, clean.Length - 4) + ".mdx");
         else if (clean.EndsWith(".mdx", StringComparison.OrdinalIgnoreCase))
-            candidates.Add(clean.Substring(0, clean.Length - 4) + ".mdl");
+            AddCandidate(clean.Substring(0, clean.Length - 4) + ".mdl");
         else if (clean.EndsWith(".blp", StringComparison.OrdinalIgnoreCase))
-            candidates.Add(clean.Substring(0, clean.Length - 4) + ".tga");
+            AddCandidate(clean.Substring(0, clean.Length - 4) + ".tga");
         else if (clean.EndsWith(".tga", StringComparison.OrdinalIgnoreCase))
-            candidates.Add(clean.Substring(0, clean.Length - 4) + ".blp");
+            AddCandidate(clean.Substring(0, clean.Length - 4) + ".blp");
+
+        // WC3 path quirk: e.g. Objects\Spawnmodels\Other\NPCBlood\NpcBloodVillagerWoman.mdx -> ...\NPCbloodVillagerWoman\NPCbloodVillagerWoman.mdx
+        if (clean.EndsWith(".mdx", StringComparison.OrdinalIgnoreCase) || clean.EndsWith(".mdl", StringComparison.OrdinalIgnoreCase))
+        {
+            var dir = Path.GetDirectoryName(clean);
+            var stem = Path.GetFileNameWithoutExtension(clean);
+            if (!string.IsNullOrEmpty(dir) && !string.IsNullOrEmpty(stem))
+            {
+                AddCandidate(Path.Combine(dir, stem, stem + ".mdx"));
+                // Numbered variation fallback like Foo0.mdx -> Foo.mdx or Foo.mdx -> Foo0.mdx
+                if (char.IsDigit(stem[^1]))
+                    AddCandidate(Path.Combine(dir, stem.TrimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9') + ".mdx"));
+            }
+        }
+
+        // Fallback for TeamColor16..27 / TeamGlow16..27 (WC3 1.27b only has 00..15)
+        if (clean.StartsWith(@"ReplaceableTextures\TeamColor\TeamColor", StringComparison.OrdinalIgnoreCase) ||
+            clean.StartsWith(@"ReplaceableTextures\TeamGlow\TeamGlow", StringComparison.OrdinalIgnoreCase))
+        {
+            var stem = Path.GetFileNameWithoutExtension(clean);
+            if (stem.Length >= 2 && int.TryParse(stem.AsSpan(stem.Length - 2), out int teamIdx) && teamIdx > 15)
+            {
+                int mapped = teamIdx >= 24 ? 12 : (teamIdx % 16);
+                var folder = Path.GetDirectoryName(clean) ?? @"ReplaceableTextures\TeamColor";
+                var prefix = stem.StartsWith("TeamGlow", StringComparison.OrdinalIgnoreCase) ? "TeamGlow" : "TeamColor";
+                AddCandidate(Path.Combine(folder, $"{prefix}{mapped:D2}.blp"));
+            }
+        }
+
+        if (clean.StartsWith(@"war3mapImported\", StringComparison.OrdinalIgnoreCase))
+            AddCandidate(clean.Substring(@"war3mapImported\".Length));
 
         var fileNameOnly = Path.GetFileName(clean);
         if (!string.IsNullOrEmpty(fileNameOnly))
         {
-            candidates.Add(@"ReplaceableTextures\CommandButtons\" + fileNameOnly);
-            candidates.Add(@"war3mapImported\" + fileNameOnly);
+            AddCandidate(@"ReplaceableTextures\CommandButtons\" + fileNameOnly);
+            AddCandidate(@"war3mapImported\" + fileNameOnly);
         }
 
         if (project != null)
@@ -379,6 +477,20 @@ public class BlpIconService
                 var found = TryReadCandidatesFromArchive(archive, candidates);
                 if (found != null)
                     return found;
+            }
+
+            // Fallback via (listfile) case-insensitive exact match (handles MPQ hash locale/case quirks)
+            foreach (var (archive, map) in GetOrBuildListfileMapsLocked())
+            {
+                foreach (var cand in candidates)
+                {
+                    if (map.TryGetValue(cand, out var actualPath))
+                    {
+                        var found = TryReadCandidatesFromArchive(archive, new List<string> { actualPath });
+                        if (found != null)
+                            return found;
+                    }
+                }
             }
         }
 

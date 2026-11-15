@@ -35,9 +35,13 @@ public partial class MainWindow : Window
 
     private readonly TerrainBrushOptions _terrainBrush = new();
     private readonly TerrainStrokeState _terrainStroke = new();
+    private readonly EditorUndoService _undoService = new();
+    private byte[]? _terrainStrokeSnapshot;
     private readonly List<Button> _terrainTextureButtons = new();
     private readonly JassIdeAttachment _mainCodeIde;
     private bool _suppressTerrainUiEvents;
+    private static readonly string[] LightingPresets = ["Dawn", "Noon", "Dusk", "Midnight"];
+    private int _lightingPresetIndex = 1; // Noon
 
     public MainWindow()
     {
@@ -57,11 +61,15 @@ public partial class MainWindow : Window
 
         Map3DViewport.SetContext(_blpIconService, null);
         Map3DViewport.TerrainBrushDabReceived += Map3DViewport_TerrainBrushDabReceived;
+        Map3DViewport.TerrainBrushStrokeEnded += CommitTerrainStrokeUndo;
         Map3DViewport.MapLoadedSuccess += () =>
         {
             SyncTerrainBrushToViewport();
+            Sync3DLayersAndRegions();
             Sync3DEditorMode();
+            Map3DViewport.SetLightingPreset(LightingPresets[_lightingPresetIndex]);
         };
+        _undoService.HistoryChanged += UpdateUndoRedoMenuState;
         InitializeEntityEditorControls();
         Wire3DEntityViewportEvents();
 
@@ -75,16 +83,16 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        Show();
-        WindowState = WindowState.Normal;
-        Activate();
-
         var totalSw = Stopwatch.StartNew();
         _settings = WorkspaceSettings.Load();
+        ApplySavedWorkspacePreferences();
+        Show();
+        Activate();
         LocalizationService.SetLanguage(_settings.AppLanguage, notify: false);
         LocalizationService.LanguageChanged += OnAppLanguageChanged;
         WorkspaceSettings.AdvancedViewSettingsChanged += OnAdvancedViewSettingsChanged;
         ApplyMainWindowLocalization();
+        RefreshRecentMapsMenu();
 
         TxtTopWar3Dir.Text = _settings.Warcraft3Dir;
         ChkWindowedTest.IsChecked = _settings.WindowedMode;
@@ -103,6 +111,11 @@ public partial class MainWindow : Window
         ImgSidebarMinimap.Source = null;
         Title = "Warcraft III World Editor (1.27b)";
         TxtStatusBarLeft.Text = "Ningún mapa cargado. Usa Archivo -> Abrir Mapa (Ctrl+O)";
+
+        // Pre-warm WebView2 3D engine while TabMapViewport is visible so loading a map never stalls at 74%
+        if (TabMapViewport != null)
+            TabMapViewport.IsSelected = true;
+        _ = Map3DViewport.EnsureEngineInitializedAsync();
 
         totalSw.Stop();
         try
@@ -166,18 +179,30 @@ public partial class MainWindow : Window
 
             _currentProject = project;
             _settings.LastOpenedMapPath = filePath;
+            _settings.AddRecentMap(filePath);
             _settings.Save();
+            RefreshRecentMapsMenu();
 
             Title = $"Warcraft III World Editor — [{project.FileName} - {StripColorCodes(project.MapName)}] (1.27b)";
 
             progressWin?.UpdateProgress(74, "Construyendo minimapa, paleta de herramientas y módulos...");
+
+            // Switch straight to the Terrain Editor BEFORE initializing WebView2 so WvMap has a visible HWND
+            if (TabMapViewport != null)
+                TabMapViewport.IsSelected = true;
+            if (FloatingToolPalette != null)
+                FloatingToolPalette.Visibility = _settings.ShowToolPalette ? Visibility.Visible : Visibility.Collapsed;
+            UpdateLayout();
             await Task.Yield();
 
             // Load Map Viewport & Minimap
             MapViewport.LoadProject(project);
             ImgSidebarMinimap.Source = MapViewport.MinimapBitmap;
             Map3DViewport.SetContext(_blpIconService, project);
-            TxtSidebarLighting.Text = $"Noon ({project.Terrain.TilesetName})";
+            var presetIdx = Array.FindIndex(LightingPresets, p => string.Equals(p, _settings.LightingPreset, StringComparison.OrdinalIgnoreCase));
+            _lightingPresetIndex = presetIdx >= 0 ? presetIdx : 1;
+            UpdateSidebarLightingLabel();
+            Map3DViewport.SetLightingPreset(LightingPresets[_lightingPresetIndex]);
             UpdateMapHeaderOverlay();
 
             // Populate Tool Palette, Triggers, Object Editor (F6), Imports, Variables
@@ -226,6 +251,9 @@ public partial class MainWindow : Window
             progressWin?.Close();
             progressWin = null;
 
+            _terrainStrokeSnapshot = null;
+            _undoService.Clear();
+            Sync3DLayersAndRegions();
             _diagnostics.Clear();
             _diagnostics.Add(new CompilerDiagnostic
             {
@@ -242,6 +270,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            AppLogger.Error("MainWindow.LoadMap", $"Failed to load map '{filePath}'", ex);
             progressWin?.Close();
             progressWin = null;
             MessageBox.Show(this, $"Error al abrir el mapa:\n{ex.Message}", "Error MPQ", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -525,6 +554,25 @@ public partial class MainWindow : Window
         ImgSidebarMinimap.Visibility = ChkViewGameMinimap.IsChecked == true ? Visibility.Visible : Visibility.Hidden;
         ImgSidebarMinimap.Source = MapViewport.MinimapBitmap;
         MapViewport.MarkViewportDirty();
+        Sync3DLayersAndRegions();
+    }
+
+    private void Sync3DLayersAndRegions()
+    {
+        if (Map3DViewport == null || MapViewport == null)
+            return;
+
+        Map3DViewport.SetLayerVisibility(
+            MapViewport.ShowUnits,
+            ChkShowDoodads?.IsChecked == true,
+            ChkShowRegions?.IsChecked == true,
+            ChkShowGrid?.IsChecked == true,
+            ChkShowPathing?.IsChecked == true,
+            ChkShowBounds?.IsChecked == true,
+            MenuToggleWeather?.IsChecked != false);
+
+        if (_currentProject != null)
+            Map3DViewport.SyncRegions(_currentProject.Regions);
     }
 
     private void BtnDistanceDec_Click(object sender, RoutedEventArgs e)
@@ -563,12 +611,18 @@ public partial class MainWindow : Window
 
         var mode = CmbPaletteMode.SelectedIndex;
         bool isTerrainMode = mode == 3;
+        bool isRegionMode = mode == 2;
+        bool isCameraMode = mode == 4;
         bool showEntityModeControls = mode == 0 || mode == 1;
 
         LstToolPalette.Visibility = isTerrainMode ? Visibility.Collapsed : Visibility.Visible;
         PnlTerrainPalette.Visibility = isTerrainMode ? Visibility.Visible : Visibility.Collapsed;
         if (PnlUnitDoodadModeControls != null)
             PnlUnitDoodadModeControls.Visibility = showEntityModeControls ? Visibility.Visible : Visibility.Collapsed;
+        if (PnlRegionPaletteControls != null)
+            PnlRegionPaletteControls.Visibility = isRegionMode ? Visibility.Visible : Visibility.Collapsed;
+        if (PnlCameraPaletteControls != null)
+            PnlCameraPaletteControls.Visibility = isCameraMode ? Visibility.Visible : Visibility.Collapsed;
         if (CmbPlaceOwner != null)
             CmbPlaceOwner.Visibility = mode == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (TxtPaletteFilter != null)
@@ -630,7 +684,7 @@ public partial class MainWindow : Window
                 LstToolPalette.ItemsSource = doodads.Take(500).ToList();
             }
         }
-        else
+        else if (isRegionMode)
         {
             IEnumerable<W3MapRegion> regs = _currentProject.Regions;
             if (!string.IsNullOrEmpty(q))
@@ -638,6 +692,15 @@ public partial class MainWindow : Window
                 regs = regs.Where(r => r.Name.Contains(q, StringComparison.OrdinalIgnoreCase));
             }
             LstToolPalette.ItemsSource = regs.ToList();
+        }
+        else
+        {
+            IEnumerable<W3MapCamera> cams = _currentProject.Cameras;
+            if (!string.IsNullOrEmpty(q))
+            {
+                cams = cams.Where(c => c.Name.Contains(q, StringComparison.OrdinalIgnoreCase));
+            }
+            LstToolPalette.ItemsSource = cams.ToList();
         }
 
         Sync3DEditorMode();
@@ -885,12 +948,75 @@ public partial class MainWindow : Window
     {
         if (_currentProject?.Terrain?.RawW3eBytes == null) return;
 
+        if (isStrokeStart || _terrainStrokeSnapshot == null)
+        {
+            CommitTerrainStrokeUndo();
+            _terrainStrokeSnapshot = (byte[])_currentProject.Terrain.RawW3eBytes.Clone();
+        }
+
         var dab = TerrainBrushService.ApplyDabDetailed(_currentProject, wx, wy, _terrainBrush, isStrokeStart, _terrainStroke);
         if (!dab.Modified) return;
 
         MapViewport.MarkViewportDirty();
         UpdateTestButtonState();
         await Map3DViewport.PatchW3eCornersAsync(dab);
+    }
+
+    private void CommitTerrainStrokeUndo()
+    {
+        if (_currentProject == null || _terrainStrokeSnapshot == null)
+            return;
+
+        var snapshot = _terrainStrokeSnapshot;
+        _terrainStrokeSnapshot = null;
+        var edit = TerrainStrokeUndoEdit.TryCreateFromSnapshots(
+            "Edición de Terreno",
+            _currentProject,
+            snapshot,
+            ApplyTerrainUndoPatchAsync);
+        if (edit != null)
+            _undoService.Record(edit);
+    }
+
+    private async void ApplyTerrainUndoPatchAsync(TerrainDabResult dab)
+    {
+        MapViewport.MarkViewportDirty();
+        UpdateTestButtonState();
+        await Map3DViewport.PatchW3eCornersAsync(dab);
+    }
+
+    private void UpdateUndoRedoMenuState()
+    {
+        if (MenuEditUndo != null)
+        {
+            MenuEditUndo.IsEnabled = _undoService.CanUndo;
+            MenuEditUndo.Header = _undoService.CanUndo
+                ? $"Deshacer: {_undoService.NextUndoDescription}"
+                : "Deshacer";
+        }
+        if (MenuEditRedo != null)
+        {
+            MenuEditRedo.IsEnabled = _undoService.CanRedo;
+            MenuEditRedo.Header = _undoService.CanRedo
+                ? $"Rehacer: {_undoService.NextRedoDescription}"
+                : "Rehacer";
+        }
+    }
+
+    private void BtnUndo_Click(object sender, RoutedEventArgs e)
+    {
+        CommitTerrainStrokeUndo();
+        var desc = _undoService.Undo();
+        if (desc != null)
+            TxtStatusBarLeft.Text = $"Deshecho: {desc}";
+    }
+
+    private void BtnRedo_Click(object sender, RoutedEventArgs e)
+    {
+        CommitTerrainStrokeUndo();
+        var desc = _undoService.Redo();
+        if (desc != null)
+            TxtStatusBarLeft.Text = $"Rehecho: {desc}";
     }
 
     private void CmbPaletteMode_SelectionChanged(object sender, SelectionChangedEventArgs e) => RefreshToolPaletteList();
@@ -922,7 +1048,13 @@ public partial class MainWindow : Window
         }
         else if (LstToolPalette.SelectedItem is W3MapRegion r)
         {
-            Map3DViewport.FocusWorldPoint(r.CenterX, r.CenterY, 2200f);
+            _selectedRegion = r;
+            if (TxtSelectedRegionName != null) TxtSelectedRegionName.Text = r.Name;
+            Map3DViewport.SelectRegion(r.CreationNumber, focus: true);
+        }
+        else if (LstToolPalette.SelectedItem is W3MapCamera cam)
+        {
+            Map3DViewport.FocusCameraPreset(cam);
         }
     }
 
@@ -936,7 +1068,9 @@ public partial class MainWindow : Window
         else if (target is W3PlacedDoodad d)
             Map3DViewport.SelectEntity("doodad", d.CreationNumber, focus: true);
         else if (target is W3MapRegion r)
-            Map3DViewport.FocusWorldPoint(r.CenterX, r.CenterY, 2200f);
+            Map3DViewport.SelectRegion(r.CreationNumber, focus: true);
+        else if (target is W3MapCamera cam)
+            Map3DViewport.FocusCameraPreset(cam);
     }
 
     private void MenuPaletteUnits_Click(object sender, RoutedEventArgs e)
@@ -969,10 +1103,19 @@ public partial class MainWindow : Window
     }
 
     private void MenuToggleGrid_Click(object sender, RoutedEventArgs e) => ChkShowGrid.IsChecked = !(ChkShowGrid.IsChecked == true);
+    private void MenuTogglePathing_Click(object sender, RoutedEventArgs e) => ChkShowPathing.IsChecked = !(ChkShowPathing.IsChecked == true);
+    private void MenuToggleBounds_Click(object sender, RoutedEventArgs e) => ChkShowBounds.IsChecked = !(ChkShowBounds.IsChecked == true);
+    private void MenuToggleWeather_Click(object sender, RoutedEventArgs e)
+    {
+        if (MenuToggleWeather != null && !ReferenceEquals(sender, MenuToggleWeather))
+            MenuToggleWeather.IsChecked = !MenuToggleWeather.IsChecked;
+        Sync3DLayersAndRegions();
+    }
     private void MenuToggleUnits_Click(object sender, RoutedEventArgs e)
     {
         MapViewport.ShowUnits = !MapViewport.ShowUnits;
         MapViewport.InvalidateVisual();
+        Sync3DLayersAndRegions();
     }
     private void MenuToggleDoodads_Click(object sender, RoutedEventArgs e) => ChkShowDoodads.IsChecked = !(ChkShowDoodads.IsChecked == true);
     private void MenuToggleRegions_Click(object sender, RoutedEventArgs e) => ChkShowRegions.IsChecked = !(ChkShowRegions.IsChecked == true);
@@ -1520,6 +1663,7 @@ endlibrary
         }
 
         _isClosingConfirmed = true;
+        PersistWorkspaceLayout();
 
         try
         {
@@ -1592,6 +1736,8 @@ endlibrary
                 _standaloneMapMediaWindow.SetProject(null, null);
             }
 
+            _terrainStrokeSnapshot = null;
+            _undoService.Clear();
             EmbeddedObjectEditor.LoadProject(null);
             TreeTriggers.ItemsSource = null;
             GridDiagnostics.ItemsSource = null;
@@ -1629,6 +1775,22 @@ endlibrary
         }
 
         return true; // Descartar cambios y continuar
+    }
+
+    private async void BtnNewMap_Click(object sender, RoutedEventArgs e)
+    {
+        if (!await PromptSaveIfModifiedAsync("antes de crear un nuevo mapa"))
+            return;
+
+        var dlg = new NewMapWindow(_baseDataService, _settings.Warcraft3Dir)
+        {
+            Owner = this
+        };
+        if (dlg.ShowDialog() == true && !string.IsNullOrWhiteSpace(dlg.CreatedMapPath))
+        {
+            await LoadMapFileAsync(dlg.CreatedMapPath);
+            TxtStatusBarLeft.Text = $"✔ Nuevo mapa creado y cargado en Editor de Terreno 3D: {Path.GetFileName(dlg.CreatedMapPath)}";
+        }
     }
 
     private async void BtnOpenMap_Click(object sender, RoutedEventArgs e)
@@ -1672,6 +1834,7 @@ endlibrary
 
     public async Task<bool> SaveAndCompileMapAsync()
     {
+        CommitTerrainStrokeUndo();
         if (_currentProject == null)
         {
             MessageBox.Show(this, "No hay ningún mapa cargado para guardar.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -2038,6 +2201,28 @@ endlibrary
     // ==================== NAVEGACIÓN Y ATAJOS DE TECLADO ====================
 
     private void BtnFocusMapTab_Click(object sender, RoutedEventArgs e) => TabMapViewport.IsSelected = true;
+
+    private void UpdateSidebarLightingLabel()
+    {
+        var name = LightingPresets[_lightingPresetIndex];
+        TxtSidebarLighting.Text = _currentProject != null
+            ? $"{name} ({_currentProject.Terrain.TilesetName})"
+            : name;
+    }
+
+    private void BtnLightingPrev_Click(object sender, RoutedEventArgs e)
+    {
+        _lightingPresetIndex = (_lightingPresetIndex - 1 + LightingPresets.Length) % LightingPresets.Length;
+        UpdateSidebarLightingLabel();
+        Map3DViewport.SetLightingPreset(LightingPresets[_lightingPresetIndex]);
+    }
+
+    private void BtnLightingNext_Click(object sender, RoutedEventArgs e)
+    {
+        _lightingPresetIndex = (_lightingPresetIndex + 1) % LightingPresets.Length;
+        UpdateSidebarLightingLabel();
+        Map3DViewport.SetLightingPreset(LightingPresets[_lightingPresetIndex]);
+    }
     private void BtnFocusTriggers_Click(object sender, RoutedEventArgs e) => OpenOrFocusTriggerEditorWindow();
     private void BtnFocusObjects_Click(object sender, RoutedEventArgs e) => OpenOrFocusObjectEditorWindow(W3ObjectCategory.Units);
     private void BtnFocusImports_Click(object sender, RoutedEventArgs e) => TabImports.IsSelected = true;
@@ -2089,6 +2274,11 @@ endlibrary
             DisableAllTerrainBrushTools();
             e.Handled = true;
         }
+        else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.N)
+        {
+            BtnNewMap_Click(sender, e);
+            e.Handled = true;
+        }
         else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.O)
         {
             BtnOpenMap_Click(sender, e);
@@ -2098,6 +2288,26 @@ endlibrary
         {
             BtnSaveAndCompile_Click(sender, e);
             e.Handled = true;
+        }
+        else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Z && !IsTextInputFocused())
+        {
+            BtnUndo_Click(sender, e);
+            e.Handled = true;
+        }
+        else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Y && !IsTextInputFocused())
+        {
+            BtnRedo_Click(sender, e);
+            e.Handled = true;
+        }
+        else if (Keyboard.Modifiers == ModifierKeys.None && TabMapViewport.IsSelected && !IsTextInputFocused())
+        {
+            if (e.Key == Key.G) { MenuToggleGrid_Click(sender, e); e.Handled = true; }
+            else if (e.Key == Key.P) { MenuTogglePathing_Click(sender, e); e.Handled = true; }
+            else if (e.Key == Key.B) { MenuToggleBounds_Click(sender, e); e.Handled = true; }
+            else if (e.Key == Key.W) { MenuToggleWeather_Click(sender, e); e.Handled = true; }
+            else if (e.Key == Key.U) { MenuToggleUnits_Click(sender, e); e.Handled = true; }
+            else if (e.Key == Key.D) { MenuToggleDoodads_Click(sender, e); e.Handled = true; }
+            else if (e.Key == Key.R) { MenuToggleRegions_Click(sender, e); e.Handled = true; }
         }
         else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.B)
         {
@@ -2109,5 +2319,148 @@ endlibrary
             BtnFocusGlobalSearch_Click(sender, e);
             e.Handled = true;
         }
+    }
+
+    private void ApplySavedWorkspacePreferences()
+    {
+        var minW = 900.0;
+        var minH = 600.0;
+        var vsLeft = SystemParameters.VirtualScreenLeft;
+        var vsTop = SystemParameters.VirtualScreenTop;
+        var vsRight = vsLeft + Math.Max(1024, SystemParameters.VirtualScreenWidth);
+        var vsBottom = vsTop + Math.Max(720, SystemParameters.VirtualScreenHeight);
+
+        Width = Math.Clamp(_settings.WindowWidth, minW, Math.Max(minW, vsRight - vsLeft));
+        Height = Math.Clamp(_settings.WindowHeight, minH, Math.Max(minH, vsBottom - vsTop));
+
+        if (_settings.WindowLeft is double left && _settings.WindowTop is double top &&
+            double.IsFinite(left) && double.IsFinite(top))
+        {
+            Left = Math.Clamp(left, vsLeft, Math.Max(vsLeft, vsRight - Width));
+            Top = Math.Clamp(top, vsTop, Math.Max(vsTop, vsBottom - Height));
+        }
+
+        WindowState = _settings.WindowMaximized ? WindowState.Maximized : WindowState.Normal;
+
+        if (MapViewport != null)
+            MapViewport.ShowUnits = _settings.ShowUnits;
+        if (ChkShowDoodads != null) ChkShowDoodads.IsChecked = _settings.ShowDoodads;
+        if (ChkShowRegions != null) ChkShowRegions.IsChecked = _settings.ShowRegions;
+        if (ChkShowGrid != null) ChkShowGrid.IsChecked = _settings.ShowGridByDefault;
+        if (ChkShowPathing != null) ChkShowPathing.IsChecked = _settings.ShowPathing;
+        if (ChkShowBounds != null) ChkShowBounds.IsChecked = _settings.ShowCameraBounds;
+        if (MenuToggleWeather != null) MenuToggleWeather.IsChecked = _settings.ShowWeather;
+        if (FloatingToolPalette != null)
+            FloatingToolPalette.Visibility = _settings.ShowToolPalette ? Visibility.Visible : Visibility.Collapsed;
+
+        var presetIdx = Array.FindIndex(LightingPresets, p => string.Equals(p, _settings.LightingPreset, StringComparison.OrdinalIgnoreCase));
+        if (presetIdx >= 0)
+            _lightingPresetIndex = presetIdx;
+        UpdateSidebarLightingLabel();
+    }
+
+    private void PersistWorkspaceLayout()
+    {
+        if (_settings == null)
+            return;
+
+        _settings.WindowMaximized = WindowState == WindowState.Maximized;
+        var bounds = WindowState == WindowState.Normal ? new Rect(Left, Top, Width, Height) : RestoreBounds;
+        if (bounds.Width >= 640 && bounds.Height >= 480 && double.IsFinite(bounds.Left) && double.IsFinite(bounds.Top))
+        {
+            _settings.WindowLeft = bounds.Left;
+            _settings.WindowTop = bounds.Top;
+            _settings.WindowWidth = bounds.Width;
+            _settings.WindowHeight = bounds.Height;
+        }
+
+        _settings.ShowUnits = MapViewport?.ShowUnits ?? true;
+        _settings.ShowDoodads = ChkShowDoodads?.IsChecked == true;
+        _settings.ShowRegions = ChkShowRegions?.IsChecked == true;
+        _settings.ShowGridByDefault = ChkShowGrid?.IsChecked == true;
+        _settings.ShowPathing = ChkShowPathing?.IsChecked == true;
+        _settings.ShowCameraBounds = ChkShowBounds?.IsChecked == true;
+        _settings.ShowWeather = MenuToggleWeather?.IsChecked != false;
+        _settings.ShowToolPalette = FloatingToolPalette?.Visibility == Visibility.Visible;
+        _settings.LightingPreset = LightingPresets[_lightingPresetIndex];
+        _settings.Save();
+    }
+
+    private void RefreshRecentMapsMenu()
+    {
+        if (MenuRecentMaps == null)
+            return;
+
+        MenuRecentMaps.Items.Clear();
+        var recent = _settings.RecentMaps ?? new List<string>();
+        if (recent.Count == 0)
+        {
+            MenuRecentMaps.Items.Add(new MenuItem
+            {
+                Header = "(Sin mapas recientes)",
+                IsEnabled = false
+            });
+            return;
+        }
+
+        for (int i = 0; i < recent.Count; i++)
+        {
+            var path = recent[i];
+            var fileName = Path.GetFileName(path);
+            var folder = Path.GetDirectoryName(path) ?? string.Empty;
+            var item = new MenuItem
+            {
+                Header = $"{i + 1}. {fileName}  ({folder})",
+                ToolTip = path,
+                Tag = path
+            };
+            item.Click += async (_, _) => await OpenRecentMapAsync(path);
+            MenuRecentMaps.Items.Add(item);
+        }
+
+        MenuRecentMaps.Items.Add(new Separator());
+        var clearItem = new MenuItem { Header = "Limpiar lista de recientes" };
+        clearItem.Click += (_, _) =>
+        {
+            if (_settings != null)
+            {
+                _settings.RecentMaps?.Clear();
+                _settings.Save();
+            }
+            RefreshRecentMapsMenu();
+        };
+        MenuRecentMaps.Items.Add(clearItem);
+    }
+
+    private async Task OpenRecentMapAsync(string path)
+    {
+        if (!File.Exists(path))
+        {
+            var remove = MessageBox.Show(
+                this,
+                $"No se encontró el archivo:\n{path}\n\n¿Deseas quitarlo de Mapas Recientes?",
+                "Mapa no encontrado",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (remove == MessageBoxResult.Yes)
+            {
+                _settings.RecentMaps.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+                _settings.Save();
+                RefreshRecentMapsMenu();
+            }
+            return;
+        }
+
+        if (!await PromptSaveIfModifiedAsync("antes de abrir el mapa reciente"))
+            return;
+
+        await LoadMapFileAsync(path);
+    }
+
+    private bool IsTextInputFocused()
+    {
+        if (CodeEditor.IsKeyboardFocusWithin)
+            return true;
+        return Keyboard.FocusedElement is TextBox;
     }
 }

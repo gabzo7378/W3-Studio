@@ -30,9 +30,11 @@
         <!-- 1. BARRA DE MENÚ LIMPIA Y DIRECTA (INCLUYE CONFIGURACIÓN Y TEMAS) -->
         <Menu Grid.Row="0" Background="{DynamicResource ThemeMenuBg}" Foreground="{DynamicResource Win10Text}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="4,1" FontSize="12">
             <MenuItem Header="_Archivo">
+                <MenuItem Header="Nuevo Mapa (.w3m)..." InputGestureText="Ctrl+N" Click="BtnNewMap_Click"/>
                 <MenuItem Header="Abrir Mapa (.w3x / .w3m)..." InputGestureText="Ctrl+O" Click="BtnOpenMap_Click"/>
                 <MenuItem Header="Guardar Mapa" InputGestureText="Ctrl+S" Click="BtnSaveMap_Click"/>
                 <MenuItem Header="Cerrar Mapa" Click="BtnCloseMap_Click"/>
+                <MenuItem x:Name="MenuRecentMaps" Header="Mapas Recientes"/>
                 <Separator/>
                 <MenuItem x:Name="MenuTestMap" Header="Probar Mapa en Warcraft III" InputGestureText="F9" IsEnabled="False" Click="BtnTestMap_Click"/>
                 <MenuItem Header="Cambiar Directorio de Warcraft III..." Click="BtnBrowseWar3Dir_Click"/>
@@ -40,6 +42,9 @@
                 <MenuItem Header="Salir" Click="MenuExit_Click"/>
             </MenuItem>
             <MenuItem Header="_Editar">
+                <MenuItem x:Name="MenuEditUndo" Header="Deshacer" InputGestureText="Ctrl+Z" IsEnabled="False" Click="BtnUndo_Click"/>
+                <MenuItem x:Name="MenuEditRedo" Header="Rehacer" InputGestureText="Ctrl+Y" IsEnabled="False" Click="BtnRedo_Click"/>
+                <Separator/>
                 <MenuItem Header="Buscar en Trigger Actual..." InputGestureText="Ctrl+F" Click="BtnFindInCode_Click"/>
                 <MenuItem Header="Búsqueda Global en el Mapa..." InputGestureText="Ctrl+Shift+F" Click="BtnFocusGlobalSearch_Click"/>
                 <MenuItem Header="Variables Globales (war3map.wtg)..." InputGestureText="Ctrl+B" Click="BtnFocusGlobalSearch_Click"/>
@@ -50,6 +55,9 @@
                 <MenuItem Header="Ir a Siguiente Start Location" Click="BtnCycleStartLocations_Click"/>
                 <Separator/>
                 <MenuItem Header="Mostrar Cuadrícula (Grid)" InputGestureText="G" Click="MenuToggleGrid_Click"/>
+                <MenuItem Header="Mostrar Pathing (WPM)" InputGestureText="P" Click="MenuTogglePathing_Click"/>
+                <MenuItem Header="Mostrar Camera Bounds / Playable" InputGestureText="B" Click="MenuToggleBounds_Click"/>
+                <MenuItem x:Name="MenuToggleWeather" Header="Efectos de Clima Global" InputGestureText="W" IsCheckable="True" IsChecked="True" Click="MenuToggleWeather_Click"/>
                 <MenuItem Header="Mostrar Unidades" InputGestureText="U" Click="MenuToggleUnits_Click"/>
                 <MenuItem Header="Mostrar Árboles y Doodads" InputGestureText="D" Click="MenuToggleDoodads_Click"/>
                 <MenuItem Header="Mostrar Regiones (Rects)" InputGestureText="R" Click="MenuToggleRegions_Click"/>
@@ -310,6 +318,12 @@
                             <Border Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="5,3" Margin="0,1">
                                 <CheckBox x:Name="ChkShowGrid" Content="Show Terrain Grid (G)" IsChecked="False" FontSize="11.5" Checked="LayerCheckbox_Changed" Unchecked="LayerCheckbox_Changed"/>
                             </Border>
+                            <Border Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="5,3" Margin="0,1">
+                                <CheckBox x:Name="ChkShowPathing" Content="Show Pathing (P)" IsChecked="False" FontSize="11.5" Checked="LayerCheckbox_Changed" Unchecked="LayerCheckbox_Changed"/>
+                            </Border>
+                            <Border Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="5,3" Margin="0,1">
+                                <CheckBox x:Name="ChkShowBounds" Content="Camera Bounds (B)" IsChecked="False" FontSize="11.5" Checked="LayerCheckbox_Changed" Unchecked="LayerCheckbox_Changed"/>
+                            </Border>
                         </StackPanel>
                     </Border>
 
@@ -370,8 +384,8 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Lighting:" VerticalAlignment="Center" FontSize="11.5"/>
                                 <TextBox Grid.Column="1" x:Name="TxtSidebarLighting" Text="Noon" Style="{StaticResource Win10TextBox}" IsReadOnly="True" Margin="0,0,2,0"/>
-                                <Button Grid.Column="2" Content="◄" Style="{StaticResource Win10ClassicButton}" Padding="0" FontSize="9"/>
-                                <Button Grid.Column="3" Content="►" Style="{StaticResource Win10ClassicButton}" Padding="0" FontSize="9"/>
+                                <Button Grid.Column="2" Content="◄" Style="{StaticResource Win10ClassicButton}" Padding="0" FontSize="9" Click="BtnLightingPrev_Click"/>
+                                <Button Grid.Column="3" Content="►" Style="{StaticResource Win10ClassicButton}" Padding="0" FontSize="9" Click="BtnLightingNext_Click"/>
                             </Grid>
                         </StackPanel>
                     </Border>
@@ -559,7 +573,35 @@
                                         <ComboBoxItem Content="Doodad Palette (Árboles y Decoración)"/>
                                         <ComboBoxItem Content="Region Palette (Regiones / Rects)"/>
                                         <ComboBoxItem Content="Terrain Palette (Terreno y Precipicios)"/>
+                                        <ComboBoxItem Content="Camera Palette (Cámaras w3c)"/>
                                     </ComboBox>
+
+                                    <!-- Controles de Región 3D (Seleccionar/Redimensionar vs Dibujar Rectángulo) -->
+                                    <StackPanel x:Name="PnlRegionPaletteControls" Visibility="Collapsed" Margin="0,0,0,5">
+                                        <UniformGrid Columns="2" Margin="0,0,0,4">
+                                            <ToggleButton x:Name="TglRegionSelect" IsChecked="True" Height="24" FontSize="11" Margin="0,0,2,0" Content="🖱 Mover/Escalar" Click="BtnRegionToolMode_Click" Tag="select"/>
+                                            <ToggleButton x:Name="TglRegionPlace" IsChecked="False" Height="24" FontSize="11" Margin="2,0,0,0" Content="➕ Dibujar Región" Click="BtnRegionToolMode_Click" Tag="place"/>
+                                        </UniformGrid>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="4"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="4"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="TxtSelectedRegionName" Grid.Column="0" Style="{StaticResource Win10TextBox}" Padding="4,2" FontSize="11" ToolTip="Nombre de la región seleccionada"/>
+                                            <Button Grid.Column="2" Content="✔" Width="26" Height="24" Style="{StaticResource Win10ClassicButton}" ToolTip="Renombrar región" Click="BtnRenameSelectedRegion_Click"/>
+                                            <Button Grid.Column="4" Content="🗑" Width="26" Height="24" Style="{StaticResource Win10ClassicButton}" ToolTip="Eliminar región seleccionada" Click="BtnDeleteSelectedRegion_Click"/>
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <!-- Controles de Cámaras (war3map.w3c) -->
+                                    <UniformGrid x:Name="PnlCameraPaletteControls" Visibility="Collapsed" Columns="3" Margin="0,0,0,5">
+                                        <Button Content="📷 Capturar" Height="24" FontSize="10.5" Margin="0,0,2,0" Style="{StaticResource Win10ClassicButton}" ToolTip="Guardar vista actual de la cámara 3D como preset w3c" Click="BtnCaptureCamera_Click"/>
+                                        <Button Content="👁 Enfocar" Height="24" FontSize="10.5" Margin="1,0,1,0" Style="{StaticResource Win10ClassicButton}" ToolTip="Ir a la cámara seleccionada" Click="BtnFocusSelectedCamera_Click"/>
+                                        <Button Content="🗑 Borrar" Height="24" FontSize="10.5" Margin="2,0,0,0" Style="{StaticResource Win10ClassicButton}" ToolTip="Eliminar cámara seleccionada" Click="BtnDeleteSelectedCamera_Click"/>
+                                    </UniformGrid>
 
                                     <!-- Modo de interacción 3D + Fuente de lista (Colocadas vs Catálogo) -->
                                     <StackPanel x:Name="PnlUnitDoodadModeControls" Margin="0,0,0,5">

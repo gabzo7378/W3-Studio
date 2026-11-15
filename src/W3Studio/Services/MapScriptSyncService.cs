@@ -159,6 +159,111 @@ public static class MapScriptSyncService
         }
     }
 
+    public static void SyncRegionsToW3rAndJass(MapProject project)
+    {
+        project.RawMpqFiles["war3map.w3r"] = WriteRegionsW3r(project.Regions);
+
+        if (string.IsNullOrWhiteSpace(project.RawMapScript))
+            return;
+
+        var script = project.RawMapScript;
+        var declared = ExtractDeclaredRegionGlobals(script);
+
+        // Ensure globals block declares any new region's rect gg_rct_* = null
+        var missingDecls = new List<string>();
+        foreach (var reg in project.Regions)
+        {
+            string gg = reg.JassVariableName;
+            if (!string.IsNullOrWhiteSpace(gg) && declared.Add(gg))
+            {
+                missingDecls.Add($"    rect                    {gg}               = null");
+            }
+        }
+
+        if (missingDecls.Count > 0)
+        {
+            var mEnd = Regex.Match(script, @"(?m)^endglobals\b");
+            if (mEnd.Success)
+            {
+                string block = string.Join("\r\n", missingDecls) + "\r\n";
+                script = script.Insert(mEnd.Index, block);
+            }
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine("function CreateRegions takes nothing returns nothing");
+        sb.AppendLine("    local weathereffect we");
+        sb.AppendLine();
+        foreach (var reg in project.Regions)
+        {
+            string gg = reg.JassVariableName;
+            if (string.IsNullOrWhiteSpace(gg))
+                continue;
+            float l = Math.Min(reg.Left, reg.Right);
+            float r = Math.Max(reg.Left, reg.Right);
+            float b = Math.Min(reg.Bottom, reg.Top);
+            float t = Math.Max(reg.Bottom, reg.Top);
+            sb.AppendLine($"    set {gg} = Rect( {Fmt(l)}, {Fmt(b)}, {Fmt(r)}, {Fmt(t)} )");
+            if (reg.WeatherId != 0)
+            {
+                string rawWeather = WarcraftBaseDataService.IntToRawcode(reg.WeatherId);
+                sb.AppendLine($"    set we = AddWeatherEffect( {gg}, '{rawWeather}' )");
+                sb.AppendLine("    call EnableWeatherEffect( we, true )");
+            }
+        }
+        sb.AppendLine("endfunction");
+
+        script = ReplaceJassFunction(script, "CreateRegions", sb.ToString(), insertBeforeFunction: "CreateAllDestructables");
+        project.RawMapScript = script;
+        var root = project.AllTriggerNodes.FirstOrDefault(n => n.Kind == TriggerNodeKind.RootScript);
+        if (root != null)
+            root.Code = script;
+    }
+
+    public static byte[] WriteRegionsW3r(IReadOnlyList<W3MapRegion> regions)
+    {
+        using var ms = new MemoryStream();
+        using var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
+        bw.Write(5); // war3map.w3r version 5
+        bw.Write(regions.Count);
+        foreach (var r in regions)
+        {
+            bw.Write(Math.Min(r.Left, r.Right));
+            bw.Write(Math.Max(r.Left, r.Right));
+            bw.Write(Math.Min(r.Bottom, r.Top));
+            bw.Write(Math.Max(r.Bottom, r.Top));
+            WriteNullTerminated(bw, r.Name ?? $"Region {r.CreationNumber:D3}");
+            bw.Write(r.CreationNumber);
+            bw.Write(r.WeatherId);
+            WriteNullTerminated(bw, r.AmbientSound ?? string.Empty);
+            bw.Write(r.ColorB);
+            bw.Write(r.ColorG);
+            bw.Write(r.ColorR);
+            bw.Write((byte)0xFF);
+        }
+        bw.Flush();
+        return ms.ToArray();
+    }
+
+    private static void WriteNullTerminated(BinaryWriter bw, string value)
+    {
+        bw.Write(Encoding.UTF8.GetBytes(value ?? string.Empty));
+        bw.Write((byte)0);
+    }
+
+    private static HashSet<string> ExtractDeclaredRegionGlobals(string script)
+    {
+        var set = new HashSet<string>(StringComparer.Ordinal);
+        var mGlobals = Regex.Match(script, @"(?ms)^globals\b([\s\S]*?)^endglobals\b");
+        if (!mGlobals.Success)
+            return set;
+
+        foreach (Match m in Regex.Matches(mGlobals.Groups[1].Value, @"\b(gg_rct_[A-Za-z0-9_]+)\b"))
+            set.Add(m.Groups[1].Value);
+
+        return set;
+    }
+
     private static string BuildInitCustomPlayerSlots(MapInfo info)
     {
         var sb = new StringBuilder();
