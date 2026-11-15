@@ -20,7 +20,10 @@
                 <TabItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Image Source="pack://application:,,,/Assets/Icons/scenario.png" Width="14" Height="14" Margin="0,0,5,0"/>
-                        <TextBlock Text="Descripción, Pantalla de Carga y Ambiente" VerticalAlignment="Center"/>
+                        <TextBlock Text="Descripción, Pantalla de Carga y Ambiente"
+                                   Foreground="{Binding (TextElement.Foreground), RelativeSource={RelativeSource AncestorType=ContentPresenter}}"
+                                   FontWeight="{Binding (TextElement.FontWeight), RelativeSource={RelativeSource AncestorType=ContentPresenter}}"
+                                   VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10">
@@ -175,7 +178,10 @@
                 <TabItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Image Source="pack://application:,,,/Assets/Icons/tab_units.png" Width="14" Height="14" Margin="0,0,5,0"/>
-                        <TextBlock Text="Propiedades de Jugadores (Player Properties)" VerticalAlignment="Center"/>
+                        <TextBlock Text="Propiedades de Jugadores (Player Properties)"
+                                   Foreground="{Binding (TextElement.Foreground), RelativeSource={RelativeSource AncestorType=ContentPresenter}}"
+                                   FontWeight="{Binding (TextElement.FontWeight), RelativeSource={RelativeSource AncestorType=ContentPresenter}}"
+                                   VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <Grid Margin="10">
@@ -218,7 +224,10 @@
                 <TabItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Image Source="pack://application:,,,/Assets/Icons/scenario.png" Width="14" Height="14" Margin="0,0,5,0"/>
-                        <TextBlock Text="Fuerzas y Alianzas (Forces)" VerticalAlignment="Center"/>
+                        <TextBlock Text="Fuerzas y Alianzas (Forces)"
+                                   Foreground="{Binding (TextElement.Foreground), RelativeSource={RelativeSource AncestorType=ContentPresenter}}"
+                                   FontWeight="{Binding (TextElement.FontWeight), RelativeSource={RelativeSource AncestorType=ContentPresenter}}"
+                                   VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <Grid Margin="10">

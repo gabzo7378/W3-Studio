@@ -19,8 +19,11 @@ public partial class WorldMap3DViewportControl : UserControl
     private MapProject? _project;
     private bool _pendingMapLoad;
     private string _webResDir = string.Empty;
+    private TaskCompletionSource<bool>? _loadTcs;
+    private Action<int, string>? _activeLoadProgress;
 
     public event Action? MapLoadedSuccess;
+    public event Action<int, string>? MapLoadProgress;
     public event Action<float, float, bool>? TerrainBrushDabReceived;
     public event Action<string?, int>? EntitySelected;
     public event Action<string, int, float, float, float>? EntityMoved;
@@ -84,18 +87,16 @@ public partial class WorldMap3DViewportControl : UserControl
 
             WvMap.CoreWebView2.WebResourceRequested += OnWebResourceRequested;
             WvMap.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
+            WvMap.CoreWebView2.NavigationCompleted += (_, _) => BorderInitProgress.Visibility = Visibility.Collapsed;
 
             WvMap.Source = new Uri("https://w3studio.local/map_viewer.html");
             _isInitialized = true;
-            BorderInitProgress.Visibility = Visibility.Collapsed;
         }
         catch (Exception ex)
         {
-            BorderInitProgress.Child = new TextBlock
-            {
-                Text = "Error inicializando WebView2: " + ex.Message,
-                Foreground = System.Windows.Media.Brushes.Red
-            };
+            TxtInitTitle.Text = "Error al inicializar el visor 3D";
+            TxtInitDetail.Text = ex.Message;
+            PrgInitViewport.Visibility = Visibility.Collapsed;
         }
     }
 
@@ -232,15 +233,29 @@ public partial class WorldMap3DViewportControl : UserControl
             if (msgType is "map_engine_ready" or "map_engine_script_loaded")
             {
                 _isEngineReady = true;
+                BorderInitProgress.Visibility = Visibility.Collapsed;
                 if (_pendingMapLoad && _project != null)
                 {
                     _pendingMapLoad = false;
                     LoadMap(_project);
                 }
             }
+            else if (msgType == "map_load_progress")
+            {
+                int pct = root.TryGetProperty("percent", out var pctProp) ? pctProp.GetInt32() : 85;
+                string txt = root.TryGetProperty("text", out var txtProp) ? (txtProp.GetString() ?? string.Empty) : string.Empty;
+                _activeLoadProgress?.Invoke(pct, txt);
+                MapLoadProgress?.Invoke(pct, txt);
+            }
             else if (msgType == "map_loaded_success")
             {
+                _activeLoadProgress?.Invoke(100, "Terreno y unidades listos.");
+                _loadTcs?.TrySetResult(true);
                 MapLoadedSuccess?.Invoke();
+            }
+            else if (msgType == "map_load_error")
+            {
+                _loadTcs?.TrySetResult(false);
             }
             else if (msgType == "terrain_brush_dab")
             {
@@ -301,6 +316,32 @@ public partial class WorldMap3DViewportControl : UserControl
         catch
         {
         }
+    }
+
+    public async Task LoadMapAsync(MapProject? project, Action<int, string>? onProgress = null, int timeoutMs = 15000)
+    {
+        _activeLoadProgress = onProgress;
+        _loadTcs?.TrySetResult(false);
+
+        if (project == null || string.IsNullOrEmpty(project.FilePath) || !File.Exists(project.FilePath))
+        {
+            LoadMap(project);
+            _activeLoadProgress = null;
+            return;
+        }
+
+        await EnsureEngineInitializedAsync();
+
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _loadTcs = tcs;
+        onProgress?.Invoke(80, "Inicializando terreno 3D y modelos del mapa...");
+        LoadMap(project);
+
+        var delayTask = Task.Delay(timeoutMs);
+        await Task.WhenAny(tcs.Task, delayTask);
+        if (ReferenceEquals(_loadTcs, tcs))
+            _loadTcs = null;
+        _activeLoadProgress = null;
     }
 
     public void LoadMap(MapProject? project)

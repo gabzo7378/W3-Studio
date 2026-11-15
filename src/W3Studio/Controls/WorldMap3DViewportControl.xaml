@@ -7,15 +7,29 @@
         <wv2:WebView2 x:Name="WvMap" DefaultBackgroundColor="#0F1218"/>
 
         <Border x:Name="BorderInitProgress"
-                Background="#181C24"
+                Background="{DynamicResource Win10PanelBg}"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
-                Padding="16,10"
-                CornerRadius="6"
-                BorderBrush="#3E4555"
+                Padding="18,14"
+                Width="340"
+                CornerRadius="3"
+                BorderBrush="{DynamicResource Win10Border}"
                 BorderThickness="1">
-            <StackPanel Orientation="Horizontal">
-                <TextBlock Text="⏳ Inicializando Viewport 3D WebGL (mdx-m3-viewer)..." Foreground="#E0B040" FontSize="12" FontWeight="SemiBold"/>
+            <StackPanel>
+                <TextBlock x:Name="TxtInitTitle"
+                           Text="Cargando Editor de Terreno..."
+                           Foreground="{DynamicResource Win10Text}"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,8"/>
+                <ProgressBar x:Name="PrgInitViewport"
+                             Height="14"
+                             IsIndeterminate="True"
+                             Margin="0,0,0,6"/>
+                <TextBlock x:Name="TxtInitDetail"
+                           Text="Preparando entorno visual del mapa..."
+                           Foreground="{DynamicResource ThemeTextMuted}"
+                           FontSize="11"/>
             </StackPanel>
         </Border>
     </Grid>

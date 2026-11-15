@@ -403,7 +403,7 @@ public static class IconProcessorService
     /// Codifica un icono BGRA 64x64 a formato BLP1 Paletted (256 colores + Alpha 8-bit + 7 mipmaps 64..1),
     /// 100% compatible con Warcraft III 1.27b, mdx-m3-viewer y BlpIconService.
     /// </summary>
-    public static byte[] EncodeBlp1Paletted(byte[] bgra64, int width = IconSize, int height = IconSize)
+    public static byte[] EncodeBlp1Paletted(byte[] bgra64, int width = IconSize, int height = IconSize, bool includeMipmaps = true)
     {
         var mips = new List<(int w, int h, byte[] bgra)>();
         mips.Add((width, height, bgra64));
@@ -411,7 +411,7 @@ public static class IconProcessorService
         int curW = width;
         int curH = height;
         byte[] cur = bgra64;
-        while (curW > 1 || curH > 1)
+        while (includeMipmaps && (curW > 1 || curH > 1))
         {
             int nextW = Math.Max(1, curW / 2);
             int nextH = Math.Max(1, curH / 2);
@@ -424,6 +424,8 @@ public static class IconProcessorService
 
         // Construir paleta óptima de 256 colores con Median Cut usando el mip0
         var palette = BuildMedianCutPalette(bgra64, width * height);
+        var lut = new short[32768];
+        Array.Fill(lut, (short)-1);
 
         const int headerSize = 156;
         const int paletteSize = 1024;
@@ -441,7 +443,17 @@ public static class IconProcessorService
             for (int i = 0; i < pxCount; i++)
             {
                 int si = i * 4;
-                payload[i] = FindNearestPaletteIndex(palette, mData[si], mData[si + 1], mData[si + 2]);
+                byte b = mData[si];
+                byte g = mData[si + 1];
+                byte r = mData[si + 2];
+                int key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+                short cached = lut[key];
+                if (cached < 0)
+                {
+                    cached = FindNearestPaletteIndex(palette, b, g, r);
+                    lut[key] = cached;
+                }
+                payload[i] = (byte)cached;
                 payload[pxCount + i] = mData[si + 3];
             }
 
@@ -505,11 +517,12 @@ public static class IconProcessorService
 
     private static byte[] BuildMedianCutPalette(byte[] bgra, int pixelCount)
     {
+        int step = Math.Max(1, pixelCount / 16384);
         var buckets = new List<List<(byte b, byte g, byte r)>>
         {
-            new List<(byte b, byte g, byte r)>(pixelCount)
+            new List<(byte b, byte g, byte r)>(Math.Min(pixelCount, 16384))
         };
-        for (int i = 0; i < pixelCount; i++)
+        for (int i = 0; i < pixelCount; i += step)
         {
             int idx = i * 4;
             buckets[0].Add((bgra[idx], bgra[idx + 1], bgra[idx + 2]));

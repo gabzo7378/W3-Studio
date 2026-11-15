@@ -73,6 +73,9 @@
                 <MenuItem Header="Icon Manager (Editor de Iconos .blp)" Click="BtnOpenIconManager_Click">
                     <MenuItem.Icon><Image Source="pack://application:,,,/Assets/Icons/icon_manager.png" Width="16" Height="16"/></MenuItem.Icon>
                 </MenuItem>
+                <MenuItem Header="Loading Screen y MapPreview (Pantalla de Carga y Sala)..." Click="BtnOpenMapMedia_Click">
+                    <MenuItem.Icon><Image Source="pack://application:,,,/Assets/Icons/scenario.png" Width="16" Height="16"/></MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="Optimizador de Mapa (WC3 Optimizer 5.0)..." Click="BtnOpenOptimizer_Click">
                     <MenuItem.Icon><Image Source="pack://application:,,,/Assets/Icons/optimizer.png" Width="16" Height="16"/></MenuItem.Icon>
                 </MenuItem>
@@ -83,6 +86,9 @@
             <MenuItem Header="_Escenario">
                 <MenuItem Header="Descripción y Opciones del Mapa..." Click="BtnOpenScenarioDescription_Click">
                     <MenuItem.Icon><Image Source="pack://application:,,,/Assets/Icons/scenario.png" Width="16" Height="16"/></MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Generador de Loading Screen y MapPreview..." Click="BtnOpenMapMedia_Click">
+                    <MenuItem.Icon><Image Source="pack://application:,,,/Assets/Icons/icon_manager.png" Width="16" Height="16"/></MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Propiedades de Jugadores (Player Properties)..." Click="BtnOpenScenarioPlayers_Click">
                     <MenuItem.Icon><Image Source="pack://application:,,,/Assets/Icons/tab_units.png" Width="16" Height="16"/></MenuItem.Icon>
@@ -122,14 +128,113 @@
             </MenuItem>
         </Menu>
 
-        <!-- 2. BARRA DE HERRAMIENTAS COMPACTA (MÓDULOS + GUARDAR/PROBAR + DIRECTORIO W3 + CONFIGURACIÓN) -->
-        <Border Grid.Row="1" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="6,2">
-            <DockPanel LastChildFill="False">
+        <!-- 2. BARRA DE HERRAMIENTAS RESPONSIVA (MÓDULOS + GUARDAR/PROBAR + DIRECTORIO W3 + CONFIGURACIÓN) -->
+        <Border Grid.Row="1" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="6,3">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Botones esenciales del Editor a la izquierda (envuelven automáticamente si falta ancho) -->
+                <WrapPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="6,2" Margin="0,1,3,1" ToolTip="Abrir Mapa .w3x / .w3m (Ctrl+O)" Click="BtnOpenMap_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="pack://application:,,,/Assets/Icons/open.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock Text="Abrir" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="6,2" Margin="0,1,3,1" ToolTip="Guardar Mapa (Ctrl+S)" Click="BtnSaveMap_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="pack://application:,,,/Assets/Icons/save.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock Text="Guardar" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Rectangle Width="1" Height="20" Fill="{DynamicResource Win10Border}" Margin="3,1,5,1"/>
+
+                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="6,2" Margin="0,1,3,1" ToolTip="Ver Terreno, Árboles y Unidades del Mapa (F3)" Click="BtnFocusMapTab_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="pack://application:,,,/Assets/Icons/terrain.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock Text="Terreno (F3)" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="6,2" Margin="0,1,3,1" FontWeight="SemiBold" ToolTip="Editor de Triggers y Código vJASS/JASS (F4)" Click="BtnFocusTriggers_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="pack://application:,,,/Assets/Icons/triggers.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock Text="Triggers (F4)" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="6,2" Margin="0,1,3,1" FontWeight="SemiBold" ToolTip="Editor de Objetos: Unidades, Ítems, Habilidades (F6)" Click="BtnFocusObjects_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="pack://application:,,,/Assets/Icons/objects.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock Text="Objetos (F6)" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="6,2" Margin="0,1,3,1" ToolTip="Gestor de Archivos Importados (F12)" Click="BtnFocusImports_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="pack://application:,,,/Assets/Icons/imports.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock Text="Imports (F12)" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="6,2" Margin="0,1,3,1" FontWeight="SemiBold" ToolTip="Icon Manager estilo Button Manager (BTN, PAS, ATC, recuadros de color y DISBTN automático)" Click="BtnOpenIconManager_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="pack://application:,,,/Assets/Icons/icon_manager.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock Text="Icon Manager" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="6,2" Margin="0,1,3,1" FontWeight="SemiBold" ToolTip="Generador de Loading Screen (Pantalla de Carga) y MapPreview (Imagen de Sala de Espera war3mapPreview.tga)" Click="BtnOpenMapMedia_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="pack://application:,,,/Assets/Icons/mode_2d.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock Text="Loading / Preview" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="6,2" Margin="0,1,3,1" FontWeight="SemiBold" ToolTip="Optimizador de Mapa estilo WC3 Map Optimizer 5.0 (JASS, Strings, Bloat y Protección MPQ)" Click="BtnOpenOptimizer_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="pack://application:,,,/Assets/Icons/optimizer.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock Text="Optimizador" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="6,2" Margin="0,1,3,1" FontWeight="SemiBold" ToolTip="Escenario: Propiedades del Mapa, Jugadores y Fuerzas" Click="BtnOpenScenarioDescription_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="pack://application:,,,/Assets/Icons/scenario.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock Text="Escenario" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="6,2" Margin="0,1,3,1" ToolTip="Avanzado: Gameplay Constants y Game Interface" Click="BtnOpenGameplayConstants_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="pack://application:,,,/Assets/Icons/constants.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock Text="Constantes" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="6,2" Margin="0,1,3,1" ToolTip="Variables Globales y Buscador (Ctrl+B)" Click="BtnFocusGlobalSearch_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="pack://application:,,,/Assets/Icons/variables.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock Text="Variables" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Rectangle Width="1" Height="20" Fill="{DynamicResource Win10Border}" Margin="3,1,5,1"/>
+
+                    <Button x:Name="BtnSaveAndCompile" Style="{StaticResource WeToolbarIconBtn}" Padding="7,2" Margin="0,1,3,1" Background="{DynamicResource ThemeWarningBg}" BorderBrush="{DynamicResource ThemeWarningBorder}" FontWeight="SemiBold" ToolTip="Guardar y compilar el mapa completo (Ctrl+S / F7). Si hay errores en los scripts, se mostrarán y no se podrá probar." Click="BtnSaveAndCompile_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="pack://application:,,,/Assets/Icons/save_compile.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock Text="Guardar (Ctrl+S / F7)" Foreground="{DynamicResource ThemeWarningText}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="BtnTestMap" Style="{StaticResource WeToolbarIconBtn}" Padding="8,2" Margin="0,1,3,1" Background="{DynamicResource ThemeSuccessBg}" BorderBrush="{DynamicResource ThemeSuccessBorder}" FontWeight="Bold" IsEnabled="False" ToolTip="Lanzar y probar el mapa en Warcraft III (F9). Se activa cuando el mapa esté guardado y compilado sin errores." Click="BtnTestMap_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="pack://application:,,,/Assets/Icons/play.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock Text="Probar (F9)" Foreground="{DynamicResource ThemeSuccessText}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </WrapPanel>
+
                 <!-- Selector directo del directorio de Warcraft III y configuración a la derecha -->
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="8,1,0,1">
                     <TextBlock Text="Warcraft III:" VerticalAlignment="Center" Foreground="{DynamicResource Win10Text}" FontSize="11.5" Margin="0,0,5,0"/>
                     <TextBox x:Name="TxtTopWar3Dir"
-                             Width="210"
+                             Width="175"
                              Height="22"
                              Style="{StaticResource Win10TextBox}"
                              IsReadOnly="True"
@@ -163,95 +268,7 @@
                         </StackPanel>
                     </Button>
                 </StackPanel>
-
-                <!-- Botones esenciales del Editor a la izquierda -->
-                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="7,2" ToolTip="Abrir Mapa .w3x / .w3m (Ctrl+O)" Click="BtnOpenMap_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/open.png" Width="15" Height="15" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Abrir" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="7,2" ToolTip="Guardar Mapa (Ctrl+S)" Click="BtnSaveMap_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/save.png" Width="15" Height="15" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Guardar" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-
-                    <Rectangle Width="1" Height="20" Fill="{DynamicResource Win10Border}" Margin="5,0"/>
-
-                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="7,2" ToolTip="Ver Terreno, Árboles y Unidades del Mapa (F3)" Click="BtnFocusMapTab_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/terrain.png" Width="16" Height="16" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Terreno (F3)" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="7,2" FontWeight="SemiBold" ToolTip="Editor de Triggers y Código vJASS/JASS (F4)" Click="BtnFocusTriggers_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/triggers.png" Width="16" Height="16" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Triggers (F4)" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="7,2" FontWeight="SemiBold" ToolTip="Editor de Objetos: Unidades, Ítems, Habilidades (F6)" Click="BtnFocusObjects_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/objects.png" Width="16" Height="16" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Objetos (F6)" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="7,2" ToolTip="Gestor de Archivos Importados (F12)" Click="BtnFocusImports_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/imports.png" Width="16" Height="16" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Imports (F12)" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="7,2" FontWeight="SemiBold" ToolTip="Icon Manager estilo Button Manager (BTN, PAS, ATC, recuadros de color y DISBTN automático)" Click="BtnOpenIconManager_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/icon_manager.png" Width="16" Height="16" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Icon Manager" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="7,2" FontWeight="SemiBold" ToolTip="Optimizador de Mapa estilo WC3 Map Optimizer 5.0 (JASS, Strings, Bloat y Protección MPQ)" Click="BtnOpenOptimizer_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/optimizer.png" Width="16" Height="16" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Optimizador" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="7,2" FontWeight="SemiBold" ToolTip="Escenario: Propiedades del Mapa, Jugadores y Fuerzas" Click="BtnOpenScenarioDescription_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/scenario.png" Width="16" Height="16" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Escenario" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="7,2" ToolTip="Avanzado: Gameplay Constants y Game Interface" Click="BtnOpenGameplayConstants_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/constants.png" Width="16" Height="16" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Constantes" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="7,2" ToolTip="Variables Globales y Buscador (Ctrl+B)" Click="BtnFocusGlobalSearch_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/variables.png" Width="16" Height="16" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Variables" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-
-                    <Rectangle Width="1" Height="20" Fill="{DynamicResource Win10Border}" Margin="5,0"/>
-
-                    <Button x:Name="BtnSaveAndCompile" Style="{StaticResource WeToolbarIconBtn}" Padding="8,2" Background="{DynamicResource ThemeWarningBg}" BorderBrush="{DynamicResource ThemeWarningBorder}" FontWeight="SemiBold" ToolTip="Guardar y compilar el mapa completo (Ctrl+S / F7). Si hay errores en los scripts, se mostrarán y no se podrá probar." Click="BtnSaveAndCompile_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/save_compile.png" Width="16" Height="16" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Guardar (Ctrl+S / F7)" Foreground="{DynamicResource ThemeWarningText}" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Button x:Name="BtnTestMap" Style="{StaticResource WeToolbarIconBtn}" Padding="9,2" Background="{DynamicResource ThemeSuccessBg}" BorderBrush="{DynamicResource ThemeSuccessBorder}" FontWeight="Bold" IsEnabled="False" ToolTip="Lanzar y probar el mapa en Warcraft III (F9). Se activa cuando el mapa esté guardado y compilado sin errores." Click="BtnTestMap_Click" Margin="3,1,0,1">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/play.png" Width="15" Height="15" Margin="0,0,5,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Probar (F9)" Foreground="{DynamicResource ThemeSuccessText}" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                </StackPanel>
-            </DockPanel>
+            </Grid>
         </Border>
 
         <!-- 3. CUERPO CENTRAL: SIDEBAR IZQUIERDO CLÁSICO WORLD EDITOR + ÁREA PRINCIPAL -->
@@ -447,18 +464,24 @@
                                     </StackPanel>
 
                                     <Button Style="{StaticResource Win10ClassicButton}"
+                                            Padding="4,3"
+                                            FontSize="11"
+                                            ToolTip="Abrir este objeto en el Object Editor (F6)"
                                             Margin="0,0,0,4"
                                             Click="BtnOpenSelectedUnitInF6_Click">
                                         <StackPanel Orientation="Horizontal">
-                                            <Image Source="pack://application:,,,/Assets/Icons/objects.png" Width="14" Height="14" Margin="0,0,5,0"/>
+                                            <Image Source="pack://application:,,,/Assets/Icons/objects.png" Width="13" Height="13" Margin="0,0,4,0"/>
                                             <TextBlock Text="Abrir en Object Editor (F6)" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Button>
                                     <Button Style="{StaticResource Win10ClassicButton}"
+                                            Padding="4,3"
+                                            FontSize="11"
+                                            ToolTip="Copiar variable global JASS (gg_unit_...) al portapapeles"
                                             Click="BtnCopySelectedJassVar_Click">
                                         <StackPanel Orientation="Horizontal">
-                                            <Image Source="pack://application:,,,/Assets/Icons/copy.png" Width="14" Height="14" Margin="0,0,5,0"/>
-                                            <TextBlock Text="Copiar Variable gg_unit_..." VerticalAlignment="Center"/>
+                                            <Image Source="pack://application:,,,/Assets/Icons/copy.png" Width="13" Height="13" Margin="0,0,4,0"/>
+                                            <TextBlock Text="Copiar Variable JASS (gg_unit)" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Button>
                                 </StackPanel>
@@ -485,25 +508,29 @@
                     </ControlTemplate>
                 </TabControl.Template>
 
-                <!-- ==================== PESTAÑA 1: EL MAPA EN SÍ + FLOATING TOOL PALETTE ==================== -->
+                <!-- ==================== PESTAÑA 1: EL MAPA EN SÍ + TOOL PALETTE LATERAL SIN AIRSPACE ==================== -->
                 <TabItem x:Name="TabMapViewport" Header=" 🗺️ Mapa del Mundo (Terreno y Unidades) ">
-                    <Grid Background="#202020">
-                        <!-- Lienzo 3D Oficial con Modelos, Animaciones y Terreno WebGL (mdx-m3-viewer) -->
-                        <controls:WorldMap3DViewportControl x:Name="Map3DViewport" Visibility="Visible" />
+                    <Grid Background="{DynamicResource Win10SidebarGray}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
 
-                        <!-- Lienzo interactivo 2D del Mapa (Esquemático rápido) -->
-                        <controls:WorldMapViewport x:Name="MapViewport" Visibility="Collapsed" />
+                        <!-- Columna 0: Lienzo 3D WebGL (WebView2) o Lienzo 2D Esquemático -->
+                        <Grid Grid.Column="0" Background="#202020">
+                            <controls:WorldMap3DViewportControl x:Name="Map3DViewport" Visibility="Visible" />
+                            <controls:WorldMapViewport x:Name="MapViewport" Visibility="Collapsed" />
+                        </Grid>
 
-                        <!-- VENTANA FLOTANTE CLÁSICA "Tool Palette" (Adaptable al tema activo) -->
+                        <!-- Columna 1: Tool Palette acoplada fuera del HWND de WebView2 (siempre visible al abrir/editar mapas) -->
                         <Border x:Name="FloatingToolPalette"
-                                Width="245"
-                                Height="540"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center"
-                                Margin="0,12,18,12"
+                                Grid.Column="1"
+                                Width="264"
+                                VerticalAlignment="Stretch"
+                                Margin="3,0,0,0"
                                 Background="{DynamicResource Win10WindowBg}"
                                 BorderBrush="{DynamicResource Win10Border}"
-                                BorderThickness="1">
+                                BorderThickness="1,0,0,0">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="26"/>
@@ -566,26 +593,33 @@
                                              TextChanged="TxtPaletteFilter_TextChanged"/>
 
                                     <!-- Botones verdes clásicos de selección/rotación de la Tool Palette -->
-                                    <StackPanel x:Name="PnlPaletteActions" Orientation="Horizontal" Margin="0,0,0,4">
-                                        <Button Width="76" Height="26" Style="{StaticResource Win10ClassicButton}" Background="{DynamicResource ThemeSuccessBg}" BorderBrush="{DynamicResource ThemeSuccessBorder}" Foreground="{DynamicResource ThemeSuccessText}" Margin="0,0,4,0" Click="BtnPaletteCenterSelected_Click">
+                                    <Grid x:Name="PnlPaletteActions" Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1*"/>
+                                            <ColumnDefinition Width="4"/>
+                                            <ColumnDefinition Width="1.1*"/>
+                                            <ColumnDefinition Width="4"/>
+                                            <ColumnDefinition Width="0.85*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Height="26" Padding="4,0" Style="{StaticResource Win10ClassicButton}" Background="{DynamicResource ThemeSuccessBg}" BorderBrush="{DynamicResource ThemeSuccessBorder}" Foreground="{DynamicResource ThemeSuccessText}" Click="BtnPaletteCenterSelected_Click">
                                             <StackPanel Orientation="Horizontal">
                                                 <Image Source="pack://application:,,,/Assets/Icons/center.png" Width="13" Height="13" Margin="0,0,4,0"/>
                                                 <TextBlock Text="Centrar" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Button>
-                                        <Button Width="76" Height="26" Style="{StaticResource Win10ClassicButton}" Background="{DynamicResource ThemeSuccessBg}" BorderBrush="{DynamicResource ThemeSuccessBorder}" Foreground="{DynamicResource ThemeSuccessText}" Margin="0,0,4,0" Click="BtnResetMapCamera_Click">
+                                        <Button Grid.Column="2" Height="26" Padding="4,0" Style="{StaticResource Win10ClassicButton}" Background="{DynamicResource ThemeSuccessBg}" BorderBrush="{DynamicResource ThemeSuccessBorder}" Foreground="{DynamicResource ThemeSuccessText}" Click="BtnResetMapCamera_Click">
                                             <StackPanel Orientation="Horizontal">
                                                 <Image Source="pack://application:,,,/Assets/Icons/fit_all.png" Width="13" Height="13" Margin="0,0,4,0"/>
                                                 <TextBlock Text="Ver Todo" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Button>
-                                        <Button Width="64" Height="26" Style="{StaticResource Win10ClassicButton}" Click="BtnOpenSelectedUnitInF6_Click">
+                                        <Button Grid.Column="4" Height="26" Padding="4,0" Style="{StaticResource Win10ClassicButton}" Click="BtnOpenSelectedUnitInF6_Click">
                                             <StackPanel Orientation="Horizontal">
                                                 <Image Source="pack://application:,,,/Assets/Icons/objects.png" Width="13" Height="13" Margin="0,0,4,0"/>
                                                 <TextBlock Text="En F6" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Button>
-                                    </StackPanel>
+                                    </Grid>
                                 </StackPanel>
 
                                 <!-- Lista de Elementos de la Paleta -->

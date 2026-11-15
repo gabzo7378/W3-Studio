@@ -1,0 +1,75 @@
+<Window x:Class="W3Studio.MapProgressWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="440"
+        Height="148"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Win10WindowBg}"
+        Foreground="{DynamicResource Win10Text}"
+        FontFamily="Segoe UI"
+        FontSize="12"
+        AllowsTransparency="False">
+    <Border BorderBrush="{DynamicResource Win10DarkBorder}" BorderThickness="1.5" Background="{DynamicResource Win10WindowBg}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="30"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Barra de título clásica estilo Warcraft III World Editor -->
+            <Border Grid.Row="0" Background="{DynamicResource ThemeSelectedBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="10,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Image Source="pack://application:,,,/Assets/Icons/terrain.png" Width="15" Height="15" Margin="0,0,7,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <TextBlock x:Name="TxtDialogTitle"
+                               Text="World Editor — Procesando..."
+                               Foreground="{DynamicResource ThemeSelectedText}"
+                               FontWeight="SemiBold"
+                               FontSize="12"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Contenido de progreso -->
+            <StackPanel Grid.Row="1" Margin="16,14,16,14" VerticalAlignment="Center">
+                <TextBlock x:Name="TxtMapName"
+                           Text="Mapa de Warcraft III"
+                           FontWeight="Bold"
+                           FontSize="12.5"
+                           Foreground="{DynamicResource Win10Text}"
+                           TextTrimming="CharacterEllipsis"
+                           Margin="0,0,0,8"/>
+
+                <ProgressBar x:Name="PrgOperation"
+                             Minimum="0"
+                             Maximum="100"
+                             Value="0"
+                             Height="18"
+                             Margin="0,0,0,6"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               x:Name="TxtStepDetail"
+                               Text="Iniciando..."
+                               FontSize="11.5"
+                               Foreground="{DynamicResource ThemeTextMuted}"
+                               TextTrimming="CharacterEllipsis"
+                               Margin="0,0,10,0"/>
+                    <TextBlock Grid.Column="1"
+                               x:Name="TxtPercent"
+                               Text="0%"
+                               FontSize="11.5"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource ThemeAccentText}"/>
+                </Grid>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>
+

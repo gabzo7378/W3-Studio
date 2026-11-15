@@ -1,7 +1,10 @@
 <Window x:Class="W3Studio.TriggerEditorWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit"
+        
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        
+    xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit"
         Title="Trigger Editor IDE (F4) — Warcraft III 1.27b"
         Icon="pack://application:,,,/Assets/W3Studio.ico"
         Width="1480" Height="860"
@@ -14,55 +17,73 @@
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
         PreviewKeyDown="Window_PreviewKeyDown">
-
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="24"/>
             <RowDefinition Height="34"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-
         <!-- 1. BARRA DE MENÚ SUPERIOR -->
         <Menu Grid.Row="0" Background="{DynamicResource ThemeMenuBg}" Foreground="{DynamicResource Win10Text}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="4,1" FontSize="12">
             <MenuItem Header="_Archivo">
                 <MenuItem Header="Nuevo Disparador (GUI)" InputGestureText="Ctrl+T" Click="BtnNewGuiTrigger_Click">
-                    <MenuItem.Icon><Image Source="pack://application:,,,/Assets/Icons/triggers.png" Width="16" Height="16"/></MenuItem.Icon>
+                    <MenuItem.Icon>
+                        <Image Source="pack://application:,,,/Assets/Icons/triggers.png" Width="16" Height="16"/>
+                    </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Nuevo Script (vJASS / JASS)" InputGestureText="Ctrl+U" Click="BtnNewVjassTrigger_Click">
-                    <MenuItem.Icon><Image Source="pack://application:,,,/Assets/Icons/script_vjass.png" Width="16" Height="16"/></MenuItem.Icon>
+                    <MenuItem.Icon>
+                        <Image Source="pack://application:,,,/Assets/Icons/script_vjass.png" Width="16" Height="16"/>
+                    </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Nueva Categoría" InputGestureText="Ctrl+K" Click="BtnNewCategory_Click">
-                    <MenuItem.Icon><Image Source="pack://application:,,,/Assets/Icons/category_folder.png" Width="16" Height="16"/></MenuItem.Icon>
+                    <MenuItem.Icon>
+                        <Image Source="pack://application:,,,/Assets/Icons/category_folder.png" Width="16" Height="16"/>
+                    </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Duplicar Trigger Seleccionado" InputGestureText="Ctrl+D" Click="BtnDuplicateTrigger_Click">
-                    <MenuItem.Icon><Image Source="pack://application:,,,/Assets/Icons/copy.png" Width="16" Height="16"/></MenuItem.Icon>
+                    <MenuItem.Icon>
+                        <Image Source="pack://application:,,,/Assets/Icons/copy.png" Width="16" Height="16"/>
+                    </MenuItem.Icon>
                 </MenuItem>
                 <Separator/>
                 <MenuItem Header="Eliminar Seleccionado" InputGestureText="Del" Click="BtnDeleteSelected_Click">
-                    <MenuItem.Icon><Image Source="pack://application:,,,/Assets/Icons/delete.png" Width="16" Height="16"/></MenuItem.Icon>
+                    <MenuItem.Icon>
+                        <Image Source="pack://application:,,,/Assets/Icons/delete.png" Width="16" Height="16"/>
+                    </MenuItem.Icon>
                 </MenuItem>
                 <Separator/>
                 <MenuItem Header="Cerrar Editor de Triggers" Click="MenuClose_Click"/>
             </MenuItem>
             <MenuItem Header="_Editar">
                 <MenuItem Header="Validar Sintaxis + Detectar Leaks" InputGestureText="F8" Click="BtnValidateScript_Click">
-                    <MenuItem.Icon><Image Source="pack://application:,,,/Assets/Icons/apply.png" Width="16" Height="16"/></MenuItem.Icon>
+                    <MenuItem.Icon>
+                        <Image Source="pack://application:,,,/Assets/Icons/apply.png" Width="16" Height="16"/>
+                    </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Guardar y Compilar Mapa" InputGestureText="F7" Click="BtnSaveAndCompile_Click">
-                    <MenuItem.Icon><Image Source="pack://application:,,,/Assets/Icons/save_compile.png" Width="16" Height="16"/></MenuItem.Icon>
+                    <MenuItem.Icon>
+                        <Image Source="pack://application:,,,/Assets/Icons/save_compile.png" Width="16" Height="16"/>
+                    </MenuItem.Icon>
                 </MenuItem>
                 <Separator/>
                 <MenuItem Header="Auto-Formatear JASS/vJASS" InputGestureText="Ctrl+Shift+F" Click="BtnFormatCode_Click">
-                    <MenuItem.Icon><Image Source="pack://application:,,,/Assets/Icons/clean.png" Width="16" Height="16"/></MenuItem.Icon>
+                    <MenuItem.Icon>
+                        <Image Source="pack://application:,,,/Assets/Icons/clean.png" Width="16" Height="16"/>
+                    </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Comentar / Descomentar Líneas" InputGestureText="Ctrl+/" Click="BtnCommentToggle_Click"/>
                 <MenuItem Header="Ir a Línea..." InputGestureText="Ctrl+G" Click="BtnGoToLine_Click"/>
                 <MenuItem Header="Convertir a Texto Personalizado (JASS)..." Click="BtnConvertToCustomText_Click">
-                    <MenuItem.Icon><Image Source="pack://application:,,,/Assets/Icons/convert.png" Width="16" Height="16"/></MenuItem.Icon>
+                    <MenuItem.Icon>
+                        <Image Source="pack://application:,,,/Assets/Icons/convert.png" Width="16" Height="16"/>
+                    </MenuItem.Icon>
                 </MenuItem>
                 <Separator/>
                 <MenuItem Header="Buscar en Código..." InputGestureText="Ctrl+F" Click="BtnFocusCodeSearch_Click">
-                    <MenuItem.Icon><Image Source="pack://application:,,,/Assets/Icons/search.png" Width="16" Height="16"/></MenuItem.Icon>
+                    <MenuItem.Icon>
+                        <Image Source="pack://application:,,,/Assets/Icons/search.png" Width="16" Height="16"/>
+                    </MenuItem.Icon>
                 </MenuItem>
             </MenuItem>
             <MenuItem Header="_Módulos">
@@ -74,47 +95,48 @@
                 <MenuItem Header="Regresar a la Ventana Principal" Click="MenuClose_Click"/>
             </MenuItem>
         </Menu>
-
         <!-- 2. BARRA DE HERRAMIENTAS RÁPIDAS -->
         <Border Grid.Row="1" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="6,2">
-            <DockPanel LastChildFill="False">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,3,0" ToolTip="Crear una nueva categoría para organizar triggers" Click="BtnNewCategory_Click">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <WrapPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{DynamicResource WeToolbarIconBtn}" Margin="0,1,3,1" ToolTip="Crear una nueva categoría para organizar triggers" Click="BtnNewCategory_Click">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/Icons/category_folder.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
                             <TextBlock Text="+ Categoría" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <Button Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,3,0" ToolTip="Crear un nuevo disparador GUI con Eventos, Condiciones y Acciones (Ctrl+T)" Click="BtnNewGuiTrigger_Click">
+                    <Button Style="{DynamicResource WeToolbarIconBtn}" Margin="0,1,3,1" ToolTip="Crear un nuevo disparador GUI con Eventos, Condiciones y Acciones (Ctrl+T)" Click="BtnNewGuiTrigger_Click">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/Icons/triggers.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
                             <TextBlock Text="+ GUI" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <Button Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,3,0" ToolTip="Crear un nuevo script vJASS / JASS (Ctrl+U)" Click="BtnNewVjassTrigger_Click">
+                    <Button Style="{DynamicResource WeToolbarIconBtn}" Margin="0,1,3,1" ToolTip="Crear un nuevo script vJASS / JASS (Ctrl+U)" Click="BtnNewVjassTrigger_Click">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/Icons/script_vjass.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
                             <TextBlock Text="+ Script vJASS" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <Button Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,3,0" ToolTip="Duplicar el trigger seleccionado (Ctrl+D)" Click="BtnDuplicateTrigger_Click">
+                    <Button Style="{DynamicResource WeToolbarIconBtn}" Margin="0,1,3,1" ToolTip="Duplicar el trigger seleccionado (Ctrl+D)" Click="BtnDuplicateTrigger_Click">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/Icons/copy.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
                             <TextBlock Text="Duplicar" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <Button Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,6,0" ToolTip="Eliminar el elemento o categoría seleccionada" Click="BtnDeleteSelected_Click">
+                    <Button Style="{DynamicResource WeToolbarIconBtn}" Margin="0,1,6,1" ToolTip="Eliminar el elemento o categoría seleccionada" Click="BtnDeleteSelected_Click">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/Icons/delete.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
                             <TextBlock Text="Eliminar" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-
-                    <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="2,0,6,0"/>
-
+                    <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="2,1,6,1"/>
                     <Button x:Name="BtnToolbarConvert"
                             Style="{DynamicResource WeToolbarIconBtn}"
-                            Margin="0,0,4,0"
+                            Margin="0,1,4,1"
                             ToolTip="Convierte el disparador GUI seleccionado a código JASS / vJASS editable"
                             Click="BtnConvertToCustomText_Click">
                         <StackPanel Orientation="Horizontal">
@@ -122,9 +144,8 @@
                             <TextBlock Text="Convertir a JASS" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-
                     <Button Style="{DynamicResource WeToolbarIconBtn}"
-                            Margin="0,0,4,0"
+                            Margin="0,1,4,1"
                             ToolTip="Auto-formatear sangría del código JASS/vJASS (Ctrl+Shift+F)"
                             Click="BtnFormatCode_Click">
                         <StackPanel Orientation="Horizontal">
@@ -132,9 +153,8 @@
                             <TextBlock Text="Formatear" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-
                     <Button Style="{DynamicResource WeToolbarIconBtn}"
-                            Margin="0,0,4,0"
+                            Margin="0,1,4,1"
                             ToolTip="Validar sintaxis WC3 1.27b (PJass/JassHelper) y analizar Memory Leaks (F8)"
                             Click="BtnValidateScript_Click">
                         <StackPanel Orientation="Horizontal">
@@ -142,9 +162,8 @@
                             <TextBlock Text="Validar + Leaks (F8)" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-
                     <Button Style="{DynamicResource WeToolbarIconBtn}"
-                            Margin="0,0,4,0"
+                            Margin="0,1,4,1"
                             ToolTip="Compila los scripts, valida sintaxis y guarda el mapa (F7)"
                             Click="BtnSaveAndCompile_Click">
                         <StackPanel Orientation="Horizontal">
@@ -152,9 +171,8 @@
                             <TextBlock Text="Guardar y Compilar (F7)" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                </StackPanel>
-
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                </WrapPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="8,1,0,1">
                     <TextBlock x:Name="TxtStatusNodeInfo" Text="Listo" Foreground="{DynamicResource ThemeTextMuted}" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="11"/>
                     <ToggleButton x:Name="BtnToggleInspector"
                                   IsChecked="True"
@@ -168,9 +186,8 @@
                         </StackPanel>
                     </ToggleButton>
                 </StackPanel>
-            </DockPanel>
+            </Grid>
         </Border>
-
         <!-- 3. CONTENIDO PRINCIPAL: ÁRBOL (IZQ) + EDITOR (CENTRO) + EXPLORADOR JASS (DER) -->
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
@@ -180,14 +197,12 @@
                 <ColumnDefinition x:Name="ColDrawerSplitter" Width="4"/>
                 <ColumnDefinition x:Name="ColRightDrawer" Width="340" MinWidth="0" MaxWidth="520"/>
             </Grid.ColumnDefinitions>
-
             <!-- Panel Izquierdo: Árbol de Triggers y Categorías -->
             <Grid Grid.Column="0" Background="{DynamicResource Win10PanelBg}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="54"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-
                 <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="6,4">
                     <StackPanel>
                         <DockPanel Margin="0,0,0,3">
@@ -197,7 +212,6 @@
                         <CheckBox x:Name="ChkFilterInsideCode" Content="Buscar también dentro del código JASS" FontSize="11" Foreground="{DynamicResource ThemeTextMuted}" Checked="TxtTreeFilter_TextChanged" Unchecked="TxtTreeFilter_TextChanged"/>
                     </StackPanel>
                 </Border>
-
                 <TreeView Grid.Row="1"
                           x:Name="TreeTriggers"
                           Background="{DynamicResource ThemeInputBg}"
@@ -221,16 +235,13 @@
                     </TreeView.ItemTemplate>
                 </TreeView>
             </Grid>
-
             <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="{DynamicResource Win10Border}"/>
-
             <!-- Panel Central: Detalle del Trigger (Modo GUI o Modo Código IDE) -->
             <Grid Grid.Column="2" Background="{DynamicResource Win10WindowBg}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="46"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-
                 <!-- Encabezado del Trigger Seleccionado -->
                 <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="10,6">
                     <DockPanel>
@@ -256,19 +267,16 @@
                                 </StackPanel>
                             </RadioButton>
                         </StackPanel>
-
                         <!-- Nombre, Habilitado y Categoría -->
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Image x:Name="ImgTriggerIcon" Source="pack://application:,,,/Assets/Icons/triggers.png" Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,8,0" RenderOptions.BitmapScalingMode="HighQuality"/>
                             <TextBlock Text="Nombre:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,6,0"/>
                             <TextBox x:Name="TxtTriggerName" Width="210" Height="24" Style="{DynamicResource Win10TextBox}" VerticalContentAlignment="Center" Margin="0,0,10,0" TextChanged="TxtTriggerName_TextChanged"/>
-
                             <CheckBox x:Name="ChkEnabled" Content="Habilitado" IsChecked="True" Margin="0,0,10,0" VerticalAlignment="Center" Click="ChkEnabled_Click"/>
                             <CheckBox x:Name="ChkInitiallyOn" Content="Inicialmente Activado" IsChecked="True" Margin="0,0,8,0" VerticalAlignment="Center" Click="ChkInitiallyOn_Click"/>
                         </StackPanel>
                     </DockPanel>
                 </Border>
-
                 <!-- VISTA 1: MODO GUI (Eventos, Condiciones, Acciones + Comentario + Vista Previa JASS) -->
                 <Grid Grid.Row="1" x:Name="PanelGuiMode">
                     <Grid.RowDefinitions>
@@ -281,7 +289,6 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="36"/>
                     </Grid.RowDefinitions>
-
                     <!-- Comentario del Trigger -->
                     <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="8,4">
                         <DockPanel>
@@ -289,7 +296,6 @@
                             <TextBox x:Name="TxtTriggerComment" Style="{DynamicResource Win10TextBox}" VerticalContentAlignment="Center" TextChanged="TxtTriggerComment_TextChanged"/>
                         </DockPanel>
                     </Border>
-
                     <!-- SECCIÓN 1: EVENTOS -->
                     <Grid Grid.Row="1" Margin="8,4,8,2">
                         <Grid.RowDefinitions>
@@ -332,9 +338,7 @@
                             </ListBox.ItemTemplate>
                         </ListBox>
                     </Grid>
-
                     <GridSplitter Grid.Row="2" Height="4" HorizontalAlignment="Stretch" Background="{DynamicResource Win10Border}"/>
-
                     <!-- SECCIÓN 2: CONDICIONES -->
                     <Grid Grid.Row="3" Margin="8,2,8,2">
                         <Grid.RowDefinitions>
@@ -377,9 +381,7 @@
                             </ListBox.ItemTemplate>
                         </ListBox>
                     </Grid>
-
                     <GridSplitter Grid.Row="4" Height="4" HorizontalAlignment="Stretch" Background="{DynamicResource Win10Border}"/>
-
                     <!-- SECCIÓN 3: ACCIONES -->
                     <Grid Grid.Row="5" Margin="8,2,8,2">
                         <Grid.RowDefinitions>
@@ -424,7 +426,6 @@
                             </ListBox.ItemTemplate>
                         </ListBox>
                     </Grid>
-
                     <!-- Vista previa expandible de JASS generado en vivo -->
                     <Expander Grid.Row="6" x:Name="ExpGuiJassPreview"
                               Header="Vista Previa en Vivo: JASS Generado (WC3 1.27b)"
@@ -442,7 +443,6 @@
                                                ShowLineNumbers="True"
                                                LineNumbersForeground="#858585"/>
                     </Expander>
-
                     <!-- Barra Inferior GUI: Botón de Conversión Directa -->
                     <Border Grid.Row="7" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,1,0,0" Padding="8,4">
                         <DockPanel>
@@ -461,7 +461,6 @@
                         </DockPanel>
                     </Border>
                 </Grid>
-
                 <!-- VISTA 2: MODO CÓDIGO (Editor IDE JASS / vJASS con IntelliSense, Folding, Leaks y Diagnósticos) -->
                 <Grid Grid.Row="1" x:Name="PanelCodeMode" Visibility="Collapsed">
                     <Grid.RowDefinitions>
@@ -470,7 +469,6 @@
                         <RowDefinition Height="4"/>
                         <RowDefinition Height="150" MinHeight="80"/>
                     </Grid.RowDefinitions>
-
                     <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="8,3">
                         <DockPanel>
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
@@ -488,7 +486,6 @@
                             </StackPanel>
                         </DockPanel>
                     </Border>
-
                     <avalonEdit:TextEditor Grid.Row="1"
                                            x:Name="CodeEditor"
                                            FontFamily="Consolas"
@@ -500,9 +497,7 @@
                                            HorizontalScrollBarVisibility="Auto"
                                            VerticalScrollBarVisibility="Auto"
                                            TextChanged="CodeEditor_TextChanged"/>
-
                     <GridSplitter Grid.Row="2" Height="4" HorizontalAlignment="Stretch" Background="{DynamicResource Win10Border}"/>
-
                     <!-- Panel inferior de Diagnósticos / Leaks / Errores WC3 1.27b -->
                     <Grid Grid.Row="3">
                         <Grid.RowDefinitions>
@@ -535,9 +530,7 @@
                     </Grid>
                 </Grid>
             </Grid>
-
             <GridSplitter Grid.Column="3" Width="4" HorizontalAlignment="Stretch" Background="{DynamicResource Win10Border}"/>
-
             <!-- Panel Derecho: Explorador de Nativas WC3 1.27b, Variables udg_* y Objetos del Mapa -->
             <Border Grid.Column="4" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0">
                 <TabControl x:Name="TabRightDrawer" Background="{DynamicResource Win10WindowBg}" BorderThickness="0">
@@ -550,12 +543,10 @@
                                 <RowDefinition Height="*"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
-
                             <DockPanel Grid.Row="0" Margin="0,0,0,5">
                                 <TextBlock Text="Buscar:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                 <TextBox x:Name="TxtNativeSearch" Style="{DynamicResource Win10TextBox}" TextChanged="TxtNativeSearch_TextChanged"/>
                             </DockPanel>
-
                             <ComboBox Grid.Row="1" x:Name="CboNativeKind" Height="24" Margin="0,0,0,6" SelectionChanged="TxtNativeSearch_TextChanged">
                                 <ComboBoxItem Content="Todas (Natives + Blizzard.j + Constantes)" Tag="All" IsSelected="True"/>
                                 <ComboBoxItem Content="Nativas common.j" Tag="Native"/>
@@ -563,7 +554,6 @@
                                 <ComboBoxItem Content="Constantes WC3" Tag="Constant"/>
                                 <ComboBoxItem Content="Snippets vJASS / Sin Leaks" Tag="Snippet"/>
                             </ComboBox>
-
                             <ListBox Grid.Row="2" x:Name="ListNatives"
                                      Background="{DynamicResource Win10WindowBg}"
                                      Foreground="{DynamicResource Win10Text}"
@@ -580,7 +570,6 @@
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
-
                             <Border Grid.Row="3" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" CornerRadius="3" Padding="8" Margin="0,6,0,0">
                                 <StackPanel>
                                     <TextBlock x:Name="TxtNativeSignature" Text="Selecciona una nativa o snippet (doble clic para insertar)." FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,4"/>
@@ -590,7 +579,6 @@
                             </Border>
                         </Grid>
                     </TabItem>
-
                     <!-- TAB 2: VARIABLES GLOBALES (udg_*) -->
                     <TabItem Header="Variables (udg_)">
                         <Grid Margin="6">
@@ -599,7 +587,6 @@
                                 <RowDefinition Height="*"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
-
                             <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
                                 <Button Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,4,0" Click="BtnNewVariable_Click">
                                     <StackPanel Orientation="Horizontal">
@@ -611,7 +598,6 @@
                                 <Button Content="Eliminar" Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,4,0" Click="BtnDeleteVariable_Click"/>
                                 <Button Content="Insertar udg_" Style="{DynamicResource WeToolbarIconBtn}" Click="BtnInsertVariable_Click" ToolTip="Inserta udg_&lt;Nombre&gt; en el cursor del editor"/>
                             </StackPanel>
-
                             <DataGrid Grid.Row="1" x:Name="GridVariables"
                                       AutoGenerateColumns="False"
                                       IsReadOnly="True"
@@ -628,7 +614,6 @@
                                     <DataGridTextColumn Header="Inicial" Binding="{Binding InitialValue}" Width="*"/>
                                 </DataGrid.Columns>
                             </DataGrid>
-
                             <!-- Formulario inline para crear/editar variable -->
                             <Border Grid.Row="2" x:Name="PanelVarEditor" Visibility="Collapsed"
                                     Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}"
@@ -667,7 +652,6 @@
                             </Border>
                         </Grid>
                     </TabItem>
-
                     <!-- TAB 3: MAPA (gg_rct_*, gg_unit_*, gg_trg_*, RAWCODES) -->
                     <TabItem Header="Mapa (gg_ &amp; IDs)">
                         <Grid Margin="6">
@@ -676,12 +660,10 @@
                                 <RowDefinition Height="*"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
-
                             <DockPanel Grid.Row="0" Margin="0,0,0,6">
                                 <TextBlock Text="Buscar:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                 <TextBox x:Name="TxtMapRefSearch" Style="{DynamicResource Win10TextBox}" TextChanged="TxtMapRefSearch_TextChanged"/>
                             </DockPanel>
-
                             <ListBox Grid.Row="1" x:Name="ListMapRefs"
                                      Background="{DynamicResource Win10WindowBg}"
                                      Foreground="{DynamicResource Win10Text}"
@@ -700,7 +682,6 @@
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
-
                             <Button Grid.Row="2" Content="Insertar Referencia en Código" Style="{DynamicResource Win10ClassicButton}" Margin="0,6,0,0" Padding="8,4" HorizontalAlignment="Right" Click="BtnInsertSelectedMapRef_Click"/>
                         </Grid>
                     </TabItem>

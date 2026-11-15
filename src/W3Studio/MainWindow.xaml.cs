@@ -140,12 +140,28 @@ public partial class MainWindow : Window
 
     private async Task LoadMapFileAsync(string filePath)
     {
+        MapProgressWindow? progressWin = null;
         try
         {
             var sw = Stopwatch.StartNew();
-            TxtStatusBarLeft.Text = $"Cargando mapa: {Path.GetFileName(filePath)}...";
+            var mapTitle = Path.GetFileName(filePath);
+            TxtStatusBarLeft.Text = $"Cargando mapa: {mapTitle}...";
 
-            var project = await Task.Run(() => _mapMpqService.LoadMap(filePath));
+            if (IsLoaded && IsVisible)
+            {
+                progressWin = new MapProgressWindow("World Editor — Cargando Mapa...", mapTitle, "Abriendo archivo MPQ...")
+                {
+                    Owner = this
+                };
+                progressWin.Show();
+                progressWin.UpdateProgress(2, "Abriendo archivo MPQ...");
+                await Task.Yield();
+            }
+
+            var project = await Task.Run(() => _mapMpqService.LoadMap(filePath, (pct, msg) =>
+            {
+                progressWin?.UpdateProgress(pct, msg);
+            }));
             sw.Stop();
 
             _currentProject = project;
@@ -154,17 +170,21 @@ public partial class MainWindow : Window
 
             Title = $"Warcraft III World Editor — [{project.FileName} - {StripColorCodes(project.MapName)}] (1.27b)";
 
+            progressWin?.UpdateProgress(74, "Construyendo minimapa, paleta de herramientas y módulos...");
+            await Task.Yield();
+
             // Load Map Viewport & Minimap
             MapViewport.LoadProject(project);
             ImgSidebarMinimap.Source = MapViewport.MinimapBitmap;
             Map3DViewport.SetContext(_blpIconService, project);
-            Map3DViewport.LoadMap(project);
             TxtSidebarLighting.Text = $"Noon ({project.Terrain.TilesetName})";
             UpdateMapHeaderOverlay();
 
             // Populate Tool Palette, Triggers, Object Editor (F6), Imports, Variables
             _mainCodeIde.SetContext(project, _settings);
             RefreshToolPaletteList();
+            if (FloatingToolPalette != null)
+                FloatingToolPalette.Visibility = Visibility.Visible;
             TreeTriggers.ItemsSource = project.TriggerTree;
             EmbeddedObjectEditor.LoadProject(project);
             if (_standaloneObjectEditorWindow != null && _standaloneObjectEditorWindow.IsLoaded)
@@ -183,6 +203,10 @@ public partial class MainWindow : Window
             {
                 _standaloneOptimizerWindow.SetProject(project);
             }
+            if (_standaloneMapMediaWindow != null && _standaloneMapMediaWindow.IsLoaded)
+            {
+                _standaloneMapMediaWindow.SetProject(project, MapViewport.MinimapBitmap);
+            }
             RefreshImportsGrid();
             RefreshGlobalVariablesGrid();
 
@@ -192,6 +216,15 @@ public partial class MainWindow : Window
 
             // Start in Official World Editor Gameplay Camera View (Distance 1650)
             MapViewport.ResetCameraToStandardEditorView();
+
+            await Map3DViewport.LoadMapAsync(project, (pct, msg) =>
+            {
+                progressWin?.UpdateProgress(pct, msg);
+            });
+
+            progressWin?.UpdateProgress(100, "Mapa cargado con éxito.");
+            progressWin?.Close();
+            progressWin = null;
 
             _diagnostics.Clear();
             _diagnostics.Add(new CompilerDiagnostic
@@ -209,7 +242,13 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            progressWin?.Close();
+            progressWin = null;
             MessageBox.Show(this, $"Error al abrir el mapa:\n{ex.Message}", "Error MPQ", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            progressWin?.Close();
         }
     }
 
@@ -217,6 +256,7 @@ public partial class MainWindow : Window
     private TriggerEditorWindow? _standaloneTriggerEditorWindow;
     private IconManagerWindow? _standaloneIconManagerWindow;
     private OptimizerWindow? _standaloneOptimizerWindow;
+    private MapMediaManagerWindow? _standaloneMapMediaWindow;
 
     private void OpenOrFocusObjectEditorWindow(W3ObjectCategory cat = W3ObjectCategory.Units, string? rawcode = null)
     {
@@ -311,6 +351,43 @@ public partial class MainWindow : Window
     private void BtnOpenOptimizer_Click(object sender, RoutedEventArgs e)
     {
         OpenOrFocusOptimizerWindow();
+    }
+
+    private void BtnOpenMapMedia_Click(object sender, RoutedEventArgs e)
+    {
+        OpenOrFocusMapMediaWindow(0);
+    }
+
+    public void OpenOrFocusMapMediaWindow(int initialTabIndex = 0)
+    {
+        if (_standaloneMapMediaWindow == null || !_standaloneMapMediaWindow.IsLoaded)
+        {
+            _standaloneMapMediaWindow = new MapMediaManagerWindow(
+                _blpIconService,
+                _currentProject,
+                MapViewport?.MinimapBitmap,
+                summaryMsg =>
+                {
+                    RefreshImportsGrid();
+                    UpdateTestButtonState();
+                    TxtStatusBarLeft.Text = summaryMsg;
+                },
+                initialTabIndex)
+            {
+                Owner = this
+            };
+            _standaloneMapMediaWindow.Closed += (_, _) => _standaloneMapMediaWindow = null;
+            _standaloneMapMediaWindow.Show();
+        }
+        else
+        {
+            if (_standaloneMapMediaWindow.WindowState == WindowState.Minimized)
+                _standaloneMapMediaWindow.WindowState = WindowState.Normal;
+            _standaloneMapMediaWindow.SetProject(_currentProject, MapViewport?.MinimapBitmap);
+            _standaloneMapMediaWindow.SelectTab(initialTabIndex);
+            _standaloneMapMediaWindow.Activate();
+            _standaloneMapMediaWindow.Focus();
+        }
     }
 
     private void OpenOrFocusOptimizerWindow()
@@ -1468,6 +1545,11 @@ endlibrary
                 try { _standaloneOptimizerWindow.Close(); } catch { }
                 _standaloneOptimizerWindow = null;
             }
+            if (_standaloneMapMediaWindow != null)
+            {
+                try { _standaloneMapMediaWindow.Close(); } catch { }
+                _standaloneMapMediaWindow = null;
+            }
         }
         catch { }
     }
@@ -1504,6 +1586,10 @@ endlibrary
             if (_standaloneOptimizerWindow != null && _standaloneOptimizerWindow.IsLoaded)
             {
                 _standaloneOptimizerWindow.SetProject(null);
+            }
+            if (_standaloneMapMediaWindow != null && _standaloneMapMediaWindow.IsLoaded)
+            {
+                _standaloneMapMediaWindow.SetProject(null, null);
             }
 
             EmbeddedObjectEditor.LoadProject(null);
@@ -1565,8 +1651,12 @@ endlibrary
 
     private static void EnsureGlobalTriggerDeclaration(ref string script, string triggerVarName)
     {
-        if (script.Contains($"trigger {triggerVarName}"))
+        if (System.Text.RegularExpressions.Regex.IsMatch(
+                script,
+                $@"(?m)^\s*trigger\s+{System.Text.RegularExpressions.Regex.Escape(triggerVarName)}\b"))
+        {
             return;
+        }
 
         var decl = $"    trigger {triggerVarName} = null\r\n";
         var idx = script.IndexOf("endglobals", StringComparison.OrdinalIgnoreCase);
@@ -1588,136 +1678,173 @@ endlibrary
             return false;
         }
 
-        var sw = Stopwatch.StartNew();
-        TxtStatusBarLeft.Text = "Compilando y validando código JASS/vJASS del mapa (JassHelper / PJass)...";
-
-        // 0. Sincronizar variables globales udg_* con globals ... endglobals
-        JassKnowledgeService.SyncGlobalVariablesToScript(_currentProject);
-
-        // 1. Inyectar y sincronizar todos los disparadores GUI en el script de mapa
-        var guiTriggers = _currentProject.AllTriggerNodes.Where(n => n.Kind == TriggerNodeKind.GuiTrigger).ToList();
-        if (guiTriggers.Count > 0)
+        MapProgressWindow? progressWin = null;
+        try
         {
-            var sbGui = new StringBuilder();
-            var sbInits = new StringBuilder();
+            var sw = Stopwatch.StartNew();
+            TxtStatusBarLeft.Text = "Compilando y validando código JASS/vJASS del mapa (JassHelper / PJass)...";
 
-            foreach (var g in guiTriggers)
+            if (IsLoaded && IsVisible)
             {
-                var cleanName = System.Text.RegularExpressions.Regex.Replace(g.Name, @"[^A-Za-z0-9_]", "_");
-                if (string.IsNullOrWhiteSpace(cleanName)) cleanName = "Untitled";
-
-                // Asegurar declaración de la variable global de trigger
-                var scriptRef = _currentProject.RawMapScript;
-                EnsureGlobalTriggerDeclaration(ref scriptRef, $"gg_trg_{cleanName}");
-                _currentProject.RawMapScript = scriptRef;
-
-                var code = g.GenerateJassFromGui();
-                g.Code = code;
-
-                if (!_currentProject.RawMapScript.Contains($"InitTrig_{cleanName}"))
+                progressWin = new MapProgressWindow("World Editor — Guardando Mapa...", _currentProject.FileName, "Sincronizando variables globales y triggers GUI...")
                 {
-                    sbGui.AppendLine($"// Trigger: {g.Name}");
-                    sbGui.AppendLine(code);
-                    sbGui.AppendLine();
+                    Owner = this
+                };
+                progressWin.Show();
+                progressWin.UpdateProgress(10, "Sincronizando variables globales (udg_*) y triggers GUI...");
+                await Task.Yield();
+            }
 
-                    sbInits.AppendLine($"    call InitTrig_{cleanName}()");
+            // 0. Sincronizar variables globales udg_* con globals ... endglobals
+            JassKnowledgeService.SyncGlobalVariablesToScript(_currentProject);
+
+            // 1. Inyectar y sincronizar todos los disparadores GUI en el script de mapa
+            var guiTriggers = _currentProject.AllTriggerNodes.Where(n => n.Kind == TriggerNodeKind.GuiTrigger).ToList();
+            if (guiTriggers.Count > 0)
+            {
+                var sbGui = new StringBuilder();
+                var sbInits = new StringBuilder();
+
+                foreach (var g in guiTriggers)
+                {
+                    var cleanName = System.Text.RegularExpressions.Regex.Replace(g.Name, @"[^A-Za-z0-9_]", "_");
+                    if (string.IsNullOrWhiteSpace(cleanName)) cleanName = "Untitled";
+
+                    // Asegurar declaración de la variable global de trigger
+                    var scriptRef = _currentProject.RawMapScript;
+                    EnsureGlobalTriggerDeclaration(ref scriptRef, $"gg_trg_{cleanName}");
+                    _currentProject.RawMapScript = scriptRef;
+
+                    bool alreadyInScript = System.Text.RegularExpressions.Regex.IsMatch(
+                        _currentProject.RawMapScript,
+                        $@"function\s+InitTrig_{System.Text.RegularExpressions.Regex.Escape(cleanName)}\b");
+
+                    if (!alreadyInScript)
+                    {
+                        var code = string.IsNullOrWhiteSpace(g.Code) || g.IsModified ? g.GenerateJassFromGui() : g.Code;
+                        g.Code = code;
+
+                        sbGui.AppendLine($"// Trigger: {g.Name}");
+                        sbGui.AppendLine(code);
+                        sbGui.AppendLine();
+
+                        sbInits.AppendLine($"    call InitTrig_{cleanName}()");
+                    }
+                }
+
+                if (sbGui.Length > 0)
+                {
+                    if (_currentProject.RawMapScript.Contains("function InitCustomTriggers takes nothing returns nothing"))
+                    {
+                        _currentProject.RawMapScript = _currentProject.RawMapScript.Replace(
+                            "function InitCustomTriggers takes nothing returns nothing",
+                            sbGui.ToString() + "\nfunction InitCustomTriggers takes nothing returns nothing\n" + sbInits.ToString());
+                    }
+                    else if (_currentProject.RawMapScript.Contains("function main takes nothing returns nothing"))
+                    {
+                        _currentProject.RawMapScript = _currentProject.RawMapScript.Replace(
+                            "function main takes nothing returns nothing",
+                            sbGui.ToString() + "\nfunction main takes nothing returns nothing\n" + sbInits.ToString());
+                    }
+                    else
+                    {
+                        _currentProject.RawMapScript += "\n" + sbGui.ToString();
+                    }
                 }
             }
 
-            if (sbGui.Length > 0)
+            // 2. Ejecutar compilación y validación del script
+            progressWin?.UpdateProgress(28, "Compilando y validando código JASS / vJASS (JassHelper / PJass)...");
+            await Task.Yield();
+
+            var currentScript = _currentProject.RawMapScript;
+            var compileRes = await _compilerService.ValidateAndCompileAsync(currentScript, _settings, _currentProject.FileName);
+
+            _diagnostics.Clear();
+            foreach (var d in compileRes.Diagnostics)
+                _diagnostics.Add(d);
+
+            _mainCodeIde.UpdateDiagnostics(_diagnostics);
+
+            if (_standaloneTriggerEditorWindow != null && _standaloneTriggerEditorWindow.IsLoaded)
             {
-                if (_currentProject.RawMapScript.Contains("function InitCustomTriggers takes nothing returns nothing"))
-                {
-                    _currentProject.RawMapScript = _currentProject.RawMapScript.Replace(
-                        "function InitCustomTriggers takes nothing returns nothing",
-                        sbGui.ToString() + "\nfunction InitCustomTriggers takes nothing returns nothing\n" + sbInits.ToString());
-                }
-                else if (_currentProject.RawMapScript.Contains("function main takes nothing returns nothing"))
-                {
-                    _currentProject.RawMapScript = _currentProject.RawMapScript.Replace(
-                        "function main takes nothing returns nothing",
-                        sbGui.ToString() + "\nfunction main takes nothing returns nothing\n" + sbInits.ToString());
-                }
-                else
-                {
-                    _currentProject.RawMapScript += "\n" + sbGui.ToString();
-                }
+                _standaloneTriggerEditorWindow.UpdateDiagnostics(_diagnostics);
             }
-        }
 
-        // 2. Ejecutar compilación y validación del script
-        var currentScript = _currentProject.RawMapScript;
-        var compileRes = await _compilerService.ValidateAndCompileAsync(currentScript, _settings, _currentProject.FileName);
+            var hasErrors = compileRes.Diagnostics.Any(d => string.Equals(d.Severity, "Error", StringComparison.OrdinalIgnoreCase)) || !compileRes.Success;
 
-        _diagnostics.Clear();
-        foreach (var d in compileRes.Diagnostics)
-            _diagnostics.Add(d);
+            if (hasErrors)
+            {
+                progressWin?.Close();
+                progressWin = null;
 
-        _mainCodeIde.UpdateDiagnostics(_diagnostics);
+                _isMapCompiledAndReady = false;
+                UpdateTestButtonState();
 
-        if (_standaloneTriggerEditorWindow != null && _standaloneTriggerEditorWindow.IsLoaded)
-        {
-            _standaloneTriggerEditorWindow.UpdateDiagnostics(_diagnostics);
-        }
+                TxtStatusBarLeft.Text = $"❌ Compilación fallida: se encontraron errores de sintaxis en '{_currentProject.FileName}'.";
+                TxtStatusBarRight.Text = "Errores detectados";
 
-        var hasErrors = compileRes.Diagnostics.Any(d => string.Equals(d.Severity, "Error", StringComparison.OrdinalIgnoreCase)) || !compileRes.Success;
+                var errorCount = compileRes.Diagnostics.Count(d => string.Equals(d.Severity, "Error", StringComparison.OrdinalIgnoreCase));
+                var errorSample = string.Join("\n", compileRes.Diagnostics
+                    .Where(d => string.Equals(d.Severity, "Error", StringComparison.OrdinalIgnoreCase))
+                    .Take(5)
+                    .Select(d => $"• Línea {d.DisplayLine} [{d.TriggerOrFile}]: {d.Message}"));
 
-        if (hasErrors)
-        {
-            _isMapCompiledAndReady = false;
+                MessageBox.Show(
+                    this,
+                    $"Se encontraron {errorCount} error(es) de compilación en el mapa:\n\n{errorSample}\n\n" +
+                    "Debe corregir los errores de código en el Editor de Triggers antes de poder guardar y probar el mapa en Warcraft III.",
+                    "Compilador Warcraft III — Errores Encontrados",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+
+                return false;
+            }
+
+            // 3. Compilación limpia: guardar archivo MPQ
+            if (!string.IsNullOrWhiteSpace(compileRes.CompiledScript))
+            {
+                _currentProject.RawMapScript = compileRes.CompiledScript;
+            }
+
+            TxtStatusBarLeft.Text = "Empaquetando Triggers (F4) y Objetos (F6) en el archivo MPQ...";
+            progressWin?.UpdateProgress(48, "Empaquetando datos en archivo MPQ...");
+            await Task.Run(() => _mapMpqService.SaveMap(_currentProject, _currentProject.FilePath, (pct, msg) =>
+            {
+                progressWin?.UpdateProgress(pct, msg);
+            }));
+            _currentProject.RawMapScript = currentScript;
+            sw.Stop();
+
+            progressWin?.UpdateProgress(100, "Mapa guardado con éxito.");
+            progressWin?.Close();
+            progressWin = null;
+
+            foreach (var node in _currentProject.AllTriggerNodes)
+                node.IsModified = false;
+
+            foreach (var obj in _currentProject.Objects)
+            {
+                obj.IsModified = false;
+                foreach (var f in obj.Fields)
+                    f.IsModified = false;
+            }
+
+            foreach (var imp in _currentProject.Imports)
+                imp.IsPendingWrite = false;
+
+            _isMapCompiledAndReady = true;
             UpdateTestButtonState();
 
-            TxtStatusBarLeft.Text = $"❌ Compilación fallida: se encontraron errores de sintaxis en '{_currentProject.FileName}'.";
-            TxtStatusBarRight.Text = "Errores detectados";
+            TxtStatusBarLeft.Text = $"✔ Mapa '{_currentProject.FileName}' guardado y compilado con éxito en {sw.Elapsed.TotalSeconds:F2}s. ¡Listo para probar (F9)!";
+            TxtStatusBarRight.Text = "Compilación: 0 errores | Listo para probar";
 
-            var errorCount = compileRes.Diagnostics.Count(d => string.Equals(d.Severity, "Error", StringComparison.OrdinalIgnoreCase));
-            var errorSample = string.Join("\n", compileRes.Diagnostics
-                .Where(d => string.Equals(d.Severity, "Error", StringComparison.OrdinalIgnoreCase))
-                .Take(5)
-                .Select(d => $"• Línea {d.DisplayLine} [{d.TriggerOrFile}]: {d.Message}"));
-
-            MessageBox.Show(
-                this,
-                $"Se encontraron {errorCount} error(es) de compilación en el mapa:\n\n{errorSample}\n\n" +
-                "Debe corregir los errores de código en el Editor de Triggers antes de poder guardar y probar el mapa en Warcraft III.",
-                "Compilador Warcraft III — Errores Encontrados",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-
-            return false;
+            return true;
         }
-
-        // 3. Compilación limpia: guardar archivo MPQ
-        if (!string.IsNullOrWhiteSpace(compileRes.CompiledScript))
+        finally
         {
-            _currentProject.RawMapScript = compileRes.CompiledScript;
+            progressWin?.Close();
         }
-
-        TxtStatusBarLeft.Text = "Empaquetando Triggers (F4) y Objetos (F6) en el archivo MPQ...";
-        await Task.Run(() => _mapMpqService.SaveMap(_currentProject, _currentProject.FilePath));
-        _currentProject.RawMapScript = currentScript;
-        sw.Stop();
-
-        foreach (var node in _currentProject.AllTriggerNodes)
-            node.IsModified = false;
-
-        foreach (var obj in _currentProject.Objects)
-        {
-            obj.IsModified = false;
-            foreach (var f in obj.Fields)
-                f.IsModified = false;
-        }
-
-        foreach (var imp in _currentProject.Imports)
-            imp.IsPendingWrite = false;
-
-        _isMapCompiledAndReady = true;
-        UpdateTestButtonState();
-
-        TxtStatusBarLeft.Text = $"✔ Mapa '{_currentProject.FileName}' guardado y compilado con éxito en {sw.Elapsed.TotalSeconds:F2}s. ¡Listo para probar (F9)!";
-        TxtStatusBarRight.Text = "Compilación: 0 errores | Listo para probar";
-
-        return true;
     }
 
     private async void BtnSaveAndCompile_Click(object sender, RoutedEventArgs e)

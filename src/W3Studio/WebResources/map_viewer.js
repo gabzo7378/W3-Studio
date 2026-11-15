@@ -12,6 +12,7 @@
   const loadingOverlay = document.getElementById('loading-overlay');
   const loadingDetails = document.getElementById('loading-details');
   const loadingSpinner = document.getElementById('loading-spinner');
+  const loadingBarFill = document.getElementById('loading-bar-fill');
   const noMapHint = document.getElementById('no-map-hint');
 
   function pathSolver(src, params) {
@@ -712,9 +713,11 @@
   function loadMapFromUrl(url, title) {
     editorState.selectedEntity = null;
     if (noMapHint) noMapHint.style.display = 'none';
-    if (loadingOverlay) loadingOverlay.style.display = 'block';
+    if (loadingOverlay) loadingOverlay.style.display = 'none';
     if (loadingSpinner) loadingSpinner.textContent = 'Cargando Terreno y Modelos 3D...';
+    if (loadingBarFill) loadingBarFill.style.width = '30%';
     if (loadingDetails) loadingDetails.textContent = 'Descargando datos del mapa...';
+    postMsg({ type: 'map_load_progress', percent: 82, text: 'Cargando datos MPQ en el motor 3D...' });
 
     fetch(url)
       .then((res) => {
@@ -724,23 +727,37 @@
       .then((buffer) => {
         if (!buffer || buffer.byteLength === 0) {
           clearMap();
+          postMsg({ type: 'map_loaded_success' });
           return;
         }
 
+        if (loadingBarFill) loadingBarFill.style.width = '68%';
         if (loadingDetails) loadingDetails.textContent = 'Procesando terreno, acantilados y doodads...';
-        viewer.loadMap(buffer);
+        postMsg({ type: 'map_load_progress', percent: 90, text: 'Construyendo mallas de terreno, acantilados, árboles y unidades...' });
 
-        centerTargetOnMap();
-        resizeCanvas();
-        updateCamera();
-        if (loadingOverlay) loadingOverlay.style.display = 'none';
-        if (noMapHint) noMapHint.style.display = 'none';
+        // Ceder un frame para que el diálogo de progreso se pinte antes del parseo síncrono
+        requestAnimationFrame(() => {
+          try {
+            viewer.loadMap(buffer);
+            centerTargetOnMap();
+            resizeCanvas();
+            updateCamera();
+            if (loadingBarFill) loadingBarFill.style.width = '100%';
+            if (loadingOverlay) loadingOverlay.style.display = 'none';
+            if (noMapHint) noMapHint.style.display = 'none';
 
-        postMsg({ type: 'map_loaded_success' });
+            postMsg({ type: 'map_load_progress', percent: 100, text: 'Mapa listo.' });
+            postMsg({ type: 'map_loaded_success' });
+          } catch (innerErr) {
+            console.error('Error al procesar mapa 3D:', innerErr);
+            postMsg({ type: 'map_load_error', error: innerErr && innerErr.message ? innerErr.message : String(innerErr) });
+          }
+        });
       })
       .catch((err) => {
         console.error('Error al cargar mapa:', err);
         if (loadingDetails) loadingDetails.textContent = 'Error cargando mapa: ' + err.message;
+        postMsg({ type: 'map_load_error', error: err && err.message ? err.message : String(err) });
       });
   }
 

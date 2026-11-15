@@ -1,0 +1,625 @@
+<Window x:Class="W3Studio.MapMediaManagerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="W3 Studio — Gestor de Loading Screen y MapPreview (Sala de Espera)"
+        Width="1260"
+        Height="800"
+        MinWidth="1060"
+        MinHeight="680"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Win10WindowBg}"
+        Foreground="{DynamicResource Win10Text}"
+        FontFamily="Segoe UI"
+        FontSize="12"
+        AllowDrop="True"
+        DragOver="Window_DragOver"
+        Drop="Window_Drop">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="26"/>
+        </Grid.RowDefinitions>
+
+        <!-- ENCABEZADO SUPERIOR -->
+        <Border Grid.Row="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="12,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Grid Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Image Grid.Column="0" Source="pack://application:,,,/Assets/Icons/scenario.png" Width="20" Height="20" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock x:Name="TxtWindowHeaderTitle" Text="GESTOR DE LOADING SCREEN Y MAPPREVIEW (WARCRAFT III 1.27b)" FontWeight="Bold" FontSize="13" Foreground="{DynamicResource ThemeAccentText}" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock x:Name="TxtWindowHeaderSub" Text="Crea o elige una Pantalla de Carga (Loading Screen) y la imagen de Sala de Espera (war3mapPreview.tga) en 1 clic sin herramientas externas"
+                                   FontSize="11" Foreground="{DynamicResource ThemeTextMuted}" TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+                    </StackPanel>
+                </Grid>
+
+                <Border Grid.Column="1" MaxWidth="360" Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" CornerRadius="3" Padding="10,4" VerticalAlignment="Center">
+                    <TextBlock x:Name="TxtMapContextBadge" Text="Mapa activo: -" FontWeight="SemiBold" FontSize="11.5" Foreground="{DynamicResource Win10Text}" TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- PESTAÑAS PRINCIPALES: 1. LOADING SCREEN | 2. MAPPREVIEW (SALA DE ESPERA) -->
+        <TabControl Grid.Row="1" x:Name="TabsMedia" Margin="8,6,8,6" Background="{DynamicResource Win10WindowBg}" BorderBrush="{DynamicResource Win10Border}">
+
+            <!-- ==================== PESTAÑA 1: LOADING SCREEN (PANTALLA DE CARGA) ==================== -->
+            <TabItem x:Name="TabLoadingScreen" Header=" 🖼️ Pantalla de Carga (Loading Screen) " Padding="12,5">
+                <Grid Margin="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="305"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="*" MinWidth="360"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="365"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- COLUMNA IZQUIERDA: ORIGEN DE LA PANTALLA DE CARGA -->
+                    <Border Grid.Column="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="8">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="1. ORIGEN DE LA PANTALLA DE CARGA" FontWeight="Bold" FontSize="11.5" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,6"/>
+
+                            <!-- Selector de Tipo de Pantalla de Carga -->
+                            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                <RadioButton x:Name="RbLoadCustomImage"
+                                             Content="Imagen Personalizada (Conversión Automática)"
+                                             IsChecked="True"
+                                             FontWeight="SemiBold"
+                                             Margin="0,2"
+                                             Checked="LoadingModeRadio_Changed"/>
+                                <RadioButton x:Name="RbLoadOfficialPreset"
+                                             Content="Pantalla Oficial de Warcraft III (RoC / TFT)"
+                                             FontWeight="SemiBold"
+                                             Margin="0,2"
+                                             Checked="LoadingModeRadio_Changed"/>
+                            </StackPanel>
+
+                            <!-- Acciones Rápidas de Imagen Personalizada -->
+                            <Border DockPanel.Dock="Top" Background="{DynamicResource Win10WindowBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="7" Margin="0,0,0,8">
+                                <StackPanel>
+                                    <TextBlock Text="Cargar Imagen desde tu PC o Mapa:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                    <Button x:Name="BtnPickLoadingImage"
+                                            Style="{StaticResource Win10ClassicButton}"
+                                            Height="28"
+                                            FontWeight="SemiBold"
+                                            Margin="0,0,0,4"
+                                            Click="BtnPickLoadingImage_Click">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Image Source="pack://application:,,,/Assets/Icons/open.png" Width="14" Height="14" Margin="0,0,6,0"/>
+                                            <TextBlock Text="Elegir Imagen (PNG, JPG, TGA, BLP)..."/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button x:Name="BtnUseMinimapForLoading"
+                                            Style="{StaticResource Win10ClassicButton}"
+                                            Height="25"
+                                            Click="BtnUseMinimapForLoading_Click">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Image Source="pack://application:,,,/Assets/Icons/terrain.png" Width="14" Height="14" Margin="0,0,6,0"/>
+                                            <TextBlock Text="Usar Minimapa del Mapa Actual"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Lista de Pantallas Oficiales de Warcraft III -->
+                            <TextBlock DockPanel.Dock="Top" Text="Catálogo de Pantallas Oficiales de Warcraft III:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                            <TextBox DockPanel.Dock="Top" x:Name="TxtFilterPresets"
+                                     Style="{StaticResource Win10TextBox}"
+                                     Margin="0,0,0,5"
+                                     ToolTip="Filtrar pantallas de carga oficiales por nombre o campaña..."
+                                     TextChanged="TxtFilterPresets_TextChanged"/>
+
+                            <Button DockPanel.Dock="Bottom"
+                                    x:Name="BtnConvertPresetToCustom"
+                                    Style="{StaticResource Win10ClassicButton}"
+                                    Height="25"
+                                    Margin="0,6,0,0"
+                                    ToolTip="Toma la pantalla oficial seleccionada como imagen editable para ajustar zoom, brillo o convertirla a FullScreen.blp"
+                                    Click="BtnConvertPresetToCustom_Click">
+                                <TextBlock Text="✨ Usar Pantalla Oficial como Imagen Editable"/>
+                            </Button>
+
+                            <ListBox x:Name="LstOfficialLoadingPresets"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     SelectionChanged="LstOfficialLoadingPresets_SelectionChanged">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="2,2">
+                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="11.5" TextWrapping="Wrap"/>
+                                            <TextBlock Text="{Binding Category}" FontSize="10" Foreground="{DynamicResource ThemeTextMuted}" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- COLUMNA CENTRAL: VISTA PREVIA 4:3 EN TIEMPO REAL -->
+                    <Border Grid.Column="2" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="10">
+                        <DockPanel>
+                            <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="2. VISTA PREVIA (4:3 WARCRAFT III)" FontWeight="Bold" FontSize="11.5" Foreground="{DynamicResource ThemeAccentText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
+                                <CheckBox Grid.Column="1" x:Name="ChkShowLoadingOverlayText"
+                                          Content="Mostrar textos (Título/Desc.)"
+                                          IsChecked="True"
+                                          FontSize="11"
+                                          VerticalAlignment="Center"
+                                          Checked="LoadingEditOption_Changed"
+                                          Unchecked="LoadingEditOption_Changed"/>
+                            </Grid>
+
+                            <!-- Resumen de Archivos Generados -->
+                            <Border DockPanel.Dock="Bottom" Background="{DynamicResource Win10WindowBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="8,6" Margin="0,8,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                        <TextBlock x:Name="TxtLoadingSourceInfo" Text="Origen: -" FontWeight="SemiBold" FontSize="11.5" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+                                        <TextBlock x:Name="TxtLoadingOutputFilesInfo" Text="Archivos MPQ: LoadingScreen.mdx + FullScreen.blp (512×512)" FontSize="11" Foreground="{DynamicResource ThemeTextMuted}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+                                    </StackPanel>
+                                    <Border Grid.Column="1" Background="{DynamicResource ThemeSuccessBg}" BorderBrush="{DynamicResource ThemeSuccessBorder}" BorderThickness="1" CornerRadius="3" Padding="8,4" VerticalAlignment="Center">
+                                        <TextBlock x:Name="TxtLoadingEstimatedSize" Text="~210 KB" FontWeight="Bold" FontSize="11.5" Foreground="{DynamicResource ThemeSuccessText}"/>
+                                    </Border>
+                                </Grid>
+                            </Border>
+
+                            <!-- Lienzo 4:3 de la Pantalla de Carga (Textos nativos transparentes estilo Warcraft III, sin recuadros ni barras falsas) -->
+                            <Border Background="#0B0D12" BorderBrush="{DynamicResource Win10DarkBorder}" BorderThickness="1" CornerRadius="4" Padding="6">
+                                <Viewbox Stretch="Uniform">
+                                    <Grid Width="640" Height="480" ClipToBounds="True" Background="#080A0E">
+                                        <Image x:Name="ImgLoadingPreview" Width="640" Height="480" Stretch="Fill" RenderOptions.BitmapScalingMode="HighQuality"/>
+
+                                        <!-- Textos nativos de Warcraft III con coordenadas y proporciones exactas de UI\FrameDef\Glue\Loading.fdf (escala 0.8x0.6 -> 640x480) -->
+                                        <Grid x:Name="GridLoadingSimulatedHud" IsHitTestVisible="False">
+                                            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top" Width="288" Margin="0,236,20,0">
+                                                <TextBlock x:Name="TxtSimLoadingTitle" Text="Nombre / Capítulo"
+                                                           FontFamily="Palatino Linotype, Georgia"
+                                                           Foreground="#FCD312" FontWeight="Normal" FontSize="12" TextAlignment="Center" TextWrapping="Wrap">
+                                                    <TextBlock.Effect>
+                                                        <DropShadowEffect Color="Black" BlurRadius="0.8" ShadowDepth="1" Direction="315" Opacity="0.9"/>
+                                                    </TextBlock.Effect>
+                                                </TextBlock>
+                                                <TextBlock x:Name="TxtSimLoadingSubtitle" Text="Subtítulo"
+                                                           FontFamily="Palatino Linotype, Georgia"
+                                                           Foreground="#FCD312" FontWeight="Normal" FontSize="19" TextAlignment="Center" Margin="0,2,0,0" TextWrapping="Wrap">
+                                                    <TextBlock.Effect>
+                                                        <DropShadowEffect Color="Black" BlurRadius="0.8" ShadowDepth="1" Direction="315" Opacity="0.9"/>
+                                                    </TextBlock.Effect>
+                                                </TextBlock>
+                                                <TextBlock x:Name="TxtSimLoadingBody" Text="Descripción o historia del mapa..."
+                                                           FontFamily="Palatino Linotype, Georgia"
+                                                           Foreground="#FFFFFF" FontWeight="Normal" FontSize="10.5" LineHeight="13" TextAlignment="Left" Margin="0,8,0,0" MaxHeight="190" TextTrimming="CharacterEllipsis" TextWrapping="Wrap">
+                                                    <TextBlock.Effect>
+                                                        <DropShadowEffect Color="Black" BlurRadius="0.8" ShadowDepth="1" Direction="315" Opacity="0.9"/>
+                                                    </TextBlock.Effect>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Grid>
+                                </Viewbox>
+                            </Border>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- COLUMNA DERECHA: CALIDAD, ENCUADRE Y TEXTOS DE CARGA -->
+                    <Border Grid.Column="4" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="10">
+                        <DockPanel>
+                            <!-- Botones inferiores de aplicación -->
+                            <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                                <Button x:Name="BtnExportLoadingToDisk"
+                                        Style="{StaticResource Win10ClassicButton}"
+                                        Height="27"
+                                        Margin="0,0,0,6"
+                                        Click="BtnExportLoadingToDisk_Click">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Image Source="pack://application:,,,/Assets/Icons/save.png" Width="14" Height="14" Margin="0,0,6,0"/>
+                                        <TextBlock Text="Exportar Archivos (.mdx + .blp) a Carpeta..."/>
+                                    </StackPanel>
+                                </Button>
+
+                                <Button x:Name="BtnApplyLoadingToMap"
+                                        Style="{StaticResource Win10ClassicButton}"
+                                        Height="34"
+                                        Background="{DynamicResource ThemeSuccessBg}"
+                                        BorderBrush="{DynamicResource ThemeSuccessBorder}"
+                                        Foreground="{DynamicResource ThemeSuccessText}"
+                                        FontWeight="Bold"
+                                        Click="BtnApplyLoadingToMap_Click">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Image Source="pack://application:,,,/Assets/Icons/apply.png" Width="15" Height="15" Margin="0,0,6,0"/>
+                                        <TextBlock Text="Aplicar Pantalla de Carga al Mapa"/>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel>
+                                    <TextBlock Text="3. CALIDAD Y RESOLUCIÓN" FontWeight="Bold" FontSize="11.5" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,5"/>
+
+                                    <StackPanel x:Name="PnlCustomLoadingQualityOptions">
+                                        <TextBlock Text="Modo de Calidad / Texturas:" FontSize="11" Margin="0,0,0,3"/>
+                                        <ComboBox x:Name="CmbLoadingQuality" SelectedIndex="1" Margin="0,0,0,5" SelectionChanged="LoadingCombo_SelectionChanged">
+                                            <ComboBoxItem Content="Alta Calidad HQ (1024×768 — 4 Cuadrantes)"/>
+                                            <ComboBoxItem Content="Estándar (512×512 — FullScreen.blp)"/>
+                                            <ComboBoxItem Content="Compacta / Ligera (256×256 — FullScreen.blp)"/>
+                                            <ComboBoxItem Content="Sin Pérdida RGB (512×512 — FullScreen.tga)"/>
+                                        </ComboBox>
+
+                                        <CheckBox x:Name="ChkLoadingMipmaps"
+                                                  Content="Generar Mipmaps en .BLP (Máxima compatibilidad 1.27b)"
+                                                  IsChecked="True"
+                                                  FontSize="11"
+                                                  Margin="0,0,0,6"
+                                                  Checked="LoadingEditOption_Changed"
+                                                  Unchecked="LoadingEditOption_Changed"/>
+
+                                        <Separator Margin="0,2,0,6"/>
+
+                                        <TextBlock Text="4. ENCUADRE Y AJUSTES DE IMAGEN" FontWeight="Bold" FontSize="11.5" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,5"/>
+
+                                        <TextBlock Text="Ajuste de Proporción:" FontSize="11" Margin="0,0,0,3"/>
+                                        <ComboBox x:Name="CmbLoadingFitMode" SelectedIndex="0" Margin="0,0,0,6" SelectionChanged="LoadingCombo_SelectionChanged">
+                                            <ComboBoxItem Content="Rellenar Pantalla 4:3 (Sin deformar)"/>
+                                            <ComboBoxItem Content="Ajustar Imagen Completa (Bandas oscuras)"/>
+                                            <ComboBoxItem Content="Estirar a Pantalla Completa"/>
+                                        </ComboBox>
+
+                                        <DockPanel Margin="0,0,0,1">
+                                            <TextBlock Text="Zoom:" FontSize="11"/>
+                                            <TextBlock x:Name="TxtLoadingZoomVal" Text="100%" DockPanel.Dock="Right" FontWeight="SemiBold" FontSize="11" HorizontalAlignment="Right"/>
+                                        </DockPanel>
+                                        <Slider x:Name="SldLoadingZoom" Minimum="70" Maximum="160" Value="100" Margin="0,0,0,4" ValueChanged="LoadingSlider_Changed"/>
+
+                                        <DockPanel Margin="0,0,0,1">
+                                            <TextBlock Text="Brillo:" FontSize="11"/>
+                                            <TextBlock x:Name="TxtLoadingBrightVal" Text="0" DockPanel.Dock="Right" FontWeight="SemiBold" FontSize="11" HorizontalAlignment="Right"/>
+                                        </DockPanel>
+                                        <Slider x:Name="SldLoadingBrightness" Minimum="-60" Maximum="60" Value="0" Margin="0,0,0,4" ValueChanged="LoadingSlider_Changed"/>
+
+                                        <DockPanel Margin="0,0,0,1">
+                                            <TextBlock Text="Contraste:" FontSize="11"/>
+                                            <TextBlock x:Name="TxtLoadingContrastVal" Text="0" DockPanel.Dock="Right" FontWeight="SemiBold" FontSize="11" HorizontalAlignment="Right"/>
+                                        </DockPanel>
+                                        <Slider x:Name="SldLoadingContrast" Minimum="-50" Maximum="50" Value="0" Margin="0,0,0,4" ValueChanged="LoadingSlider_Changed"/>
+
+                                        <CheckBox x:Name="ChkLoadingBottomVignette"
+                                                  Content="Sombreado inferior suave (Resalta texto de carga)"
+                                                  IsChecked="True"
+                                                  FontSize="11"
+                                                  Margin="0,2,0,5"
+                                                  Checked="LoadingEditOption_Changed"
+                                                  Unchecked="LoadingEditOption_Changed"/>
+
+                                        <Button Style="{StaticResource Win10ClassicButton}"
+                                                Content="Restablecer Ajustes de Imagen"
+                                                Height="23"
+                                                Margin="0,0,0,6"
+                                                Click="BtnResetLoadingAdjustments_Click"/>
+                                    </StackPanel>
+
+                                    <Separator Margin="0,2,0,6"/>
+
+                                    <TextBlock Text="5. TEXTOS DE LA PANTALLA DE CARGA" FontWeight="Bold" FontSize="11.5" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,5"/>
+
+                                    <TextBlock Text="Título (Línea superior — Loading Title):" FontSize="11" Margin="0,0,0,2"/>
+                                    <TextBox x:Name="TxtLoadingTitle" Style="{StaticResource Win10TextBox}" Margin="0,0,0,5" TextChanged="LoadingText_TextChanged"/>
+
+                                    <TextBlock Text="Subtítulo (Título grande amarillo — Subtitle):" FontSize="11" Margin="0,0,0,2"/>
+                                    <TextBox x:Name="TxtLoadingSubtitle" Style="{StaticResource Win10TextBox}" Margin="0,0,0,5" TextChanged="LoadingText_TextChanged"/>
+
+                                    <TextBlock Text="Descripción / Texto de Carga:" FontSize="11" Margin="0,0,0,2"/>
+                                    <TextBox x:Name="TxtLoadingDescription"
+                                             Style="{StaticResource Win10TextBox}"
+                                             Height="66"
+                                             AcceptsReturn="True"
+                                             TextWrapping="Wrap"
+                                             VerticalScrollBarVisibility="Auto"
+                                             TextChanged="LoadingText_TextChanged"/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- ==================== PESTAÑA 2: MAPPREVIEW (SALA DE ESPERA / LOBBY) ==================== -->
+            <TabItem x:Name="TabMapPreview" Header=" 🛡️ Map Preview — Sala de Espera (war3mapPreview.tga) " Padding="12,5">
+                <Grid Margin="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="305"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="*" MinWidth="360"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="365"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- COLUMNA IZQUIERDA: ORIGEN DEL MAPPREVIEW -->
+                    <Border Grid.Column="0" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="8">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="1. ORIGEN DE LA IMAGEN DE SALA DE ESPERA" FontWeight="Bold" FontSize="11.5" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,6"/>
+
+                            <Border DockPanel.Dock="Top" Background="{DynamicResource Win10WindowBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="7" Margin="0,0,0,8">
+                                <StackPanel>
+                                    <TextBlock Text="Opciones Rápidas (1-Clic):" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                    <Button x:Name="BtnPickPreviewImage"
+                                            Style="{StaticResource Win10ClassicButton}"
+                                            Height="28"
+                                            FontWeight="SemiBold"
+                                            Margin="0,0,0,4"
+                                            Click="BtnPickPreviewImage_Click">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Image Source="pack://application:,,,/Assets/Icons/open.png" Width="14" Height="14" Margin="0,0,6,0"/>
+                                            <TextBlock Text="Elegir Imagen de mi PC..."/>
+                                        </StackPanel>
+                                    </Button>
+
+                                    <Button x:Name="BtnUseMinimapForPreview"
+                                            Style="{StaticResource Win10ClassicButton}"
+                                            Height="26"
+                                            Margin="0,0,0,4"
+                                            Click="BtnUseMinimapForPreview_Click">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Image Source="pack://application:,,,/Assets/Icons/terrain.png" Width="14" Height="14" Margin="0,0,6,0"/>
+                                            <TextBlock Text="Capturar Minimapa Actual del Mapa"/>
+                                        </StackPanel>
+                                    </Button>
+
+                                    <Button x:Name="BtnUseQuestionMarkPreview"
+                                            Style="{StaticResource Win10ClassicButton}"
+                                            Height="26"
+                                            Click="BtnUseQuestionMarkPreview_Click">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="❓ Usar Signo de Interrogación Clásico (?)" FontWeight="SemiBold"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock DockPanel.Dock="Top" Text="O elegir un Arte / Icono de Warcraft III:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                            <TextBox DockPanel.Dock="Top" x:Name="TxtFilterPreviewIcons"
+                                     Style="{StaticResource Win10TextBox}"
+                                     Margin="0,0,0,5"
+                                     ToolTip="Buscar textura o icono en los MPQ de Warcraft III (ej. Arthas,Illidan,Dragon,Creep)..."
+                                     TextChanged="TxtFilterPreviewIcons_TextChanged"/>
+
+                            <TextBlock DockPanel.Dock="Bottom" x:Name="TxtPreviewIconsCount" Text="0 texturas disponibles" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" Margin="0,4,0,0"/>
+
+                            <ListBox x:Name="LstWc3PreviewTextures"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     SelectionChanged="LstWc3PreviewTextures_SelectionChanged"
+                                     VirtualizingStackPanel.IsVirtualizing="True"
+                                     VirtualizingStackPanel.VirtualizationMode="Recycling">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="2,1">
+                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="11.5" TextWrapping="Wrap"/>
+                                            <TextBlock Text="{Binding MpqPath}" FontSize="10" Foreground="{DynamicResource ThemeTextMuted}" TextTrimming="CharacterEllipsis" ToolTip="{Binding MpqPath}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- COLUMNA CENTRAL: SIMULADOR DE SALA DE ESPERA (LOBBY) DE WARCRAFT III -->
+                    <Border Grid.Column="2" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="10">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="2. SIMULADOR DE SALA DE ESPERA (LOBBY BATTLE.NET / LAN)" FontWeight="Bold" FontSize="11.5" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,6" TextTrimming="CharacterEllipsis"/>
+
+                            <!-- Resumen inferior de archivo generado -->
+                            <Border DockPanel.Dock="Bottom" Background="{DynamicResource Win10WindowBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="8,6" Margin="0,8,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                        <TextBlock x:Name="TxtPreviewSourceInfo" Text="Origen: -" FontWeight="SemiBold" FontSize="11.5" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+                                        <TextBlock x:Name="TxtPreviewOutputFilesInfo" Text="Archivo en la raíz del MPQ: war3mapPreview.tga (128×128 TGA 24-bit)" FontSize="11" Foreground="{DynamicResource ThemeTextMuted}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+                                    </StackPanel>
+                                    <Border Grid.Column="1" Background="{DynamicResource ThemeSuccessBg}" BorderBrush="{DynamicResource ThemeSuccessBorder}" BorderThickness="1" CornerRadius="3" Padding="8,4" VerticalAlignment="Center">
+                                        <TextBlock x:Name="TxtPreviewEstimatedSize" Text="48.0 KB" FontWeight="Bold" FontSize="11.5" Foreground="{DynamicResource ThemeSuccessText}"/>
+                                    </Border>
+                                </Grid>
+                            </Border>
+
+                            <!-- Tarjeta Simuladora de Lobby de Warcraft III -->
+                            <Border Background="#0B0F17" BorderBrush="{DynamicResource Win10DarkBorder}" BorderThickness="1" CornerRadius="4" Padding="14">
+                                <Viewbox Stretch="Uniform" StretchDirection="DownOnly">
+                                    <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="20"/>
+                                            <ColumnDefinition Width="250"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Recuadro Principal 256x256 en Sala de Espera -->
+                                        <StackPanel Grid.Column="0" HorizontalAlignment="Center">
+                                            <TextBlock Text="VISTA EN SALA DE ESPERA" Foreground="#E0C068" FontWeight="Bold" FontSize="11" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                                            <Border Width="264" Height="264" Background="#05070B" BorderBrush="#B8923A" BorderThickness="3" CornerRadius="3" Padding="2">
+                                                <Image x:Name="ImgMapPreviewLarge" Width="256" Height="256" Stretch="Fill" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                            </Border>
+                                            <TextBlock x:Name="TxtPreviewResolutionBadge" Text="Resolución Salida: 128 × 128 px" Foreground="#98A2B3" FontSize="11" HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                        </StackPanel>
+
+                                        <!-- Panel Derecho del Simulador: Datos del Mapa en Lobby + Miniatura 128x128 1:1 -->
+                                        <Border Grid.Column="2" Background="#121824" BorderBrush="#3A465E" BorderThickness="1" CornerRadius="4" Padding="14,12" VerticalAlignment="Center">
+                                            <StackPanel>
+                                                <TextBlock x:Name="TxtLobbySimMapName" Text="Bahía del botín" Foreground="#FFD700" FontWeight="Bold" FontSize="15" TextWrapping="Wrap" Margin="0,0,0,6"/>
+
+                                                <TextBlock Text="Jugadores Sugeridos:" Foreground="#8A94A6" FontSize="10.5"/>
+                                                <TextBlock x:Name="TxtLobbySimPlayers" Text="2 - 8 Jugadores" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,6" TextTrimming="CharacterEllipsis"/>
+
+                                                <TextBlock Text="Autor:" Foreground="#8A94A6" FontSize="10.5"/>
+                                                <TextBlock x:Name="TxtLobbySimAuthor" Text="Blizzard Entertainment" Foreground="#D0D7E2" FontSize="11.5" Margin="0,0,0,10" TextTrimming="CharacterEllipsis"/>
+
+                                                <Separator Background="#2A3446" Margin="0,0,0,10"/>
+
+                                                <TextBlock Text="Escala 1:1 Estándar (128×128):" Foreground="#E0C068" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
+                                                <Border Width="132" Height="132" Background="#05070B" BorderBrush="#705A28" BorderThickness="2" HorizontalAlignment="Center">
+                                                    <Image x:Name="ImgMapPreviewActual128" Width="128" Height="128" Stretch="Fill" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                </Border>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+                                </Viewbox>
+                            </Border>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- COLUMNA DERECHA: CALIDAD, MARCO Y APLICACIÓN -->
+                    <Border Grid.Column="4" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="10">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                                <Button x:Name="BtnExportPreviewToDisk"
+                                        Style="{StaticResource Win10ClassicButton}"
+                                        Height="26"
+                                        Margin="0,0,0,4"
+                                        Click="BtnExportPreviewToDisk_Click">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Image Source="pack://application:,,,/Assets/Icons/save.png" Width="14" Height="14" Margin="0,0,6,0"/>
+                                        <TextBlock Text="Exportar war3mapPreview.tga a Disco..."/>
+                                    </StackPanel>
+                                </Button>
+
+                                <Button x:Name="BtnRemoveCustomPreview"
+                                        Style="{StaticResource Win10ClassicButton}"
+                                        Height="26"
+                                        Margin="0,0,0,6"
+                                        Background="{DynamicResource ThemeDangerBg}"
+                                        BorderBrush="{DynamicResource ThemeDangerBorder}"
+                                        Foreground="{DynamicResource ThemeDangerText}"
+                                        ToolTip="Elimina war3mapPreview.tga del mapa para que vuelva a mostrar el minimapa normal del terreno"
+                                        Click="BtnRemoveCustomPreview_Click">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Image Source="pack://application:,,,/Assets/Icons/delete.png" Width="13" Height="13" Margin="0,0,6,0"/>
+                                        <TextBlock Text="Restaurar Minimapa por Defecto"/>
+                                    </StackPanel>
+                                </Button>
+
+                                <Button x:Name="BtnApplyPreviewToMap"
+                                        Style="{StaticResource Win10ClassicButton}"
+                                        Height="34"
+                                        Background="{DynamicResource ThemeSuccessBg}"
+                                        BorderBrush="{DynamicResource ThemeSuccessBorder}"
+                                        Foreground="{DynamicResource ThemeSuccessText}"
+                                        FontWeight="Bold"
+                                        Click="BtnApplyPreviewToMap_Click">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Image Source="pack://application:,,,/Assets/Icons/apply.png" Width="15" Height="15" Margin="0,0,6,0"/>
+                                        <TextBlock Text="Aplicar MapPreview al Mapa"/>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel>
+                                    <TextBlock Text="3. CALIDAD Y RESOLUCIÓN DEL PREVIEW" FontWeight="Bold" FontSize="11.5" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,5"/>
+
+                                    <TextBlock Text="Resolución de war3mapPreview.tga:" FontSize="11" Margin="0,0,0,3"/>
+                                    <ComboBox x:Name="CmbPreviewQuality" SelectedIndex="0" Margin="0,0,0,6" SelectionChanged="PreviewCombo_SelectionChanged">
+                                        <ComboBoxItem Content="Estándar Oficial (128×128 TGA 24-bit)"/>
+                                        <ComboBoxItem Content="Alta Nitidez (256×256 TGA 24-bit)"/>
+                                        <ComboBoxItem Content="Ultra Ligero (64×64 TGA 24-bit)"/>
+                                    </ComboBox>
+
+                                    <CheckBox x:Name="ChkPreviewAlsoWriteBlp"
+                                              Content="Incluir también copia war3mapPreview.blp"
+                                              IsChecked="False"
+                                              FontSize="11"
+                                              Margin="0,0,0,8"
+                                              Checked="PreviewEditOption_Changed"
+                                              Unchecked="PreviewEditOption_Changed"/>
+
+                                    <Separator Margin="0,2,0,8"/>
+
+                                    <TextBlock Text="4. MARCO Y AJUSTES VISUALES" FontWeight="Bold" FontSize="11.5" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,6"/>
+
+                                    <TextBlock Text="Marco Decorativo:" FontSize="11" Margin="0,0,0,3"/>
+                                    <ComboBox x:Name="CmbPreviewFrameStyle" SelectedIndex="1" Margin="0,0,0,8" SelectionChanged="PreviewCombo_SelectionChanged">
+                                        <ComboBoxItem Content="Sin Marco (Imagen Completa 1:1)"/>
+                                        <ComboBoxItem Content="Marco Dorado Clásico Warcraft III"/>
+                                        <ComboBoxItem Content="Marco Metálico de Acero Oscuro"/>
+                                        <ComboBoxItem Content="Viñeta Oscura Suave"/>
+                                    </ComboBox>
+
+                                    <TextBlock Text="Modo de Encuadre:" FontSize="11" Margin="0,0,0,3"/>
+                                    <ComboBox x:Name="CmbPreviewFitMode" SelectedIndex="0" Margin="0,0,0,8" SelectionChanged="PreviewCombo_SelectionChanged">
+                                        <ComboBoxItem Content="Rellenar Cuadrado 1:1 (Sin deformar)"/>
+                                        <ComboBoxItem Content="Ajustar Imagen Completa (Bandas oscuras)"/>
+                                        <ComboBoxItem Content="Estirar a 1:1"/>
+                                    </ComboBox>
+
+                                    <DockPanel Margin="0,0,0,2">
+                                        <TextBlock Text="Zoom:" FontSize="11"/>
+                                        <TextBlock x:Name="TxtPreviewZoomVal" Text="100%" DockPanel.Dock="Right" FontWeight="SemiBold" FontSize="11" HorizontalAlignment="Right"/>
+                                    </DockPanel>
+                                    <Slider x:Name="SldPreviewZoom" Minimum="70" Maximum="160" Value="100" Margin="0,0,0,6" ValueChanged="PreviewSlider_Changed"/>
+
+                                    <DockPanel Margin="0,0,0,2">
+                                        <TextBlock Text="Brillo:" FontSize="11"/>
+                                        <TextBlock x:Name="TxtPreviewBrightVal" Text="0" DockPanel.Dock="Right" FontWeight="SemiBold" FontSize="11" HorizontalAlignment="Right"/>
+                                    </DockPanel>
+                                    <Slider x:Name="SldPreviewBrightness" Minimum="-60" Maximum="60" Value="0" Margin="0,0,0,6" ValueChanged="PreviewSlider_Changed"/>
+
+                                    <DockPanel Margin="0,0,0,2">
+                                        <TextBlock Text="Contraste:" FontSize="11"/>
+                                        <TextBlock x:Name="TxtPreviewContrastVal" Text="0" DockPanel.Dock="Right" FontWeight="SemiBold" FontSize="11" HorizontalAlignment="Right"/>
+                                    </DockPanel>
+                                    <Slider x:Name="SldPreviewContrast" Minimum="-50" Maximum="50" Value="0" Margin="0,0,0,6" ValueChanged="PreviewSlider_Changed"/>
+
+                                    <Button Style="{StaticResource Win10ClassicButton}"
+                                            Content="Restablecer Ajustes del Preview"
+                                            Height="23"
+                                            Margin="0,0,0,8"
+                                            Click="BtnResetPreviewAdjustments_Click"/>
+
+                                    <Separator Margin="0,2,0,8"/>
+
+                                    <TextBlock Text="5. OPCIÓN DE INTERROGACIÓN (?) EN SALA" FontWeight="Bold" FontSize="11.5" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,6"/>
+                                    <CheckBox x:Name="ChkHideMinimapFlag"
+                                              Content="Ocultar minimapa en sala (Flag '?' nativo)"
+                                              FontSize="11"
+                                              ToolTip="Si se activa sin war3mapPreview.tga, Warcraft III muestra el signo '?' por defecto. Al aplicar una imagen personalizada, W3 Studio desactiva este flag automáticamente para que tu imagen sea visible."
+                                              Margin="0,0,0,4"/>
+                                    <TextBlock Text="Nota: Para que Warcraft III 1.27b muestre tu war3mapPreview.tga personalizado en la sala de espera, este check se desmarca automáticamente al aplicar una imagen."
+                                               FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- BARRA DE ESTADO INFERIOR -->
+        <Border Grid.Row="2" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,1,0,0" Padding="10,2">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" x:Name="TxtStatus" Text="Listo. Puedes arrastrar y soltar cualquier imagen (.png, .jpg, .tga, .blp) directamente en esta ventana." VerticalAlignment="Center" FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,0,10,0"/>
+                <Button Grid.Column="1" Content="Cerrar" Width="80" Height="20" Style="{StaticResource Win10ClassicButton}" Click="BtnClose_Click"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
+

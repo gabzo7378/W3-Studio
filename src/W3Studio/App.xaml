@@ -669,8 +669,8 @@
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="Border" Property="Background" Value="{DynamicResource ThemeSelectedBg}"/>
                                 <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource Win10Accent}"/>
-                                <Setter Property="Foreground" Value="{DynamicResource ThemeSelectedText}"/>
-                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                <Setter TargetName="ContentSite" Property="TextElement.Foreground" Value="{DynamicResource ThemeSelectedText}"/>
+                                <Setter TargetName="ContentSite" Property="TextElement.FontWeight" Value="SemiBold"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -740,6 +740,15 @@
             <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="8,4"/>
+        </Style>
+
+        <!-- ==================== PROGRESSBAR ESTILO WORLD EDITOR ==================== -->
+        <Style TargetType="ProgressBar">
+            <Setter Property="Background" Value="{DynamicResource ThemeInputBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Win10Accent}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Win10Border}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
         </Style>
     </Application.Resources>
 </Application>

@@ -29,8 +29,10 @@ public class MapMpqService
         "war3mapMap.blp", "war3mapMap.tga", "war3mapMap.b00",
         "war3mapPreview.tga", "war3mapPreview.blp",
         "war3mapPath.tga", "war3mapMisc.txt", "war3mapSkin.txt",
-        "war3mapExtra.txt", "war3mapImp.txt",
-        "LoadingScreen.mdx", "FullScreen.blp", "LoadingScreen.blp", "LoadingScreen.tga"
+        "war3mapExtra.txt", "war3mapImp.txt", "war3map.imp",
+        "LoadingScreen.mdx", "FullScreen.blp", "FullScreen.tga", "LoadingScreen.blp", "LoadingScreen.tga",
+        "LoadingScreenBL.blp", "LoadingScreenBR.blp", "LoadingScreenTR.blp", "LoadingScreenTL.blp",
+        "LoadingScreenBL.tga", "LoadingScreenBR.tga", "LoadingScreenTR.tga", "LoadingScreenTL.tga"
     };
 
     public MapMpqService(WarcraftBaseDataService baseDataService)
@@ -38,10 +40,12 @@ public class MapMpqService
         _baseDataService = baseDataService;
     }
 
-    public MapProject LoadMap(string filePath)
+    public MapProject LoadMap(string filePath, Action<int, string>? onProgress = null)
     {
         if (!File.Exists(filePath))
             throw new FileNotFoundException($"No se encontró el mapa: {filePath}");
+
+        onProgress?.Invoke(5, "Abriendo archivo MPQ del mapa...");
 
         var project = new MapProject
         {
@@ -54,6 +58,7 @@ public class MapMpqService
         var discoveredNames = new HashSet<string>(StandardMpqFiles, StringComparer.OrdinalIgnoreCase);
 
         // 1. Read (listfile)
+        onProgress?.Invoke(10, "Leyendo catálogo e imports del MPQ...");
         if (archive.FileExists("(listfile)"))
         {
             try
@@ -70,15 +75,17 @@ public class MapMpqService
             catch { }
         }
 
-        // 2. Read war3mapImp.txt & war3mapSkin.txt
-        foreach (var impFile in new[] { "war3mapImp.txt", "war3mapSkin.txt", "war3mapMisc.txt" })
+        // 2. Read war3map.imp, war3mapImp.txt & war3mapSkin.txt
+        foreach (var impFile in new[] { "war3map.imp", "war3mapImp.txt", "war3mapSkin.txt", "war3mapMisc.txt" })
         {
             if (archive.FileExists(impFile))
             {
                 try
                 {
                     using var s = archive.OpenFile(impFile);
-                    ReadImportedPathsFromStream(s, impFile.Equals("war3mapImp.txt", StringComparison.OrdinalIgnoreCase), discoveredNames);
+                    bool isBinaryImp = impFile.Equals("war3map.imp", StringComparison.OrdinalIgnoreCase)
+                        || impFile.Equals("war3mapImp.txt", StringComparison.OrdinalIgnoreCase);
+                    ReadImportedPathsFromStream(s, isBinaryImp, discoveredNames);
                 }
                 catch { }
             }
@@ -97,6 +104,7 @@ public class MapMpqService
         }
 
         // 4. Read war3map.w3i metadata (full MapInfo + fallback header)
+        onProgress?.Invoke(16, "Leyendo información del mapa (war3map.w3i / war3map.wts)...");
         if (archive.FileExists("war3map.w3i"))
         {
             try
@@ -139,9 +147,11 @@ public class MapMpqService
         }
 
         // 6. Read Object Editor files (.w3u, .w3t, .w3a, .w3h, .w3b, .w3d, .w3q)
+        onProgress?.Invoke(26, "Cargando datos de objetos (unidades, ítems, habilidades)...");
         LoadAllObjectData(archive, project, discoveredNames);
 
         // 7. Read Terrain (war3map.w3e) and Minimap TGA (war3mapMap.tga / war3mapPreview.tga)
+        onProgress?.Invoke(38, "Cargando malla de terreno y alturas (war3map.w3e)...");
         if (archive.FileExists("war3map.w3e"))
         {
             try
@@ -174,6 +184,7 @@ public class MapMpqService
         }
 
         // 8. Read Placed Units (war3mapUnits.doo), Doodads (war3map.doo), and Regions (war3map.w3r)
+        onProgress?.Invoke(50, "Cargando unidades, árboles, doodads y regiones...");
         if (archive.FileExists("war3mapUnits.doo"))
         {
             try
@@ -229,6 +240,7 @@ public class MapMpqService
         }
 
         // 9. Read WTG Categories + Variables and WCT Custom Text Triggers
+        onProgress?.Invoke(62, "Cargando disparadores (triggers), variables y script JASS...");
         var wtgCategories = new List<(int Id, string Name, bool IsComment)>();
         if (archive.FileExists("war3map.wtg"))
         {
@@ -255,6 +267,7 @@ public class MapMpqService
         BuildTriggerHierarchy(project, wtgCategories, wctHeader, wctBlocks);
 
         // 10. Register all discovered MPQ files into RawMpqFiles and Imports list
+        onProgress?.Invoke(70, "Indexando archivos importados en el mapa...");
         archive.AddFileNames(discoveredNames);
         foreach (var name in discoveredNames.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
         {
@@ -1855,8 +1868,9 @@ public class MapMpqService
         }
     }
 
-    public void SaveMap(MapProject project, string targetPath)
+    public void SaveMap(MapProject project, string targetPath, Action<int, string>? onProgress = null)
     {
+        onProgress?.Invoke(50, "Sincronizando escenario, unidades y doodads...");
         if (project.HasScenarioEdits)
         {
             MapScriptSyncService.SyncScenarioToW3iAndJass(project);
@@ -1879,8 +1893,10 @@ public class MapMpqService
             project.RawMpqFiles["war3map.wts"] = Encoding.UTF8.GetBytes(SerializeWts(project.TriggerStrings));
         }
 
+        onProgress?.Invoke(65, "Serializando objetos personalizados (Object Editor)...");
         SynchronizeAndSerializeAllObjects(project);
 
+        onProgress?.Invoke(75, "Actualizando archivos importados (war3map.imp)...");
         foreach (var imp in project.Imports)
         {
             if (imp.IsDeleted)
@@ -1895,6 +1911,8 @@ public class MapMpqService
             }
         }
 
+        SyncBinaryImpFile(project);
+
         byte[]? hm3wHeader = null;
         if (File.Exists(project.FilePath))
         {
@@ -1904,16 +1922,24 @@ public class MapMpqService
                 var buf = new byte[512];
                 _ = srcFs.Read(buf, 0, 512);
                 if (buf[0] == 'H' && buf[1] == 'M' && buf[2] == '3' && buf[3] == 'W')
+                {
                     hm3wHeader = buf;
+                    if (project.MapInfo != null)
+                    {
+                        UpdateHm3wHeaderBuffer(hm3wHeader, project);
+                    }
+                }
             }
         }
 
+        onProgress?.Invoke(82, "Creando copia de seguridad (.bak)...");
         if (File.Exists(targetPath))
         {
             var backupPath = targetPath + ".bak";
             File.Copy(targetPath, backupPath, overwrite: true);
         }
 
+        onProgress?.Invoke(88, "Empaquetando archivos en el contenedor MPQ...");
         var mpqFiles = new List<MpqFile>();
         foreach (var kvp in project.RawMpqFiles)
         {
@@ -1941,6 +1967,7 @@ public class MapMpqService
         createOptions.HashTableSize = hashSize;
 
         using var createdArchive = MpqArchive.Create(outFs, mpqFiles, createOptions, leaveOpen: true);
+        onProgress?.Invoke(98, "Finalizando guardado...");
 
         // Reset dirty flags after successful save
         project.HasTerrainEdits = false;
@@ -1993,5 +2020,70 @@ public class MapMpqService
         var bytes = Encoding.UTF8.GetBytes(value);
         bw.Write(bytes);
         bw.Write((byte)0);
+    }
+
+    private static void UpdateHm3wHeaderBuffer(byte[] hm3w, MapProject project)
+    {
+        if (project.MapInfo == null || hm3w.Length < 512)
+            return;
+
+        // Preserve original TRIGSTR_ name in HM3W if the original header used TRIGSTR_, otherwise use MapInfo.MapName
+        int pos = 8;
+        while (pos < 480 && hm3w[pos] != 0)
+            pos++;
+
+        if (pos + 9 < 512)
+        {
+            int flagsOffset = pos + 1;
+            byte[] flagBytes = BitConverter.GetBytes((int)project.MapInfo.MapFlags);
+            Buffer.BlockCopy(flagBytes, 0, hm3w, flagsOffset, 4);
+        }
+    }
+
+    private static readonly HashSet<string> InternalMapMetadataFiles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "(listfile)", "(attributes)", "(signature)",
+        "war3map.j", @"scripts\war3map.j",
+        "war3map.wts", "war3map.w3i", "war3map.wtg", "war3map.wct",
+        "war3map.w3e", "war3map.shd", "war3map.wpm", "war3map.doo",
+        "war3mapUnits.doo", "war3map.w3r", "war3map.w3c", "war3map.w3s",
+        "war3map.w3u", "war3map.w3t", "war3map.w3a", "war3map.w3b",
+        "war3map.w3d", "war3map.w3q", "war3map.w3h",
+        "war3mapMap.blp", "war3mapMap.tga", "war3mapMap.b00",
+        "war3mapPath.tga", "war3mapMisc.txt", "war3mapSkin.txt",
+        "war3mapExtra.txt", "war3mapImp.txt", "war3map.imp"
+    };
+
+    private static void SyncBinaryImpFile(MapProject project)
+    {
+        var impPaths = project.Imports
+            .Where(i => !i.IsDeleted && !string.IsNullOrWhiteSpace(i.MpqPath) && !InternalMapMetadataFiles.Contains(i.MpqPath))
+            .Select(i => i.MpqPath.Replace('/', '\\'))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (impPaths.Count == 0 && !project.RawMpqFiles.ContainsKey("war3map.imp"))
+            return;
+
+        using var ms = new MemoryStream();
+        using var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
+        bw.Write(1); // war3map.imp format version 1
+        bw.Write(impPaths.Count);
+        foreach (var path in impPaths)
+        {
+            if (path.StartsWith(@"war3mapImported\", StringComparison.OrdinalIgnoreCase))
+            {
+                bw.Write((byte)5);
+                WriteNullTerminatedString(bw, path.Substring(@"war3mapImported\".Length));
+            }
+            else
+            {
+                bw.Write((byte)13);
+                WriteNullTerminatedString(bw, path);
+            }
+        }
+        bw.Flush();
+        project.RawMpqFiles["war3map.imp"] = ms.ToArray();
     }
 }
