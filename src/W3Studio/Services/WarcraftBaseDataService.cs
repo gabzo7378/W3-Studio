@@ -117,7 +117,7 @@ public class WarcraftBaseDataService
     {
         if (string.IsNullOrEmpty(rawcode) || rawcode.Length < 4)
             return 0;
-        return (rawcode[0] << 24) | (rawcode[1] << 16) | (rawcode[2] << 8) | rawcode[3];
+        return (byte)rawcode[0] | ((byte)rawcode[1] << 8) | ((byte)rawcode[2] << 16) | ((byte)rawcode[3] << 24);
     }
 
     public static string IntToRawcode(int id)
@@ -125,10 +125,10 @@ public class WarcraftBaseDataService
         if (id == 0) return string.Empty;
         var chars = new[]
         {
-            (char)((id >> 24) & 0xFF),
-            (char)((id >> 16) & 0xFF),
+            (char)(id & 0xFF),
             (char)((id >> 8) & 0xFF),
-            (char)(id & 0xFF)
+            (char)((id >> 16) & 0xFF),
+            (char)((id >> 24) & 0xFF)
         };
         return new string(chars);
     }

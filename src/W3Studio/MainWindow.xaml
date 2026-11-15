@@ -328,7 +328,7 @@
                                             <ComboBox x:Name="CmbSelectedEntityOwner" FontSize="11" Padding="4,2" SelectionChanged="CmbSelectedEntityOwner_SelectionChanged"/>
                                         </StackPanel>
 
-                                        <Grid Margin="0,0,0,4">
+                                        <Grid x:Name="PnlSelectedFacingRow" Margin="0,0,0,4">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="4"/>
@@ -344,17 +344,24 @@
                                             <Button Grid.Column="4" Content="⟳" Width="24" Height="22" VerticalAlignment="Bottom" Style="{StaticResource Win10ClassicButton}" ToolTip="Rotar +45°" Click="BtnRotateEntityRight_Click"/>
                                         </Grid>
 
-                                        <Grid Margin="0,0,0,4">
+                                        <Grid x:Name="PnlSelectedGoldRow" Visibility="Collapsed" Margin="0,0,0,4">
+                                            <StackPanel>
+                                                <TextBlock Text="Cantidad de Oro:" FontSize="10.5" Foreground="#FBBF24"/>
+                                                <TextBox x:Name="TxtSelectedEntityGold" Style="{StaticResource Win10TextBox}" Padding="3,1" FontSize="11"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <Grid x:Name="PnlSelectedScaleHpRow" Margin="0,0,0,4">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="5"/>
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
-                                            <StackPanel Grid.Column="0">
+                                            <StackPanel x:Name="PnlSelectedScaleCol" Grid.Column="0">
                                                 <TextBlock Text="Escala:" FontSize="10.5" Foreground="{DynamicResource Win10Text}"/>
                                                 <TextBox x:Name="TxtSelectedEntityScale" Style="{StaticResource Win10TextBox}" Padding="3,1" FontSize="11"/>
                                             </StackPanel>
-                                            <StackPanel Grid.Column="2">
+                                            <StackPanel x:Name="PnlSelectedHpCol" Grid.Column="2">
                                                 <TextBlock x:Name="LblSelectedEntityHp" Text="Vida (% / -1):" FontSize="10.5" Foreground="{DynamicResource Win10Text}"/>
                                                 <TextBox x:Name="TxtSelectedEntityHp" Style="{StaticResource Win10TextBox}" Padding="3,1" FontSize="11"/>
                                             </StackPanel>
@@ -366,11 +373,11 @@
                                                 <ColumnDefinition Width="5"/>
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
-                                            <StackPanel Grid.Column="0">
+                                            <StackPanel x:Name="PnlSelectedMpCol" Grid.Column="0">
                                                 <TextBlock Text="Maná (-1=def):" FontSize="10.5" Foreground="{DynamicResource Win10Text}"/>
                                                 <TextBox x:Name="TxtSelectedEntityMp" Style="{StaticResource Win10TextBox}" Padding="3,1" FontSize="11"/>
                                             </StackPanel>
-                                            <StackPanel Grid.Column="2">
+                                            <StackPanel x:Name="PnlSelectedLevelCol" Grid.Column="2">
                                                 <TextBlock Text="Nivel Héroe:" FontSize="10.5" Foreground="{DynamicResource Win10Text}"/>
                                                 <TextBox x:Name="TxtSelectedEntityLevel" Style="{StaticResource Win10TextBox}" Padding="3,1" FontSize="11"/>
                                             </StackPanel>
@@ -395,6 +402,9 @@
                                                 </StackPanel>
                                             </Button>
                                         </UniformGrid>
+                                        <Button Height="23" Style="{StaticResource Win10ClassicButton}" Margin="0,3,0,2" Click="BtnOpenEntityProperties_Click" ToolTip="Editar Propiedades Completas (Oro, Heroe, Waygate, Drops) - Enter o Doble Clic">
+                                            <TextBlock Text="Propiedades Completas... (Enter)" VerticalAlignment="Center" FontSize="11"/>
+                                        </Button>
                                     </StackPanel>
 
                                     <Button Style="{StaticResource Win10ClassicButton}"
@@ -547,6 +557,35 @@
 
                                         <ComboBox x:Name="CmbPlaceOwner" SelectedIndex="0" FontSize="11" ToolTip="Dueño de la unidad al colocar en el mapa" SelectionChanged="CmbPlaceOwner_SelectionChanged"/>
 
+                                        <Grid x:Name="PnlUnitCatalogFilters" Margin="0,4,0,0" Visibility="Collapsed">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="4"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <ComboBox x:Name="CmbUnitRaceFilter" Grid.Column="0" SelectedIndex="0" FontSize="10.5"
+                                                      ToolTip="Filtrar por raza (como en el World Editor)"
+                                                      SelectionChanged="CmbUnitCatalogFilter_SelectionChanged">
+                                                <ComboBoxItem Content="Todas las razas" Tag="all"/>
+                                                <ComboBoxItem Content="Humanos" Tag="human"/>
+                                                <ComboBoxItem Content="Orcos" Tag="orc"/>
+                                                <ComboBoxItem Content="No-Muertos" Tag="undead"/>
+                                                <ComboBoxItem Content="Elfos Nocturnos" Tag="nightelf"/>
+                                                <ComboBoxItem Content="Neutral Pasivo / Otros" Tag="neutral_passive"/>
+                                                <ComboBoxItem Content="Neutral Hostil (Creeps)" Tag="creeps"/>
+                                                <ComboBoxItem Content="★ Custom" Tag="custom"/>
+                                            </ComboBox>
+                                            <ComboBox x:Name="CmbUnitTypeFilter" Grid.Column="2" SelectedIndex="0" FontSize="10.5"
+                                                      ToolTip="Filtrar por tipo de objeto"
+                                                      SelectionChanged="CmbUnitCatalogFilter_SelectionChanged">
+                                                <ComboBoxItem Content="Todo" Tag="all"/>
+                                                <ComboBoxItem Content="Unidades" Tag="units"/>
+                                                <ComboBoxItem Content="Héroes" Tag="heroes"/>
+                                                <ComboBoxItem Content="Edificios" Tag="buildings"/>
+                                                <ComboBoxItem Content="Ítems" Tag="items"/>
+                                            </ComboBox>
+                                        </Grid>
+
                                         <CheckBox x:Name="ChkIgnorePathing" Margin="0,4,0,0" FontSize="10.5"
                                                   ToolTip="Desactivado (recomendado): aplica snap de grilla WC3 y bloquea colocación/movimiento sobre agua, cliffs u otros edificios."
                                                   Checked="ChkIgnorePathing_Changed" Unchecked="ChkIgnorePathing_Changed">
@@ -590,7 +629,7 @@
                                     </Grid>
                                 </StackPanel>
 
-                                <!-- Lista de Elementos de la Paleta -->
+                                <!-- Lista / Cuadrícula de Iconos de la Paleta -->
                                 <ListBox Grid.Row="2"
                                          x:Name="LstToolPalette"
                                          Margin="8,0,8,6"
@@ -599,8 +638,75 @@
                                          BorderBrush="{DynamicResource Win10Border}"
                                          BorderThickness="1"
                                          FontSize="11.5"
-                                         DisplayMemberPath="PaletteDisplay"
-                                         SelectionChanged="LstToolPalette_SelectionChanged"/>
+                                         SelectionChanged="LstToolPalette_SelectionChanged"
+                                         PreviewMouseLeftButtonUp="LstToolPalette_PreviewMouseLeftButtonUp">
+                                    <ListBox.Resources>
+                                        <ItemsPanelTemplate x:Key="PaletteTextPanel">
+                                            <VirtualizingStackPanel IsItemsHost="True"/>
+                                        </ItemsPanelTemplate>
+                                        <DataTemplate x:Key="PaletteTextItemTemplate">
+                                            <TextBlock Text="{Binding PaletteDisplay}" TextTrimming="CharacterEllipsis"/>
+                                        </DataTemplate>
+                                        <ItemsPanelTemplate x:Key="PaletteIconWrapPanel">
+                                            <WrapPanel Orientation="Horizontal" IsItemsHost="True"/>
+                                        </ItemsPanelTemplate>
+                                        <Style x:Key="PaletteIconItemContainerStyle" TargetType="ListBoxItem">
+                                            <Setter Property="Margin" Value="2"/>
+                                            <Setter Property="Padding" Value="0"/>
+                                            <Setter Property="Cursor" Value="Hand"/>
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListBoxItem">
+                                                        <Border x:Name="Bd"
+                                                                Width="42" Height="42"
+                                                                Background="#181C22"
+                                                                BorderBrush="#3D4654"
+                                                                BorderThickness="1.5"
+                                                                CornerRadius="3">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Bd" Property="BorderBrush" Value="#7AB8FF"/>
+                                                                <Setter TargetName="Bd" Property="Background" Value="#242C38"/>
+                                                            </Trigger>
+                                                            <Trigger Property="IsSelected" Value="True">
+                                                                <Setter TargetName="Bd" Property="BorderBrush" Value="#F5C542"/>
+                                                                <Setter TargetName="Bd" Property="BorderThickness" Value="2"/>
+                                                                <Setter TargetName="Bd" Property="Background" Value="#2D3542"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                        <DataTemplate x:Key="PaletteUnitIconTemplate">
+                                            <Grid Width="36" Height="36"
+                                                  Background="Transparent"
+                                                  ToolTipService.InitialShowDelay="180"
+                                                  ToolTipService.ShowDuration="8000">
+                                                <Grid.ToolTip>
+                                                    <StackPanel MaxWidth="260">
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                                        <TextBlock Text="{Binding Rawcode, StringFormat='Rawcode: {0}'}" Opacity="0.78" FontSize="11"/>
+                                                    </StackPanel>
+                                                </Grid.ToolTip>
+                                                <Image Source="{Binding IconBitmap}"
+                                                       Width="36" Height="36"
+                                                       Stretch="Uniform"
+                                                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                <TextBlock Text="★"
+                                                           Foreground="#FFD54F"
+                                                           FontSize="9"
+                                                           FontWeight="Bold"
+                                                           HorizontalAlignment="Right"
+                                                           VerticalAlignment="Top"
+                                                           Margin="0,-1,1,0"
+                                                           Visibility="{Binding CustomBadgeVisibility}"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.Resources>
+                                </ListBox>
 
                                 <!-- Panel Clásico de Terreno y Precipicios (Apply Texture / Apply Cliff / Apply Height) -->
                                 <ScrollViewer Grid.Row="2"

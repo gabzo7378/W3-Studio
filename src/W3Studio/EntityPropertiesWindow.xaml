@@ -1,0 +1,363 @@
+<Window x:Class="W3Studio.EntityPropertiesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Propiedades de Entidad" Height="520" Width="540"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip"
+        Background="#181A1F" Foreground="#E6E8EC" FontFamily="Segoe UI">
+    <Window.Resources>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#22262E"/>
+            <Setter Property="Foreground" Value="#E6E8EC"/>
+            <Setter Property="BorderBrush" Value="#343B46"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#22262E"/>
+            <Setter Property="Foreground" Value="#E6E8EC"/>
+            <Setter Property="BorderBrush" Value="#343B46"/>
+            <Setter Property="Padding" Value="6,4"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#252A34"/>
+            <Setter Property="Foreground" Value="#E6E8EC"/>
+            <Setter Property="BorderBrush" Value="#383F4B"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="#E6E8EC"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#E6E8EC"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header con Icono WC3 + Nombre + Nivel + JASS var -->
+        <Grid Grid.Row="0" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Width="42" Height="42" Background="#121418" BorderBrush="#383F4B" BorderThickness="1" CornerRadius="3" Margin="0,0,10,0">
+                <Image x:Name="ImgEntityIcon" Width="38" Height="38" Stretch="UniformToFill"/>
+            </Border>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <TextBlock x:Name="TxtEntityTitle" Text="Unidad (1)" FontSize="15" FontWeight="SemiBold" Foreground="#F3F4F6"/>
+                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                    <TextBlock x:Name="TxtEntityLevel" Text="Nivel: 1" FontSize="12" Foreground="#FBBF24" FontWeight="SemiBold" Margin="0,0,12,0" Visibility="Collapsed"/>
+                    <TextBlock x:Name="TxtEntitySubtitle" Text="gg_unit_xxxx_0000" FontSize="11" Foreground="#9AA4B2"/>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+
+        <!-- Pestañas contextuales tipo World Editor -->
+        <TabControl x:Name="MainTabs" Grid.Row="1" Background="#1E222A" BorderBrush="#2D333F" Foreground="#E6E8EC">
+            <!-- GENERAL -->
+            <TabItem x:Name="TabGeneral" Header="General">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
+                    <StackPanel>
+                        <!-- Jugador -->
+                        <Grid x:Name="PnlUnitOwner" Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Jugador:" VerticalAlignment="Center" Foreground="#CBD5E1"/>
+                            <ComboBox x:Name="CmbOwner" Grid.Column="1"/>
+                        </Grid>
+
+                        <!-- Orientación y Usar atributos por defecto -->
+                        <Grid x:Name="PnlFacingRow" Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="95"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Orientación (deg):" VerticalAlignment="Center" Foreground="#CBD5E1"/>
+                            <TextBox x:Name="TxtAngle" Grid.Column="1"/>
+                            <CheckBox x:Name="ChkUseDefaultAttrs" Grid.Column="3" Content="Usar atributos por defecto"
+                                      IsChecked="True" Checked="ChkUseDefaultAttrs_Changed" Unchecked="ChkUseDefaultAttrs_Changed"
+                                      Visibility="Collapsed"/>
+                        </Grid>
+
+                        <!-- Mina de Oro: Gold Amount -->
+                        <Grid x:Name="PnlGoldRow" Margin="0,0,0,10" Visibility="Collapsed">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="120"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Cantidad de Oro:" VerticalAlignment="Center" Foreground="#FBBF24"/>
+                            <TextBox x:Name="TxtGoldAmount" Grid.Column="1"/>
+                        </Grid>
+
+                        <!-- Waygate Destination Region -->
+                        <Grid x:Name="PnlWaygateRow" Margin="0,0,0,10" Visibility="Collapsed">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Destino Waygate:" VerticalAlignment="Center" Foreground="#38BDF8"/>
+                            <ComboBox x:Name="CmbWaygateRegion" Grid.Column="1"/>
+                        </Grid>
+
+                        <!-- Estadísticas de Unidad / Héroe (2 columnas tipo WE) -->
+                        <Grid x:Name="GrdUnitStats" Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.15*"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Columna Izquierda: HP, MP, Nivel -->
+                            <StackPanel Grid.Column="0">
+                                <Grid x:Name="PnlUnitHpRow" Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140"/>
+                                        <ColumnDefinition Width="70"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Puntos de Vida %:" VerticalAlignment="Center" Foreground="#CBD5E1"/>
+                                    <TextBox x:Name="TxtUnitHp" Grid.Column="1"/>
+                                    <TextBlock x:Name="TxtUnitHpOf" Grid.Column="2" Text=" de 100" VerticalAlignment="Center" Margin="8,0,0,0" Foreground="#9AA4B2"/>
+                                </Grid>
+
+                                <Grid x:Name="PnlUnitMpRow" Margin="0,0,0,8" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140"/>
+                                        <ColumnDefinition Width="70"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Puntos de Maná:" VerticalAlignment="Center" Foreground="#CBD5E1"/>
+                                    <TextBox x:Name="TxtUnitMp" Grid.Column="1"/>
+                                    <TextBlock x:Name="TxtUnitMpOf" Grid.Column="2" Text=" de 0" VerticalAlignment="Center" Margin="8,0,0,0" Foreground="#9AA4B2"/>
+                                </Grid>
+
+                                <Grid x:Name="PnlHeroLevelRow" Margin="0,0,0,8" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140"/>
+                                        <ColumnDefinition Width="70"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Nivel:" VerticalAlignment="Center" Foreground="#CBD5E1"/>
+                                    <TextBox x:Name="TxtHeroLevel" Grid.Column="1"/>
+                                    <TextBlock x:Name="TxtHeroLevelMax" Grid.Column="2" Text=" de 10" VerticalAlignment="Center" Margin="8,0,0,0" Foreground="#9AA4B2"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- Columna Derecha: Atributos de Héroe -->
+                            <StackPanel x:Name="PnlHeroAttrsCol" Grid.Column="2" Visibility="Collapsed">
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="70"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Fuerza:" VerticalAlignment="Center" Foreground="#CBD5E1"/>
+                                    <TextBox x:Name="TxtHeroStr" Grid.Column="1"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="70"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Agilidad:" VerticalAlignment="Center" Foreground="#CBD5E1"/>
+                                    <TextBox x:Name="TxtHeroAgi" Grid.Column="1"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="70"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Inteligencia:" VerticalAlignment="Center" Foreground="#CBD5E1"/>
+                                    <TextBox x:Name="TxtHeroInt" Grid.Column="1"/>
+                                </Grid>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Rango de Adquisición -->
+                        <Grid x:Name="PnlTargetAcqRow" Margin="0,2,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Adquisición Objetivo:" VerticalAlignment="Top" Margin="0,2,0,0" Foreground="#CBD5E1"/>
+                            <StackPanel Grid.Column="1">
+                                <RadioButton x:Name="RadAcqNormal" GroupName="TargetAcq" Content="Normal: (500)" Margin="0,0,0,5"
+                                             Checked="RadAcq_Checked"/>
+                                <RadioButton x:Name="RadAcqCamp" GroupName="TargetAcq" Content="Campamento: (200)" Margin="0,0,0,5"
+                                             Checked="RadAcq_Checked"/>
+                                <StackPanel x:Name="PnlAcqCustom" Orientation="Horizontal" Visibility="Collapsed">
+                                    <RadioButton x:Name="RadAcqCustom" GroupName="TargetAcq" Content="Personalizado:" Checked="RadAcq_Checked"/>
+                                    <TextBox x:Name="TxtTargetAcqCustom" Width="75" Margin="8,0,0,0"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Propiedades específicas de Doodad / Destructible -->
+                        <StackPanel x:Name="PnlDoodadStats" Visibility="Collapsed" Margin="0,0,0,10">
+                            <Grid x:Name="PnlDoodadLifeRow" Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="140"/>
+                                    <ColumnDefinition Width="90"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Vida %:" VerticalAlignment="Center" Foreground="#CBD5E1"/>
+                                <TextBox x:Name="TxtDoodadLife" Grid.Column="1"/>
+                            </Grid>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="140"/>
+                                    <ColumnDefinition Width="90"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Variación:" VerticalAlignment="Center" Foreground="#CBD5E1"/>
+                                <TextBox x:Name="TxtDoodadVariation" Grid.Column="1"/>
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Posición y Escala colapsables -->
+                        <Expander x:Name="ExpAdvancedPos" Header="Posición en Mapa y Escala (Avanzado)"
+                                  IsExpanded="False" Foreground="#9AA4B2" Margin="0,6,0,0">
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Posición X" FontSize="11" Foreground="#9AA4B2" Margin="0,0,0,3"/>
+                                    <TextBox x:Name="TxtPosX"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Posición Y" FontSize="11" Foreground="#9AA4B2" Margin="0,0,0,3"/>
+                                    <TextBox x:Name="TxtPosY"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Text="Escala" FontSize="11" Foreground="#9AA4B2" Margin="0,0,0,3"/>
+                                    <TextBox x:Name="TxtScale"/>
+                                </StackPanel>
+                            </Grid>
+                        </Expander>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- HABILIDADES -->
+            <TabItem x:Name="TabAbilities" Header="Habilidades">
+                <Grid Margin="10">
+                    <TextBlock x:Name="TxtNoAbilities" Text="(Esta unidad no posee habilidades registradas en los SLK/datos del mapa)"
+                               Foreground="#9AA4B2" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
+                    <ListBox x:Name="LstAbilities" Background="#161920" BorderBrush="#2D333F" Foreground="#E6E8EC">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="4,3">
+                                    <Border Width="28" Height="28" Background="#101217" BorderBrush="#383F4B" BorderThickness="1" Margin="0,0,8,0">
+                                        <Image Source="{Binding Icon}" Width="26" Height="26" Stretch="UniformToFill"/>
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#E6E8EC"/>
+                                        <TextBlock Text="{Binding Subtitle}" FontSize="11" Foreground="#9AA4B2"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </TabItem>
+
+            <!-- INVENTARIO (Solo Héroes) -->
+            <TabItem x:Name="TabInventory" Header="Inventario" Visibility="Collapsed">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="Ranuras iniciales de inventario del Héroe (6 ranuras WC3):" Foreground="#CBD5E1" Margin="0,0,0,8"/>
+                    <Border Grid.Row="1" Background="#161920" BorderBrush="#2D333F" BorderThickness="1" Padding="10">
+                        <TextBlock x:Name="TxtInventorySummary"
+                                   Text="El inventario inicial en tiempo de ejecución puede configurarse mediante triggers ('Hero - Create Item For Hero') o ver objetos dropeados en la pestaña Objetos Soltados."
+                                   TextWrapping="Wrap" Foreground="#9AA4B2" VerticalAlignment="Top"/>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- OBJETOS SOLTADOS -->
+            <TabItem x:Name="TabItemDrops" Header="Objetos Soltados">
+                <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="190"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <DockPanel Grid.Column="0">
+                        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="+ Set" Padding="8,4" Margin="0,0,4,0" Click="BtnAddItemSet_Click"/>
+                            <Button Content="- Set" Padding="8,4" Margin="0,0,4,0" Click="BtnRemoveItemSet_Click"/>
+                            <Button Content="Limpiar" Padding="8,4" Click="BtnClearAllSets_Click"/>
+                        </StackPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="Sets de Objetos (Item Sets)" Foreground="#9AA4B2" FontSize="11" Margin="0,0,0,4"/>
+                        <ListBox x:Name="LstItemSets" Background="#161920" BorderBrush="#2D333F" Foreground="#E6E8EC"
+                                 SelectionChanged="LstItemSets_SelectionChanged"/>
+                    </DockPanel>
+
+                    <DockPanel x:Name="PnlSelectedSet" Grid.Column="2" IsEnabled="False">
+                        <TextBlock x:Name="TxtSetTitle" DockPanel.Dock="Top" Text="Contenido del Set" Foreground="#9AA4B2" FontSize="11" Margin="0,0,0,4"/>
+                        <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="90"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="65"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Item ID:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <TextBox x:Name="TxtItemId" Grid.Column="1" Text="rat6" MaxLength="4"/>
+                                <TextBlock Grid.Column="2" Text="Prob %:" VerticalAlignment="Center" Margin="10,0,6,0"/>
+                                <TextBox x:Name="TxtItemChance" Grid.Column="3" Text="100"/>
+                            </Grid>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Agregar Item" Click="BtnAddItemToSet_Click" Margin="0,0,6,0"/>
+                                <Button Content="Quitar Seleccionado" Click="BtnRemoveItemFromSet_Click"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <ListBox x:Name="LstSetItems" Background="#161920" BorderBrush="#2D333F" Foreground="#E6E8EC"/>
+                    </DockPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- DESCRIPCIÓN (Solo Items en Mapa) -->
+            <TabItem x:Name="TabDescription" Header="Descripción" Visibility="Collapsed">
+                <Grid Margin="12">
+                    <TextBox x:Name="TxtItemDescription" IsReadOnly="True" TextWrapping="Wrap"
+                             AcceptsReturn="True" VerticalContentAlignment="Top"
+                             VerticalScrollBarVisibility="Auto" Background="#161920"
+                             BorderBrush="#2D333F" Padding="10" Foreground="#E6E8EC" FontSize="12.5"/>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- Botones OK / Cancelar -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="BtnOk" Content="Aceptar" Width="88" IsDefault="True" Click="BtnOk_Click"
+                    Background="#1D4ED8" BorderBrush="#2563EB" Margin="0,0,8,0"/>
+            <Button x:Name="BtnCancel" Content="Cancelar" Width="88" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

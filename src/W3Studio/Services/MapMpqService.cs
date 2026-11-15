@@ -422,14 +422,25 @@ public class MapMpqService
             var hp = br.ReadInt32();
             var mp = br.ReadInt32();
 
+            int itemTablePtr = -1;
             if (subVersion >= 11)
-                _ = br.ReadInt32(); // itemTablePtr
+                itemTablePtr = br.ReadInt32();
 
+            var itemDropSets = new List<List<W3UnitItemDrop>>();
             var itemSetsCount = br.ReadInt32();
-            for (var s = 0; s < itemSetsCount; s++)
+            for (var s = 0; s < itemSetsCount && stream.Position + 4 <= stream.Length; s++)
             {
                 var itemCount = br.ReadInt32();
-                stream.Position += itemCount * 8;
+                var setList = new List<W3UnitItemDrop>();
+                for (var it = 0; it < itemCount && stream.Position + 8 <= stream.Length; it++)
+                {
+                    var itemId = IntToRawcode(br.ReadInt32());
+                    var chance = br.ReadInt32();
+                    if (!string.IsNullOrEmpty(itemId))
+                        setList.Add(new W3UnitItemDrop { ItemRawcode = itemId, Chance = chance });
+                }
+                if (setList.Count > 0)
+                    itemDropSets.Add(setList);
             }
 
             var goldAmount = br.ReadInt32();
@@ -460,8 +471,8 @@ public class MapMpqService
                 stream.Position += rcnt * 8;
             }
 
-            _ = br.ReadInt32(); // customColor
-            _ = br.ReadInt32(); // waygate
+            var customColor = br.ReadInt32();
+            var waygate = br.ReadInt32();
             var creationNum = br.ReadInt32();
 
             var baseObj = _baseDataService.GetBaseObject(rawcode);
@@ -476,7 +487,7 @@ public class MapMpqService
             bool isItem = baseObj?.Category == W3ObjectCategory.Items;
             bool isBldg = PathingService.IsUnitBuilding(rawcode, project, _baseDataService);
 
-            project.PlacedUnits.Add(new W3PlacedUnit
+            var placedUnit = new W3PlacedUnit
             {
                 Rawcode = rawcode,
                 Name = unitName,
@@ -499,9 +510,14 @@ public class MapMpqService
                 HeroStrength = heroStr,
                 HeroAgility = heroAgi,
                 HeroIntelligence = heroInt,
+                CustomPlayerColorId = customColor,
+                WaygateDestinationRegionId = waygate,
+                ItemTablePointer = itemTablePtr,
                 IsItem = isItem,
                 IsBuilding = isBldg
-            });
+            };
+            placedUnit.ItemDropSets.AddRange(itemDropSets);
+            project.PlacedUnits.Add(placedUnit);
         }
     }
 
@@ -1958,6 +1974,35 @@ public class MapMpqService
         }
     }
 
+    /// <summary>
+    /// Applies pending Scenario, Unit/Doodad, and Region edits onto project.RawMapScript (and RootScript)
+    /// without clearing dirty flags, so pre-save script compilation sees generated globals/functions and
+    /// subsequent saves preserve synced map scripts.
+    /// </summary>
+    public void SyncWorldEditsToScript(MapProject project)
+    {
+        if (project.HasScenarioEdits)
+        {
+            MapScriptSyncService.SyncScenarioToW3iAndJass(project);
+        }
+
+        if (project.HasUnitDoodadEdits)
+        {
+            MapScriptSyncService.SyncUnitsAndDoodadsToDooAndJass(project, _baseDataService);
+        }
+
+        if (project.HasRegionEdits)
+        {
+            MapScriptSyncService.SyncRegionsToW3rAndJass(project);
+        }
+
+        var root = project.AllTriggerNodes.FirstOrDefault(n => n.Kind == TriggerNodeKind.RootScript);
+        if (root != null)
+        {
+            root.Code = project.RawMapScript;
+        }
+    }
+
     public void SaveMap(MapProject project, string targetPath, Action<int, string>? onProgress = null)
     {
         onProgress?.Invoke(50, "Sincronizando escenario, unidades y doodads...");
@@ -1982,6 +2027,7 @@ public class MapMpqService
         }
 
         project.RawMpqFiles["war3map.j"] = Encoding.UTF8.GetBytes(project.RawMapScript);
+        project.RawMpqFiles.Remove(@"scripts\war3map.j");
 
         if (project.Terrain.RawW3eBytes != null && project.HasTerrainEdits)
         {

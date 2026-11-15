@@ -466,6 +466,10 @@ public class W3PlacedUnit
     public int HeroStrength { get; set; }
     public int HeroAgility { get; set; }
     public int HeroIntelligence { get; set; }
+    public int CustomPlayerColorId { get; set; } = -1;
+    public int WaygateDestinationRegionId { get; set; } = -1;
+    public int ItemTablePointer { get; set; } = -1;
+    public List<List<W3UnitItemDrop>> ItemDropSets { get; } = new();
     public bool IsItem { get; set; }
     public bool IsBuilding { get; set; }
 
@@ -526,6 +530,12 @@ public class W3PlacedUnit
     };
 
     public string PaletteDisplay => $"[{Rawcode}] {Name} ({ (int)X }, { (int)Y })";
+}
+
+public class W3UnitItemDrop
+{
+    public string ItemRawcode { get; set; } = string.Empty;
+    public int Chance { get; set; } = 100;
 }
 
 public class W3PlacedDoodad

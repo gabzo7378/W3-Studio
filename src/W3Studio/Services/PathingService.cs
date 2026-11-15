@@ -22,7 +22,8 @@ public sealed record ClientObjectPathingOverride(
     string PreventPlace,
     string RequirePlace,
     string UberSplat,
-    string ShadowTex);
+    string ShadowTex,
+    string AnimProps = "");
 
 /// <summary>
 /// Decodes WC3 PathTextures (*.tga), computes official 32/64-unit grid snapping,
@@ -431,35 +432,23 @@ public static class PathingService
             }
         }
 
-        // Stamp all current living/dead doodads & destructibles with a PathTexture
+        // Stamp ONLY static non-destructible doodads with a PathTexture.
+        // Buildings (CreateUnit) and Destructibles (CreateDestructable, trees/gates) must NEVER be baked into
+        // war3map.wpm: WC3 checks war3map.wpm BEFORE CreateUnit/CreateDestructable and stamps their runtime pathing
+        // dynamically. If a building's footprint is already baked as 0x08/0x02 in war3map.wpm, WC3 treats the
+        // target spot as blocked and pushes the Gold Mine / building away to the nearest free coordinates.
         foreach (var d in project.PlacedDoodads)
         {
-            bool isDead = d.Life == 0;
-            var pathTex = ResolveObjectField(
-                d.Rawcode,
-                true,
-                project,
-                baseData,
-                isDead ? "bptd" : "bptx",
-                isDead ? "pathTexDeath" : "pathTex");
-            if (string.IsNullOrEmpty(pathTex) && !isDead)
-                pathTex = ResolveObjectField(d.Rawcode, true, project, baseData, "dptx", "pathTex");
+            if (IsPlacedDoodadDestructible(d, project, baseData))
+                continue;
+
+            var pathTex = ResolveObjectField(d.Rawcode, true, project, baseData, "dptx", "pathTex");
+            if (string.IsNullOrEmpty(pathTex))
+                pathTex = ResolveObjectField(d.Rawcode, true, project, baseData, "bptx", "pathTex");
 
             var grid = GetPathTexture(pathTex, project, blpService);
             if (grid != null)
                 StampFootprint(cells, pw, ph, t, d.X, d.Y, grid);
-        }
-
-        // Stamp all placed buildings
-        foreach (var u in project.PlacedUnits)
-        {
-            if (u.IsStartLocation || (!u.IsBuilding && !IsUnitBuilding(u.Rawcode, project, baseData)))
-                continue;
-
-            var pathTex = ResolveObjectField(u.Rawcode, false, project, baseData, "upat", "pathTex");
-            var grid = GetPathTexture(pathTex, project, blpService);
-            if (grid != null)
-                StampFootprint(cells, pw, ph, t, u.X, u.Y, grid);
         }
 
         using var ms = new MemoryStream(16 + cells.Length);
@@ -554,6 +543,23 @@ public static class PathingService
         return flag;
     }
 
+    private static bool IsPlacedDoodadDestructible(
+        W3PlacedDoodad d,
+        MapProject project,
+        WarcraftBaseDataService? baseData)
+    {
+        if (d.IsDestructible)
+            return true;
+
+        var custom = project.Objects.FirstOrDefault(
+            o => string.Equals(o.Rawcode, d.Rawcode, StringComparison.OrdinalIgnoreCase));
+        if (custom != null)
+            return custom.Category == W3ObjectCategory.Destructables;
+
+        var baseMeta = baseData?.GetBaseObject(d.Rawcode);
+        return baseMeta?.Category == W3ObjectCategory.Destructables;
+    }
+
     private static void RestoreTerrainSubcellsUnderFootprint(
         byte[] cells, int pw, int ph, W3TerrainData t, float worldX, float worldY, PathTextureGrid grid)
     {
@@ -569,7 +575,11 @@ public static class PathingService
                 int sx = minIx + gx;
                 if ((uint)sx >= (uint)pw) continue;
                 if (grid.Cells[gy * grid.Width + gx] != 0)
-                    cells[sy * pw + sx] = ComputeBaseTerrainCellFlag(t, sx, sy);
+                {
+                    int idx = sy * pw + sx;
+                    byte preservedHighBits = (byte)(cells[idx] & ~(FlagWalkBlocked | FlagFlyBlocked | FlagBuildBlocked));
+                    cells[idx] = (byte)(preservedHighBits | ComputeBaseTerrainCellFlag(t, sx, sy));
+                }
             }
         }
     }
@@ -650,6 +660,10 @@ public static class PathingService
                 ? ResolveObjectField(obj.Rawcode, false, project, baseData, "ushb", "buildingShadow")
                 : (!isDoodadOrDest ? ResolveObjectField(obj.Rawcode, false, project, baseData, "ushu", "unitShadow") : string.Empty);
 
+            string animProps = !isDoodadOrDest && obj.Category == W3ObjectCategory.Units
+                ? ResolveObjectField(obj.Rawcode, false, project, baseData, "uani", "animProps")
+                : string.Empty;
+
             list.Add(new ClientObjectPathingOverride(
                 obj.Rawcode,
                 isBldg,
@@ -661,7 +675,8 @@ public static class PathingService
                 preventPlace,
                 requirePlace,
                 uberSplat,
-                shadowTex));
+                shadowTex,
+                animProps));
         }
 
         return list;

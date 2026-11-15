@@ -105,6 +105,26 @@ public static class MapScriptSyncService
             ud.HeroStrength = pu.HeroStrength;
             ud.HeroAgility = pu.HeroAgility;
             ud.HeroIntelligence = pu.HeroIntelligence;
+            ud.CustomPlayerColorId = pu.CustomPlayerColorId;
+            ud.WaygateDestinationRegionId = pu.WaygateDestinationRegionId;
+            ud.MapItemTableId = pu.ItemTablePointer;
+            ud.ItemTableSets.Clear();
+            foreach (var setList in pu.ItemDropSets)
+            {
+                if (setList.Count == 0) continue;
+                var ris = new RandomItemSet();
+                foreach (var entry in setList)
+                {
+                    if (string.IsNullOrWhiteSpace(entry.ItemRawcode)) continue;
+                    ris.Items.Add(new RandomItemSetItem
+                    {
+                        ItemId = WarcraftBaseDataService.RawcodeToInt(entry.ItemRawcode),
+                        Chance = Math.Clamp(entry.Chance, 0, 100)
+                    });
+                }
+                if (ris.Items.Count > 0)
+                    ud.ItemTableSets.Add(ris);
+            }
             mapUnits.Units.Add(ud);
         }
 
@@ -498,18 +518,18 @@ public static class MapScriptSyncService
         // Build unified CreateAllUnits helper block
         var unitBlockSb = new StringBuilder();
         foreach (var kvp in playerBuildings.OrderBy(k => k.Key))
-            AppendUnitGroupFunction(unitBlockSb, $"CreateBuildingsForPlayer{kvp.Key}", $"Player({kvp.Key})", kvp.Value, declaredGlobals);
+            AppendUnitGroupFunction(unitBlockSb, $"CreateBuildingsForPlayer{kvp.Key}", $"Player({kvp.Key})", kvp.Value, declaredGlobals, project.Regions);
         foreach (var kvp in playerUnits.OrderBy(k => k.Key))
-            AppendUnitGroupFunction(unitBlockSb, $"CreateUnitsForPlayer{kvp.Key}", $"Player({kvp.Key})", kvp.Value, declaredGlobals);
+            AppendUnitGroupFunction(unitBlockSb, $"CreateUnitsForPlayer{kvp.Key}", $"Player({kvp.Key})", kvp.Value, declaredGlobals, project.Regions);
 
         if (neutralHostileBuildings.Count > 0)
-            AppendUnitGroupFunction(unitBlockSb, "CreateNeutralHostileBuildings", "Player(PLAYER_NEUTRAL_AGGRESSIVE)", neutralHostileBuildings, declaredGlobals);
+            AppendUnitGroupFunction(unitBlockSb, "CreateNeutralHostileBuildings", "Player(PLAYER_NEUTRAL_AGGRESSIVE)", neutralHostileBuildings, declaredGlobals, project.Regions);
         if (neutralHostileUnits.Count > 0)
-            AppendUnitGroupFunction(unitBlockSb, "CreateNeutralHostile", "Player(PLAYER_NEUTRAL_AGGRESSIVE)", neutralHostileUnits, declaredGlobals);
+            AppendUnitGroupFunction(unitBlockSb, "CreateNeutralHostile", "Player(PLAYER_NEUTRAL_AGGRESSIVE)", neutralHostileUnits, declaredGlobals, project.Regions);
         if (neutralPassiveBuildings.Count > 0)
-            AppendUnitGroupFunction(unitBlockSb, "CreateNeutralPassiveBuildings", "Player(PLAYER_NEUTRAL_PASSIVE)", neutralPassiveBuildings, declaredGlobals);
+            AppendUnitGroupFunction(unitBlockSb, "CreateNeutralPassiveBuildings", "Player(PLAYER_NEUTRAL_PASSIVE)", neutralPassiveBuildings, declaredGlobals, project.Regions);
         if (neutralPassiveUnits.Count > 0)
-            AppendUnitGroupFunction(unitBlockSb, "CreateNeutralPassive", "Player(PLAYER_NEUTRAL_PASSIVE)", neutralPassiveUnits, declaredGlobals);
+            AppendUnitGroupFunction(unitBlockSb, "CreateNeutralPassive", "Player(PLAYER_NEUTRAL_PASSIVE)", neutralPassiveUnits, declaredGlobals, project.Regions);
 
         unitBlockSb.AppendLine("function CreatePlayerBuildings takes nothing returns nothing");
         foreach (var pid in playerBuildings.Keys.OrderBy(k => k))
@@ -586,7 +606,8 @@ public static class MapScriptSyncService
         string funcName,
         string playerExpr,
         List<W3PlacedUnit> units,
-        HashSet<string> declaredGlobals)
+        HashSet<string> declaredGlobals,
+        IReadOnlyList<W3MapRegion> regions)
     {
         sb.AppendLine($"function {funcName} takes nothing returns nothing");
         sb.AppendLine($"    local player p = {playerExpr}");
@@ -635,6 +656,13 @@ public static class MapScriptSyncService
             if (u.Level > 1 && char.IsUpper(u.Rawcode.FirstOrDefault()))
                 sb.AppendLine($"    call SetHeroLevel( u, {u.Level}, false )");
 
+            if (u.HeroStrength > 0 && char.IsUpper(u.Rawcode.FirstOrDefault()))
+                sb.AppendLine($"    call SetHeroStr( u, {u.HeroStrength}, true )");
+            if (u.HeroAgility > 0 && char.IsUpper(u.Rawcode.FirstOrDefault()))
+                sb.AppendLine($"    call SetHeroAgi( u, {u.HeroAgility}, true )");
+            if (u.HeroIntelligence > 0 && char.IsUpper(u.Rawcode.FirstOrDefault()))
+                sb.AppendLine($"    call SetHeroInt( u, {u.HeroIntelligence}, true )");
+
             if (u.HP > 0 && u.HP != 100)
             {
                 sb.AppendLine("    set life = GetUnitState( u, UNIT_STATE_LIFE )");
@@ -646,6 +674,18 @@ public static class MapScriptSyncService
 
             if (u.TargetAcquisition >= 0f)
                 sb.AppendLine($"    call SetUnitAcquireRange( u, {Fmt(u.TargetAcquisition)} )");
+
+            if (u.WaygateDestinationRegionId >= 0)
+            {
+                var targetReg = regions.FirstOrDefault(r => r.CreationNumber == u.WaygateDestinationRegionId);
+                if (targetReg != null)
+                {
+                    float wx = (targetReg.Left + targetReg.Right) * 0.5f;
+                    float wy = (targetReg.Bottom + targetReg.Top) * 0.5f;
+                    sb.AppendLine("    call WaygateActivate( u, true )");
+                    sb.AppendLine($"    call WaygateSetDestination( u, {Fmt(wx)}, {Fmt(wy)} )");
+                }
+            }
         }
 
         sb.AppendLine("endfunction");

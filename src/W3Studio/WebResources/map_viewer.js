@@ -72,14 +72,20 @@
     mode: 'select', // 'select' | 'terrain' | 'place_unit' | 'place_doodad' | 'select_region' | 'place_region'
     placeSpec: null, // { kind, rawcode, player, angle, scale, variation, life, modelPath, pathTex, isBuilding, ... }
     selectedEntity: null, // { kind, creationNumber, id, x, y, z, angle, scale, player, variation, life }
+    selectedEntities: [], // multi-selection array synced with selectedEntity = selectedEntities[0] || null
     isDraggingEntity: false,
     dragMoved: false,
     dragOrigPos: null,
     dragLastValidPos: null,
+    groupDrag: null,
+    rotateDrag: null,
+    marquee: null,
     placementEval: null,
     ignorePathing: false,
     hoverWx: null,
-    hoverWy: null
+    hoverWy: null,
+    lastClientX: null,
+    lastClientY: null
   };
 
   const layerState = {
@@ -879,17 +885,38 @@
       drawPlacementCellsOverlay(editorState.placementEval, vp, hasHeight);
     }
 
-    // 1. Selected Entity selection circle + facing vector
-    if (editorState.selectedEntity) {
+    // 1. Selected Entity / Multi-Selection circles + facing vectors
+    let selList = (editorState.selectedEntities && editorState.selectedEntities.length > 0)
+      ? editorState.selectedEntities
+      : (editorState.selectedEntity ? [editorState.selectedEntity] : []);
+    for (let si = 0; si < selList.length; si++) {
+      let selItem = selList[si];
       let live = typeof viewer.map.getEntityTransform === 'function'
-        ? viewer.map.getEntityTransform(editorState.selectedEntity.kind, editorState.selectedEntity.creationNumber)
+        ? viewer.map.getEntityTransform(selItem.kind, selItem.creationNumber)
         : null;
-      let ent = live || editorState.selectedEntity;
+      let ent = live || selItem;
       let rad = Math.max(52, 68 * (ent.scale || 1));
-      let ringColor = (editorState.isDraggingEntity && editorState.placementEval && !editorState.placementEval.valid && !editorState.ignorePathing)
+      let ringColor = (si === 0 && editorState.isDraggingEntity && editorState.placementEval && !editorState.placementEval.valid && !editorState.ignorePathing)
         ? '#FF3B3B'
-        : (ent.kind === 'unit' ? '#33FF55' : '#40D8FF');
-      drawWorldRing(ent.x, ent.y, ent.z || 0, rad, ringColor, 2.5, ent.angle, vp);
+        : (ent.kind === 'unit' ? (si === 0 ? '#33FF55' : '#99FF77') : (si === 0 ? '#40D8FF' : '#8CE8FF'));
+      drawWorldRing(ent.x, ent.y, ent.z || 0, rad, ringColor, si === 0 ? 2.5 : 1.8, ent.angle, vp);
+    }
+
+    // 1b. Marquee Selection Box (Shift+Drag)
+    if (editorState.marquee) {
+      let mx = Math.min(editorState.marquee.startX, editorState.marquee.currX);
+      let my = Math.min(editorState.marquee.startY, editorState.marquee.currY);
+      let mw = Math.abs(editorState.marquee.currX - editorState.marquee.startX);
+      let mh = Math.abs(editorState.marquee.currY - editorState.marquee.startY);
+      if (mw >= 2 && mh >= 2) {
+        overlayCtx.save();
+        overlayCtx.fillStyle = 'rgba(51, 255, 85, 0.14)';
+        overlayCtx.strokeStyle = '#33FF55';
+        overlayCtx.lineWidth = 1.5;
+        overlayCtx.fillRect(mx, my, mw, mh);
+        overlayCtx.strokeRect(mx, my, mw, mh);
+        overlayCtx.restore();
+      }
     }
 
     // 2. Placement ghost circle
@@ -1019,8 +1046,108 @@
     }
   }
 
+  function isEntitySelected(kind, creationNumber) {
+    return editorState.selectedEntities.some(
+      (it) => it && it.kind === kind && it.creationNumber === creationNumber
+    );
+  }
+
+  function setSelectedEntitiesList(list) {
+    editorState.selectedEntities = Array.isArray(list) ? list.filter(Boolean) : [];
+    editorState.selectedEntity = editorState.selectedEntities[0] || null;
+  }
+
+  function applyLiveEntityTransform(kind, creationNumber, opts) {
+    if (!viewer || !viewer.map) return;
+    if (kind === 'unit' && typeof viewer.map.updateLiveUnit === 'function') {
+      viewer.map.updateLiveUnit(creationNumber, opts);
+    } else if (kind === 'doodad' && typeof viewer.map.updateLiveDoodad === 'function') {
+      viewer.map.updateLiveDoodad(creationNumber, opts);
+    }
+  }
+
+  function collectEntitiesInMarquee(minSx, minSy, maxSx, maxSy) {
+    if (!viewer || !viewer.map || !viewer.map.worldScene) return [];
+    let vp = viewer.map.worldScene.camera.viewProjectionMatrix;
+    let out = [];
+    if (layerState.showUnits && Array.isArray(viewer.map.units)) {
+      for (let i = 0; i < viewer.map.units.length; i++) {
+        let u = viewer.map.units[i];
+        if (!u || !u.dooUnit || (u.instance && u.instance.visible === false)) continue;
+        let loc = u.dooUnit.location;
+        let sp = projectWorld(loc[0], loc[1], (loc[2] || 0) + 16, vp);
+        if (sp && sp[0] >= minSx && sp[0] <= maxSx && sp[1] >= minSy && sp[1] <= maxSy) {
+          out.push({
+            kind: 'unit',
+            creationNumber: u.creationNumber,
+            id: u.dooUnit.id,
+            x: loc[0],
+            y: loc[1],
+            z: loc[2] || 0,
+            angle: u.dooUnit.angle || 0,
+            scale: (u.dooUnit.scale && u.dooUnit.scale[0]) || 1,
+            player: u.dooUnit.player || 0
+          });
+          if (out.length >= 400) return out;
+        }
+      }
+    }
+    if (layerState.showDoodads && Array.isArray(viewer.map.doodads)) {
+      for (let i = 0; i < viewer.map.doodads.length; i++) {
+        let d = viewer.map.doodads[i];
+        if (!d || !d.dooDoodad || (d.instance && d.instance.visible === false)) continue;
+        let loc = d.dooDoodad.location;
+        let sp = projectWorld(loc[0], loc[1], (loc[2] || 0) + 16, vp);
+        if (sp && sp[0] >= minSx && sp[0] <= maxSx && sp[1] >= minSy && sp[1] <= maxSy) {
+          out.push({
+            kind: 'doodad',
+            creationNumber: d.creationNumber,
+            id: d.dooDoodad.id,
+            x: loc[0],
+            y: loc[1],
+            z: loc[2] || 0,
+            angle: d.dooDoodad.angle || 0,
+            scale: (d.dooDoodad.scale && d.dooDoodad.scale[0]) || 1,
+            variation: d.dooDoodad.variation || 0,
+            life: typeof d.dooDoodad.life === 'number' ? d.dooDoodad.life : 100
+          });
+          if (out.length >= 400) return out;
+        }
+      }
+    }
+    return out;
+  }
+
+  function postSelectionSync() {
+    if (editorState.selectedEntities.length === 0) {
+      postMsg({ type: 'entity_selected', entity: null });
+    } else if (editorState.selectedEntities.length === 1) {
+      postMsg({ type: 'entity_selected', entity: editorState.selectedEntities[0] });
+    } else {
+      postMsg({
+        type: 'entities_selected',
+        entities: editorState.selectedEntities.map(e => ({ kind: e.kind, creationNumber: e.creationNumber }))
+      });
+    }
+  }
+
   // Mouse camera interactions + Terrain Brush + Unit/Doodad Editing
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  canvas.addEventListener('dblclick', (e) => {
+    if (editorState.mode !== 'select' || e.button !== 0 || !viewer || !viewer.map) return;
+    let target = null;
+    if (typeof viewer.map.pickEntityAtRay === 'function') {
+      let ray = raycastRay(e.clientX, e.clientY);
+      if (ray) target = viewer.map.pickEntityAtRay(ray[0], ray[1]);
+    }
+    if (!target) target = editorState.selectedEntity;
+    if (target) {
+      setSelectedEntitiesList([target]);
+      postSelectionSync();
+      postMsg({ type: 'entity_properties_request', kind: target.kind, creationNumber: target.creationNumber });
+    }
+  });
 
   canvas.addEventListener('mousedown', (e) => {
     e.preventDefault();
@@ -1134,22 +1261,111 @@
       }
     }
 
-    // Select / Drag Move Mode (Units / Doodads)
+    // Ctrl + Left-Click: Interactive Rotate facing cursor for selected or picked entities
+    if (e.ctrlKey && !e.altKey && editorState.mode === 'select' && viewer && viewer.map) {
+      let picked = null;
+      if (typeof viewer.map.pickEntityAtRay === 'function') {
+        let ray = raycastRay(e.clientX, e.clientY);
+        if (ray) picked = viewer.map.pickEntityAtRay(ray[0], ray[1]);
+      }
+      if (picked && !isEntitySelected(picked.kind, picked.creationNumber)) {
+        setSelectedEntitiesList([picked]);
+        postSelectionSync();
+      }
+      if (editorState.selectedEntities.length > 0) {
+        let items = [];
+        for (let se of editorState.selectedEntities) {
+          let live = typeof viewer.map.getEntityTransform === 'function'
+            ? viewer.map.getEntityTransform(se.kind, se.creationNumber)
+            : se;
+          if (!live) continue;
+          items.push({
+            kind: se.kind,
+            creationNumber: se.creationNumber,
+            x: live.x,
+            y: live.y,
+            origAngle: live.angle || 0,
+            angle: live.angle || 0
+          });
+        }
+        if (items.length > 0) {
+          editorState.rotateDrag = { items };
+          return;
+        }
+      }
+    }
+
+    // Select / Shift+Click Toggle / Drag Move Mode (Units / Doodads)
     if (!e.ctrlKey && !e.altKey && viewer && viewer.map && typeof viewer.map.pickEntityAtRay === 'function') {
       let ray = raycastRay(e.clientX, e.clientY);
       if (ray) {
         let picked = viewer.map.pickEntityAtRay(ray[0], ray[1]);
         if (picked) {
-          editorState.selectedEntity = picked;
+          if (e.shiftKey) {
+            let nextList = editorState.selectedEntities.slice();
+            let existingIdx = nextList.findIndex(it => it.kind === picked.kind && it.creationNumber === picked.creationNumber);
+            if (existingIdx >= 0) nextList.splice(existingIdx, 1);
+            else nextList.push(picked);
+            setSelectedEntitiesList(nextList);
+            postSelectionSync();
+            return;
+          }
+
+          if (!isEntitySelected(picked.kind, picked.creationNumber)) {
+            setSelectedEntitiesList([picked]);
+            postSelectionSync();
+          }
+
+          let groupItems = [];
+          let leadIdx = 0;
+          for (let i = 0; i < editorState.selectedEntities.length; i++) {
+            let se = editorState.selectedEntities[i];
+            let live = typeof viewer.map.getEntityTransform === 'function'
+              ? viewer.map.getEntityTransform(se.kind, se.creationNumber)
+              : se;
+            if (!live) continue;
+            if (se.kind === picked.kind && se.creationNumber === picked.creationNumber) {
+              leadIdx = groupItems.length;
+            }
+            groupItems.push({
+              ref: se,
+              kind: se.kind,
+              creationNumber: se.creationNumber,
+              id: se.id,
+              origX: live.x,
+              origY: live.y,
+              origZ: live.z || 0,
+              x: live.x,
+              y: live.y,
+              z: live.z || 0
+            });
+          }
+
+          let lead = groupItems[leadIdx] || groupItems[0];
+          editorState.selectedEntity = editorState.selectedEntities[0] || picked;
           editorState.isDraggingEntity = true;
           editorState.dragMoved = false;
-          editorState.dragOrigPos = { x: picked.x, y: picked.y, z: picked.z || 0 };
-          editorState.dragLastValidPos = { x: picked.x, y: picked.y, z: picked.z || 0 };
+          editorState.dragOrigPos = lead ? { x: lead.origX, y: lead.origY, z: lead.origZ } : { x: picked.x, y: picked.y, z: picked.z || 0 };
+          editorState.dragLastValidPos = { x: editorState.dragOrigPos.x, y: editorState.dragOrigPos.y, z: editorState.dragOrigPos.z };
+          editorState.groupDrag = {
+            leadIndex: leadIdx < groupItems.length ? leadIdx : 0,
+            items: groupItems,
+            lastValidDx: 0,
+            lastValidDy: 0
+          };
           editorState.placementEval = null;
-          postMsg({ type: 'entity_selected', entity: picked });
           return;
         }
       }
+    }
+
+    // Shift + Left-Drag on empty terrain: Marquee Box Selection
+    if (e.shiftKey && !e.ctrlKey && !e.altKey && editorState.mode === 'select') {
+      let rect = canvas.getBoundingClientRect();
+      let sx = e.clientX - rect.left;
+      let sy = e.clientY - rect.top;
+      editorState.marquee = { startX: sx, startY: sy, currX: sx, currY: sy };
+      return;
     }
 
     // Fallback: if Show Regions (R) is visible in normal Select mode, allow selecting/dragging a region on click
@@ -1189,11 +1405,41 @@
       postMsg({ type: 'placement_cancelled' });
     }
 
+    if (e.button === 0 && editorState.marquee) {
+      let m = editorState.marquee;
+      editorState.marquee = null;
+      let minX = Math.min(m.startX, m.currX);
+      let maxX = Math.max(m.startX, m.currX);
+      let minY = Math.min(m.startY, m.currY);
+      let maxY = Math.max(m.startY, m.currY);
+      if (maxX - minX >= 6 && maxY - minY >= 6) {
+        let found = collectEntitiesInMarquee(minX, minY, maxX, maxY);
+        setSelectedEntitiesList(found);
+        postSelectionSync();
+      }
+    }
+
+    if (e.button === 0 && editorState.rotateDrag) {
+      let rot = editorState.rotateDrag;
+      editorState.rotateDrag = null;
+      let changed = rot.items
+        .filter(it => Math.abs(it.angle - it.origAngle) > 0.005)
+        .map(it => ({ kind: it.kind, creationNumber: it.creationNumber, angle: it.angle }));
+      if (changed.length > 0) {
+        for (let ch of changed) {
+          let sel = editorState.selectedEntities.find(s => s.kind === ch.kind && s.creationNumber === ch.creationNumber);
+          if (sel) sel.angle = ch.angle;
+        }
+        postMsg({ type: 'entities_rotated', entities: changed });
+      }
+    }
+
     if (e.button === 0 && cameraState.isRotating &&
         Math.hypot(e.clientX - cameraState.downX, e.clientY - cameraState.downY) < 4 &&
-        !e.ctrlKey && !e.altKey && editorState.selectedEntity) {
-      editorState.selectedEntity = null;
-      postMsg({ type: 'entity_selected', entity: null });
+        !e.ctrlKey && !e.altKey && !e.shiftKey &&
+        (editorState.selectedEntity || editorState.selectedEntities.length > 0)) {
+      setSelectedEntitiesList([]);
+      postSelectionSync();
     }
 
     if (regionState.dragMode === 'create' && regionState.createDraft) {
@@ -1228,33 +1474,30 @@
     regionState.origRect = null;
     regionState.createDraft = null;
 
-    if (editorState.isDraggingEntity && editorState.dragMoved && editorState.selectedEntity) {
-      let ent = editorState.selectedEntity;
-      if (editorState.placementEval && !editorState.placementEval.valid && !editorState.ignorePathing) {
-        let fallback = editorState.dragLastValidPos || editorState.dragOrigPos;
-        if (fallback && viewer && viewer.map) {
-          ent.x = fallback.x;
-          ent.y = fallback.y;
-          ent.z = fallback.z;
-          if (ent.kind === 'unit' && typeof viewer.map.updateLiveUnit === 'function') {
-            viewer.map.updateLiveUnit(ent.creationNumber, { x: fallback.x, y: fallback.y, z: fallback.z });
-          } else if (ent.kind === 'doodad' && typeof viewer.map.updateLiveDoodad === 'function') {
-            viewer.map.updateLiveDoodad(ent.creationNumber, { x: fallback.x, y: fallback.y, z: fallback.z });
-          }
+    if (editorState.isDraggingEntity && editorState.dragMoved && editorState.groupDrag && editorState.groupDrag.items.length > 0) {
+      let gd = editorState.groupDrag;
+      if (editorState.placementEval && !editorState.placementEval.valid && !editorState.ignorePathing && viewer && viewer.map) {
+        let rdx = gd.lastValidDx || 0;
+        let rdy = gd.lastValidDy || 0;
+        for (let it of gd.items) {
+          it.x = it.origX + rdx;
+          it.y = it.origY + rdy;
+          it.z = typeof viewer.map.heightAt === 'function' ? viewer.map.heightAt(it.x, it.y) : it.origZ;
+          if (it.ref) { it.ref.x = it.x; it.ref.y = it.y; it.ref.z = it.z; }
+          applyLiveEntityTransform(it.kind, it.creationNumber, { x: it.x, y: it.y, z: it.z });
         }
       }
-      let orig = editorState.dragOrigPos;
-      if (!orig || Math.abs(ent.x - orig.x) > 0.5 || Math.abs(ent.y - orig.y) > 0.5) {
-        postMsg({
-          type: 'entity_moved',
-          kind: ent.kind,
-          creationNumber: ent.creationNumber,
-          x: ent.x,
-          y: ent.y,
-          z: ent.z
-        });
+      let movedItems = gd.items
+        .filter(it => Math.abs(it.x - it.origX) > 0.5 || Math.abs(it.y - it.origY) > 0.5)
+        .map(it => ({ kind: it.kind, creationNumber: it.creationNumber, x: it.x, y: it.y, z: it.z }));
+      if (movedItems.length === 1) {
+        let m0 = movedItems[0];
+        postMsg({ type: 'entity_moved', kind: m0.kind, creationNumber: m0.creationNumber, x: m0.x, y: m0.y, z: m0.z });
+      } else if (movedItems.length > 1) {
+        postMsg({ type: 'entities_moved', entities: movedItems });
       }
     }
+    editorState.groupDrag = null;
     editorState.dragOrigPos = null;
     editorState.dragLastValidPos = null;
     if (editorState.isDraggingEntity) editorState.placementEval = null;
@@ -1283,12 +1526,62 @@
   });
 
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Delete' && editorState.selectedEntity && editorState.mode === 'select') {
+    if ((e.ctrlKey || e.metaKey) && editorState.mode === 'select') {
+      let lower = (e.key || '').toLowerCase();
+      if (lower === 'c' || lower === 'x' || lower === 'v' || lower === 'd') {
+        e.preventDefault();
+        let wx = null, wy = null;
+        if (editorState.lastClientX !== null && editorState.lastClientY !== null) {
+          let hit = raycastTerrain(editorState.lastClientX, editorState.lastClientY);
+          if (hit) { wx = hit[0]; wy = hit[1]; }
+        }
+        postMsg({
+          type: 'entity_clipboard_request',
+          action: lower === 'c' ? 'copy' : (lower === 'x' ? 'cut' : (lower === 'v' ? 'paste' : 'duplicate')),
+          wx,
+          wy
+        });
+        return;
+      }
+    }
+
+    if (e.key === 'Enter' && editorState.selectedEntity && editorState.mode === 'select') {
+      e.preventDefault();
       postMsg({
-        type: 'entity_delete_request',
+        type: 'entity_properties_request',
         kind: editorState.selectedEntity.kind,
         creationNumber: editorState.selectedEntity.creationNumber
       });
+    } else if ((e.key === '[' || e.key === ']')) {
+      let stepRad = (e.key === '[' ? -15 : 15) * (Math.PI / 180);
+      if ((editorState.mode === 'place_unit' || editorState.mode === 'place_doodad') && editorState.placeSpec) {
+        editorState.placeSpec.angle = ((editorState.placeSpec.angle || 0) + stepRad);
+      } else if (editorState.mode === 'select' && editorState.selectedEntities.length > 0 && viewer && viewer.map) {
+        let changed = [];
+        for (let se of editorState.selectedEntities) {
+          let live = typeof viewer.map.getEntityTransform === 'function'
+            ? viewer.map.getEntityTransform(se.kind, se.creationNumber)
+            : se;
+          let nextAngle = ((live ? live.angle : se.angle) || 0) + stepRad;
+          se.angle = nextAngle;
+          applyLiveEntityTransform(se.kind, se.creationNumber, { angle: nextAngle });
+          changed.push({ kind: se.kind, creationNumber: se.creationNumber, angle: nextAngle });
+        }
+        if (changed.length > 0) postMsg({ type: 'entities_rotated', entities: changed });
+      }
+    } else if (e.key === 'Delete' && editorState.selectedEntities.length > 0 && editorState.mode === 'select') {
+      if (editorState.selectedEntities.length === 1) {
+        postMsg({
+          type: 'entity_delete_request',
+          kind: editorState.selectedEntities[0].kind,
+          creationNumber: editorState.selectedEntities[0].creationNumber
+        });
+      } else {
+        postMsg({
+          type: 'entities_delete_request',
+          entities: editorState.selectedEntities.map(s => ({ kind: s.kind, creationNumber: s.creationNumber }))
+        });
+      }
     } else if (e.key === 'Delete' && regionState.selectedNumber !== null &&
                (editorState.mode === 'select_region' || (editorState.mode === 'select' && !editorState.selectedEntity && layerState.showRegions))) {
       postMsg({
@@ -1306,6 +1599,32 @@
   });
 
   window.addEventListener('mousemove', (e) => {
+    editorState.lastClientX = e.clientX;
+    editorState.lastClientY = e.clientY;
+
+    if (editorState.marquee) {
+      let rect = canvas.getBoundingClientRect();
+      editorState.marquee.currX = e.clientX - rect.left;
+      editorState.marquee.currY = e.clientY - rect.top;
+      return;
+    }
+
+    if (editorState.rotateDrag && editorState.rotateDrag.items.length > 0) {
+      let hit = raycastTerrain(e.clientX, e.clientY);
+      if (hit) {
+        let anchor = editorState.rotateDrag.items[0];
+        let dx = hit[0] - anchor.x;
+        let dy = hit[1] - anchor.y;
+        if (Math.hypot(dx, dy) > 8) {
+          let newAngle = Math.atan2(dy, dx);
+          for (let it of editorState.rotateDrag.items) {
+            it.angle = newAngle;
+            applyLiveEntityTransform(it.kind, it.creationNumber, { angle: newAngle });
+          }
+        }
+      }
+      return;
+    }
     if (regionState.dragMode && !cameraState.isRotating && !cameraState.isPanning) {
       let hit = raycastTerrain(e.clientX, e.clientY);
       if (hit) {
@@ -1371,17 +1690,19 @@
           editorState.hoverWy = hit[1];
         }
       }
-    } else if (editorState.isDraggingEntity && editorState.selectedEntity) {
+    } else if (editorState.isDraggingEntity && editorState.groupDrag && editorState.groupDrag.items.length > 0) {
       if (Math.hypot(e.clientX - cameraState.downX, e.clientY - cameraState.downY) >= 4) {
         let hit = raycastTerrain(e.clientX, e.clientY);
         if (hit && viewer && viewer.map) {
           editorState.dragMoved = true;
+          let gd = editorState.groupDrag;
+          let lead = gd.items[gd.leadIndex] || gd.items[0];
           let tx = hit[0], ty = hit[1], tz = hit[2];
           if (typeof viewer.map.evaluateEntityPlacement === 'function') {
             let evalRes = viewer.map.evaluateEntityPlacement(
-              editorState.selectedEntity.kind,
-              editorState.selectedEntity.id,
-              editorState.selectedEntity.creationNumber,
+              lead.kind,
+              lead.id,
+              lead.creationNumber,
               hit[0],
               hit[1],
               editorState.ignorePathing
@@ -1390,17 +1711,21 @@
             tx = evalRes.x;
             ty = evalRes.y;
             tz = evalRes.z;
-            if (evalRes.valid || editorState.ignorePathing) {
-              editorState.dragLastValidPos = { x: tx, y: ty, z: tz };
-            }
           }
-          editorState.selectedEntity.x = tx;
-          editorState.selectedEntity.y = ty;
-          editorState.selectedEntity.z = tz;
-          if (editorState.selectedEntity.kind === 'unit' && typeof viewer.map.updateLiveUnit === 'function') {
-            viewer.map.updateLiveUnit(editorState.selectedEntity.creationNumber, { x: tx, y: ty, z: tz });
-          } else if (editorState.selectedEntity.kind === 'doodad' && typeof viewer.map.updateLiveDoodad === 'function') {
-            viewer.map.updateLiveDoodad(editorState.selectedEntity.creationNumber, { x: tx, y: ty, z: tz });
+          let dx = tx - lead.origX;
+          let dy = ty - lead.origY;
+          if (!editorState.placementEval || editorState.placementEval.valid || editorState.ignorePathing) {
+            gd.lastValidDx = dx;
+            gd.lastValidDy = dy;
+            editorState.dragLastValidPos = { x: tx, y: ty, z: tz };
+          }
+          let hasHeight = typeof viewer.map.heightAt === 'function';
+          for (let it of gd.items) {
+            it.x = it.origX + dx;
+            it.y = it.origY + dy;
+            it.z = hasHeight ? viewer.map.heightAt(it.x, it.y) : it.origZ;
+            if (it.ref) { it.ref.x = it.x; it.ref.y = it.y; it.ref.z = it.z; }
+            applyLiveEntityTransform(it.kind, it.creationNumber, { x: it.x, y: it.y, z: it.z });
           }
         }
       }
@@ -1581,9 +1906,24 @@
       } else if (data.action === 'select_entity') {
         if (viewer && viewer.map && typeof viewer.map.getEntityTransform === 'function') {
           let ent = viewer.map.getEntityTransform(data.kind, data.creationNumber);
-          editorState.selectedEntity = ent;
+          setSelectedEntitiesList(ent ? [ent] : []);
           if (ent && data.focus) {
             cameraState.target = [ent.x, ent.y, ent.z || 0];
+            if (typeof data.distance === 'number') cameraState.distance = data.distance;
+            updateCamera();
+          }
+        }
+      } else if (data.action === 'select_entities' && Array.isArray(data.entities)) {
+        if (viewer && viewer.map && typeof viewer.map.getEntityTransform === 'function') {
+          let resolved = [];
+          for (let k of data.entities) {
+            let ent = viewer.map.getEntityTransform(k.kind, k.creationNumber);
+            if (ent) resolved.push(ent);
+          }
+          setSelectedEntitiesList(resolved);
+          if (resolved.length > 0 && data.focus) {
+            let first = resolved[0];
+            cameraState.target = [first.x, first.y, first.z || 0];
             if (typeof data.distance === 'number') cameraState.distance = data.distance;
             updateCamera();
           }
@@ -1602,7 +1942,7 @@
           } else if (data.kind === 'doodad' && typeof viewer.map.addLiveDoodad === 'function') {
             viewer.map.addLiveDoodad(data.opts);
           }
-          editorState.selectedEntity = {
+          setSelectedEntitiesList([{
             kind: data.kind,
             creationNumber: data.opts.creationNumber,
             id: data.opts.id,
@@ -1612,7 +1952,7 @@
             angle: data.opts.angle || 0,
             scale: data.opts.scale || 1,
             player: data.opts.player || 0
-          };
+          }]);
           applyLayerVisibility();
         }
       } else if (data.action === 'set_layer_visibility') {
@@ -1692,8 +2032,8 @@
           } else if (data.kind === 'doodad' && typeof viewer.map.removeLiveDoodad === 'function') {
             viewer.map.removeLiveDoodad(data.creationNumber);
           }
-          if (editorState.selectedEntity && editorState.selectedEntity.creationNumber === data.creationNumber) {
-            editorState.selectedEntity = null;
+          if (editorState.selectedEntities.some(s => s.kind === data.kind && s.creationNumber === data.creationNumber)) {
+            setSelectedEntitiesList(editorState.selectedEntities.filter(s => !(s.kind === data.kind && s.creationNumber === data.creationNumber)));
           }
         }
       } else if (data.action === 'patch_w3e_corners' && Array.isArray(data.patches)) {

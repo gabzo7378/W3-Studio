@@ -1071,11 +1071,80 @@ void main() {
     return viewer._w3sExtraBasePromise;
   }
 
+  const UNIT_FUNC_TXT_FILES = [
+    "Units/HumanUnitFunc.txt",
+    "Units/OrcUnitFunc.txt",
+    "Units/UndeadUnitFunc.txt",
+    "Units/NightElfUnitFunc.txt",
+    "Units/NeutralUnitFunc.txt",
+    "Units/CampaignUnitFunc.txt",
+    "Units/ItemFunc.txt"
+  ];
+
+  function mergeUnitFuncIntoTable(table, funcText) {
+    if (!table || !table.map || !funcText || typeof table.constructor !== "function") return;
+    const tmp = new table.constructor();
+    tmp.load(funcText);
+    const lowerToKey = new Map();
+    for (const k of Object.keys(table.map)) {
+      lowerToKey.set(k.toLowerCase(), k);
+    }
+    for (const [secKey, funcRow] of Object.entries(tmp.map || {})) {
+      if (!funcRow || !funcRow.map) continue;
+      const existingKey = lowerToKey.get(secKey.toLowerCase()) || secKey;
+      let dstRow = table.map[existingKey];
+      if (!dstRow) {
+        dstRow = makeClonedRow(null, null);
+        table.map[existingKey] = dstRow;
+        lowerToKey.set(secKey.toLowerCase(), existingKey);
+      }
+      if (funcRow.map.animprops) {
+        dstRow.map.animprops = funcRow.map.animprops;
+      }
+      if (funcRow.map.attachmentanimprops && !dstRow.map.attachmentanimprops) {
+        dstRow.map.attachmentanimprops = funcRow.map.attachmentanimprops;
+      }
+    }
+  }
+
+  function ensureUnitFuncDataLoaded(viewer) {
+    if (!viewer) return Promise.resolve();
+    if (viewer._w3sUnitFuncPromise) return viewer._w3sUnitFuncPromise;
+    viewer._w3sUnitFuncPromise = (async () => {
+      try {
+        const texts = await Promise.all(UNIT_FUNC_TXT_FILES.map(async (rel) => {
+          try {
+            const resp = await fetch("https://w3studio.local/mpq/" + rel);
+            return resp.ok ? await resp.text() : null;
+          } catch {
+            return null;
+          }
+        }));
+        for (const txt of texts) {
+          if (!txt) continue;
+          mergeUnitFuncIntoTable(viewer.unitsData, txt);
+          if (viewer.map && viewer.map.unitsData) {
+            mergeUnitFuncIntoTable(viewer.map.unitsData, txt);
+          }
+        }
+        if (viewer.map && Array.isArray(viewer.map.units)) {
+          for (const u of viewer.map.units) {
+            applyUnitAnimProps(viewer.map, u);
+          }
+        }
+      } catch (err) {
+        console.debug("[W3Studio Fixes] UnitFunc.txt load skipped:", err);
+      }
+    })();
+    return viewer._w3sUnitFuncPromise;
+  }
+
   const origLoadBaseFiles = War3MapViewer.prototype.loadBaseFiles;
   War3MapViewer.prototype.loadBaseFiles = async function () {
     ensureExtraBaseFiles(this);
     const res = await origLoadBaseFiles.apply(this, arguments);
     await ensureExtraBaseFiles(this);
+    await ensureUnitFuncDataLoaded(this);
     upgradeViewerShaders(this);
     installSafeBaseDataWrappers(this);
     return res;
@@ -1797,50 +1866,83 @@ void main() {
     return 0;
   }
 
+  function findClientObjectOverride(overrides, code) {
+    if (!overrides || !code) return null;
+    const lower = String(code).toLowerCase();
+    if (Array.isArray(overrides)) {
+      if (!overrides._byLowerCode) {
+        const m = new Map();
+        for (const item of overrides) {
+          const rc = item && (item.Rawcode || item.rawcode);
+          if (rc) m.set(String(rc).toLowerCase(), item);
+        }
+        overrides._byLowerCode = m;
+      }
+      return overrides._byLowerCode.get(lower) || null;
+    }
+    const dict = overrides.units || overrides.doodads ? (overrides.units?.[code] || overrides.units?.[lower] || overrides.doodads?.[code] || overrides.doodads?.[lower]) : (overrides[code] || overrides[lower]);
+    return dict || null;
+  }
+
   proto.getEntityPathingSpec = function (kind, rawcode) {
     const code = String(rawcode || "").trim();
     const lowerCode = code.toLowerCase();
     const overrides = (this.viewer && this.viewer._w3sObjectOverrides) || window._w3sObjectOverrides || null;
+    const ov = findClientObjectOverride(overrides, code);
 
     if (kind === "doodad") {
-      const ov = overrides && overrides.doodads ? (overrides.doodads[code] || overrides.doodads[lowerCode]) : null;
       const row = getRowCaseInsensitive(this.doodadsData, code);
-      const isDestructible = ov ? !!ov.isDestructible : !!(row && readSlkStr(row, "destructableid"));
-      const walkable = ov && typeof ov.walkable === "boolean"
-        ? ov.walkable
+      const isDestructible = ov ? !!(ov.IsDestructible ?? ov.isDestructible) : !!(row && readSlkStr(row, "destructableid"));
+      const walkable = ov && typeof (ov.Walkable ?? ov.walkable) === "boolean"
+        ? !!(ov.Walkable ?? ov.walkable)
         : !!(row && readSlkNum(row, "walkable") > 0);
-      const pathTex = (ov && ov.pathTex !== undefined ? ov.pathTex : readSlkStr(row, "pathTex", "pathtex")) || "";
+      const pathTex = (ov && (ov.PathTex ?? ov.pathTex) !== undefined ? (ov.PathTex ?? ov.pathTex) : readSlkStr(row, "pathTex", "pathtex")) || "";
       if (pathTex) requestPathTexture(this, pathTex);
       return {
         kind: "doodad",
         rawcode: code,
         isBuilding: false,
+        isItem: false,
+        isLocust: false,
         isDestructible,
         walkable,
         pathTex,
+        collision: 0,
         moveType: "",
         preventPlace: "",
         requirePlace: ""
       };
     }
 
-    const ov = overrides && overrides.units ? (overrides.units[code] || overrides.units[lowerCode]) : null;
     const row = getRowCaseInsensitive(this.unitsData, code);
-    const isBuilding = ov && typeof ov.isBldg === "boolean"
-      ? ov.isBldg
-      : !!(row && (readSlkNum(row, "isbldg", "ubdg") > 0));
-    const pathTex = (ov && ov.pathTex !== undefined ? ov.pathTex : readSlkStr(row, "pathTex", "pathtex")) || "";
-    const moveType = ((ov && ov.moveType !== undefined ? ov.moveType : readSlkStr(row, "movetp", "moveType")) || "").toLowerCase();
-    const preventPlace = ((ov && ov.preventPlace !== undefined ? ov.preventPlace : readSlkStr(row, "preventPlace", "upap")) || "").toLowerCase();
-    const requirePlace = ((ov && ov.requirePlace !== undefined ? ov.requirePlace : readSlkStr(row, "requirePlace", "upar")) || "").toLowerCase();
+    const itemRow = !row && this.itemsData ? getRowCaseInsensitive(this.itemsData, code) : null;
+    const isItem = !!(itemRow || (ov && (ov.IsItem ?? ov.isItem)) || (!row && !ov && lowerCode !== "sloc"));
+    const isBuilding = ov && typeof (ov.IsBuilding ?? ov.isBldg ?? ov.isbldg) === "boolean"
+      ? !!(ov.IsBuilding ?? ov.isBldg ?? ov.isbldg)
+      : (!isItem && !!(row && (readSlkNum(row, "isbldg", "ubdg") > 0)));
+    const pathTex = (ov && (ov.PathTex ?? ov.pathTex) !== undefined ? (ov.PathTex ?? ov.pathTex) : readSlkStr(row, "pathTex", "pathtex")) || "";
+    const moveType = ((ov && (ov.MoveType ?? ov.moveType) !== undefined ? (ov.MoveType ?? ov.moveType) : readSlkStr(row, "movetp", "moveType")) || "").toLowerCase();
+    const preventPlace = ((ov && (ov.PreventPlace ?? ov.preventPlace) !== undefined ? (ov.PreventPlace ?? ov.preventPlace) : readSlkStr(row, "preventPlace", "upap")) || "").toLowerCase();
+    const requirePlace = ((ov && (ov.RequirePlace ?? ov.requirePlace) !== undefined ? (ov.RequirePlace ?? ov.requirePlace) : readSlkStr(row, "requirePlace", "upar")) || "").toLowerCase();
+    const abilStr = (readSlkStr(row, "abilList", "abils") || "").toLowerCase();
+    const isLocust = abilStr.includes("aloc");
+    let collision = ov && typeof (ov.Collision ?? ov.collision) === "number"
+      ? (ov.Collision ?? ov.collision)
+      : readSlkNum(row, "collision", "ucol");
+    if (!isBuilding && !isItem && !isLocust && lowerCode !== "sloc" && (!Number.isFinite(collision) || collision <= 0)) {
+      collision = 16;
+    }
     if (pathTex) requestPathTexture(this, pathTex);
     return {
       kind: "unit",
       rawcode: code,
       isBuilding,
+      isItem,
+      isLocust,
       isDestructible: false,
       walkable: false,
       pathTex,
+      collision: Number.isFinite(collision) ? collision : 0,
       moveType,
       preventPlace,
       requirePlace
@@ -1961,7 +2063,54 @@ void main() {
         return;
       }
       const spec = this.getEntityPathingSpec(kind, rawcode);
-      if (!spec.isBuilding && (!spec.pathTex || spec.walkable)) return;
+      if (spec.isItem || spec.isLocust) return;
+      if (kind === "unit" && !spec.isBuilding && !spec.pathTex && spec.moveType === "fly") return;
+
+      // Mobile non-building units (e.g. creeps, heroes, workers): stamp collision footprint into occupied box
+      // so buildings/trees cannot be dropped on top of units (symmetric pathing).
+      if (kind === "unit" && !spec.isBuilding && !spec.pathTex) {
+        const col = Math.max(12, spec.collision || 16);
+        const effRad = col * 0.85;
+        const uMinGx = Math.max(minGx, Math.floor(((loc[0] - effRad) - ox) / 32));
+        const uMaxGx = Math.min(maxGx, Math.floor(((loc[0] + effRad) - ox) / 32));
+        const uMinGy = Math.max(minGy, Math.floor(((loc[1] - effRad) - oy) / 32));
+        const uMaxGy = Math.min(maxGy, Math.floor(((loc[1] + effRad) - oy) / 32));
+        if (uMaxGx < uMinGx || uMaxGy < uMinGy) return;
+
+        for (let cy = uMinGy; cy <= uMaxGy; cy++) {
+          const cellBottom = oy + cy * 32;
+          const cellTop = cellBottom + 32;
+          const nearY = Math.max(cellBottom, Math.min(loc[1], cellTop));
+          for (let cx = uMinGx; cx <= uMaxGx; cx++) {
+            const cellLeft = ox + cx * 32;
+            const cellRight = cellLeft + 32;
+            const nearX = Math.max(cellLeft, Math.min(loc[0], cellRight));
+            if (Math.hypot(loc[0] - nearX, loc[1] - nearY) <= effRad) {
+              const k = cy * 10000 + cx;
+              occupied.set(k, (occupied.get(k) || 0) | 0x0a);
+            }
+          }
+        }
+        return;
+      }
+
+      if (kind === "doodad" && !spec.pathTex) {
+        if (!spec.isDestructible || spec.walkable) return;
+        const dGx = Math.round(((loc[0] - ox) - 32) / 32);
+        const dGy = Math.round(((loc[1] - oy) - 32) / 32);
+        for (let py = 0; py < 2; py++) {
+          const cy = dGy + py;
+          if (cy < minGy || cy > maxGy) continue;
+          for (let px = 0; px < 2; px++) {
+            const cx = dGx + px;
+            if (cx < minGx || cx > maxGx) continue;
+            const k = cy * 10000 + cx;
+            occupied.set(k, (occupied.get(k) || 0) | 0x0a);
+          }
+        }
+        return;
+      }
+
       let grid = spec.pathTex ? requestPathTexture(this, spec.pathTex) : null;
       const pw = grid ? grid.w : (spec.isBuilding ? 4 : 0);
       const ph = grid ? grid.h : (spec.isBuilding ? 4 : 0);
@@ -1977,7 +2126,8 @@ void main() {
         for (let px = 0; px < pw; px++) {
           const cx = gx + px;
           if (cx < minGx || cx > maxGx) continue;
-          const m = grid ? (grid.cells[py * pw + px] & 0x0e) : 0x0a;
+          let m = grid ? (grid.cells[py * pw + px] & 0x0e) : 0x0a;
+          if (spec.walkable) m &= 0x08; // walkable bridges/ramps block buildings (0x08), not walking units
           if (m === 0) continue;
           const k = cy * 10000 + cx;
           occupied.set(k, (occupied.get(k) || 0) | m);
@@ -2051,11 +2201,13 @@ void main() {
             }
             if ((occFlag & 0x0a) !== 0) blocked = true;
           } else if (snap.pw > 0 && !spec.walkable) {
-            if ((tFlag & 0x02) || (occFlag & 0x02)) blocked = true;
+            if ((tFlag & 0x02) || (occFlag & 0x0a)) blocked = true;
           } else if (isFlyer) {
             if ((tFlag & 0x04) || (occFlag & 0x04)) blocked = true;
           } else if (isAmph) {
             if (((tFlag & 0x02) && (occFlag & 0x02)) || (occFlag & 0x02)) blocked = true;
+          } else if (spec.isItem || spec.isLocust) {
+            if ((tFlag & 0x02) || (occFlag & 0x02)) blocked = true;
           } else {
             if ((tFlag & 0x02) || (occFlag & 0x02)) blocked = true;
           }
@@ -2063,6 +2215,26 @@ void main() {
 
         if (blocked) valid = false;
         cells.push({ cx, cy, blocked, mask });
+      }
+    }
+
+    // Additional symmetric unit-vs-unit / unit-vs-building circle collision check for mobile units (snap.pw === 0)
+    if (!ignorePathing && kind === "unit" && !spec.isBuilding && snap.pw === 0 && !spec.isItem && !spec.isLocust && spec.rawcode !== "sloc" && Array.isArray(this.units)) {
+      const myCol = Math.max(12, spec.collision || 16);
+      for (const u of this.units) {
+        if (!u || !u.dooUnit || !u.dooUnit.id || u.dooUnit.id === "sloc") continue;
+        if (excludeCreationNumber !== null && excludeCreationNumber !== undefined && u.creationNumber === excludeCreationNumber) continue;
+        const uSpec = this.getEntityPathingSpec("unit", u.dooUnit.id);
+        if (uSpec.isBuilding || uSpec.isItem || uSpec.isLocust) continue;
+        const uIsFlyer = uSpec.moveType === "fly";
+        if (isFlyer !== uIsFlyer) continue;
+        const uLoc = u.dooUnit.location;
+        const otherCol = Math.max(12, uSpec.collision || 16);
+        if (Math.hypot(uLoc[0] - snap.x, uLoc[1] - snap.y) < (myCol + otherCol) * 0.78) {
+          valid = false;
+          if (cells.length > 0) cells[0].blocked = true;
+          break;
+        }
       }
     }
 
@@ -2410,6 +2582,111 @@ void main() {
     };
   }
 
+  const EXTRA_ANIM_MODIFIER_TAGS = new Set([
+    "upgrade", "alternate", "swim", "work", "channel", "gold", "lumber",
+    "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"
+  ]);
+  const EXCLUDED_STAND_TAGS = new Set(["portrait", "birth", "death", "decay"]);
+
+  function pickRequiredStandSequenceIndex(sequences, requiredProps) {
+    if (!Array.isArray(sequences) || sequences.length === 0 || !Array.isArray(requiredProps) || requiredProps.length === 0) {
+      return -1;
+    }
+    const reqSet = new Set(requiredProps);
+    const parsed = sequences.map((seq, index) => {
+      const toks = String(seq && seq.name || "")
+        .toLowerCase()
+        .replace(/[^a-z\s]/g, " ")
+        .split(/\s+/)
+        .filter(Boolean);
+      return { seq, index, toks };
+    });
+
+    const isAllowed = (item) => !item.toks.some((t) => EXCLUDED_STAND_TAGS.has(t));
+    const hasAllRequired = (item) => requiredProps.every((p) => item.toks.includes(p));
+    const hasExtraModifiers = (item) => item.toks.some((t) => EXTRA_ANIM_MODIFIER_TAGS.has(t) && !reqSet.has(t));
+
+    // Tier 1: "stand ..." matching all requiredAnimProps with NO unrequested tier/upgrade/form modifier tags
+    let candidates = parsed.filter((x) => x.toks[0] === "stand" && isAllowed(x) && hasAllRequired(x) && !hasExtraModifiers(x));
+    // Tier 2: any "stand ..." matching all requiredAnimProps
+    if (candidates.length === 0) {
+      candidates = parsed.filter((x) => x.toks[0] === "stand" && isAllowed(x) && hasAllRequired(x));
+    }
+    // Tier 3: any non-portrait/birth/death/decay sequence matching all requiredAnimProps
+    if (candidates.length === 0) {
+      candidates = parsed.filter((x) => isAllowed(x) && hasAllRequired(x));
+    }
+    if (candidates.length === 0) return -1;
+
+    candidates.sort((a, b) => (a.seq.rarity || 0) - (b.seq.rarity || 0));
+    let nonRareCount = 0;
+    while (nonRareCount < candidates.length && (candidates[nonRareCount].seq.rarity || 0) === 0) {
+      nonRareCount++;
+    }
+    for (let i = nonRareCount; i < candidates.length; i++) {
+      if (10 * Math.random() > (candidates[i].seq.rarity || 0)) {
+        return candidates[i].index;
+      }
+    }
+    const pool = nonRareCount > 0 ? nonRareCount : candidates.length;
+    return candidates[Math.floor(Math.random() * pool)].index;
+  }
+
+  function applyUnitAnimProps(map, unitObj) {
+    if (!map || !unitObj || !unitObj.dooUnit) return;
+    const rawcode = String(unitObj.dooUnit.id || "").trim();
+    const overrides = (map.viewer && map.viewer._w3sObjectOverrides) || window._w3sObjectOverrides || null;
+    const ov = findClientObjectOverride(overrides, rawcode);
+    const ovAnim = ov && (ov.AnimProps ?? ov.animProps);
+
+    let rawAnimStr = "";
+    if (typeof ovAnim === "string" && ovAnim.trim().length > 0 && ovAnim.trim() !== "_") {
+      rawAnimStr = ovAnim;
+    } else {
+      const row = getRowCaseInsensitive(map.unitsData, rawcode);
+      const rowAnim = row && typeof row.string === "function" ? row.string("animProps") : "";
+      if (rowAnim && rowAnim.trim() !== "_") {
+        rawAnimStr = rowAnim;
+      }
+    }
+
+    const nextProps = rawAnimStr
+      ? rawAnimStr.split(",").map((s) => s.trim().toLowerCase()).filter((s) => s.length > 0 && s !== "_")
+      : [];
+
+    const prevKey = Array.isArray(unitObj.requiredAnimProps) ? unitObj.requiredAnimProps.join(",") : "";
+    const nextKey = nextProps.join(",");
+    if (nextKey !== prevKey) {
+      unitObj.requiredAnimProps = nextProps;
+      if (unitObj.instance && typeof unitObj.instance.setSequence === "function") {
+        try { unitObj.instance.setSequence(-1); } catch {}
+      }
+    }
+
+    if (!unitObj._w3sAnimUpdateHooked && typeof unitObj.update === "function") {
+      unitObj._w3sAnimUpdateHooked = true;
+      const origUnitUpdate = unitObj.update.bind(unitObj);
+      unitObj.update = function () {
+        if (
+          this.state === 0 &&
+          this.instance &&
+          (this.instance.sequenceEnded || this.instance.sequence === -1) &&
+          Array.isArray(this.requiredAnimProps) &&
+          this.requiredAnimProps.length > 0 &&
+          this.instance.model &&
+          Array.isArray(this.instance.model.sequences)
+        ) {
+          const seqIdx = pickRequiredStandSequenceIndex(this.instance.model.sequences, this.requiredAnimProps);
+          if (seqIdx >= 0) {
+            this.instance.setSequence(seqIdx);
+            return;
+          }
+        }
+        return origUnitUpdate();
+      };
+    }
+  }
+
   const origLoadUnits = proto.loadUnitsAndItems;
   proto.loadUnitsAndItems = function () {
     if (!this._w3sUnitsHooked && Array.isArray(this.units)) {
@@ -2418,6 +2695,7 @@ void main() {
       const origPush = this.units.push.bind(this.units);
       this.units.push = function (...items) {
         for (const item of items) {
+          applyUnitAnimProps(self, item);
           addUnitUberSplat(self, item);
         }
         return origPush(...items);
@@ -2663,6 +2941,13 @@ void main() {
 
   const origUpdate = proto.update;
   proto.update = function () {
+    const curOverrides = (this.viewer && this.viewer._w3sObjectOverrides) || window._w3sObjectOverrides || null;
+    if (this._w3sLastAnimOverridesRef !== curOverrides && Array.isArray(this.units)) {
+      this._w3sLastAnimOverridesRef = curOverrides;
+      for (const u of this.units) {
+        applyUnitAnimProps(this, u);
+      }
+    }
     origUpdate.apply(this, arguments);
     if (this.anyReady && this._waterUvOffset && this._waterScrollRate) {
       this._waterUvOffset[0] = (this._waterUvOffset[0] + this._waterScrollRate[0] * (1 / 60)) % 1.0;

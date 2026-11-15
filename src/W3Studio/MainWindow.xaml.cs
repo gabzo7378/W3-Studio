@@ -905,6 +905,12 @@ public partial class MainWindow : Window
         }
 
         SyncTerrainBrushToViewport();
+        CancelPaletteIconHydration();
+
+        bool useUnitIconGrid = mode == 0 && CmbPaletteSource?.SelectedIndex == 1 && _currentProject != null;
+        if (PnlUnitCatalogFilters != null)
+            PnlUnitCatalogFilters.Visibility = (mode == 0 && CmbPaletteSource?.SelectedIndex == 1) ? Visibility.Visible : Visibility.Collapsed;
+        ApplyToolPaletteLayoutMode(useUnitIconGrid);
 
         if (_currentProject == null)
         {
@@ -918,7 +924,11 @@ public partial class MainWindow : Window
         {
             if (CmbPaletteSource?.SelectedIndex == 1)
             {
-                LstToolPalette.ItemsSource = BuildPlacementCatalog(isDoodadMode: false, q);
+                var raceFilter = (CmbUnitRaceFilter?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "all";
+                var typeFilter = (CmbUnitTypeFilter?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "all";
+                var catalog = BuildPlacementCatalog(isDoodadMode: false, q, raceFilter, typeFilter);
+                LstToolPalette.ItemsSource = catalog;
+                HydratePaletteIconsAsync(catalog);
             }
             else
             {
@@ -1286,13 +1296,49 @@ public partial class MainWindow : Window
             TxtStatusBarLeft.Text = $"Rehecho: {desc}";
     }
 
+    private void ApplyToolPaletteLayoutMode(bool useUnitIconGrid)
+    {
+        if (LstToolPalette == null) return;
+
+        if (useUnitIconGrid)
+        {
+            ScrollViewer.SetHorizontalScrollBarVisibility(LstToolPalette, ScrollBarVisibility.Disabled);
+            LstToolPalette.ItemsPanel = (ItemsPanelTemplate)LstToolPalette.FindResource("PaletteIconWrapPanel");
+            LstToolPalette.ItemTemplate = (DataTemplate)LstToolPalette.FindResource("PaletteUnitIconTemplate");
+            LstToolPalette.ItemContainerStyle = (Style)LstToolPalette.FindResource("PaletteIconItemContainerStyle");
+        }
+        else
+        {
+            ScrollViewer.SetHorizontalScrollBarVisibility(LstToolPalette, ScrollBarVisibility.Auto);
+            LstToolPalette.ItemsPanel = (ItemsPanelTemplate)LstToolPalette.FindResource("PaletteTextPanel");
+            LstToolPalette.ItemTemplate = (DataTemplate)LstToolPalette.FindResource("PaletteTextItemTemplate");
+            LstToolPalette.ItemContainerStyle = null;
+        }
+    }
+
     private void CmbPaletteMode_SelectionChanged(object sender, SelectionChangedEventArgs e) => RefreshToolPaletteList();
     private void TxtPaletteFilter_TextChanged(object sender, TextChangedEventArgs e) => RefreshToolPaletteList();
+
+    private void LstToolPalette_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (LstToolPalette.SelectedItem is CatalogPaletteItem &&
+            TglModePlace != null && TglModePlace.IsChecked != true)
+        {
+            _suppressPaletteModeEvents = true;
+            TglModePlace.IsChecked = true;
+            if (TglModeSelect != null) TglModeSelect.IsChecked = false;
+            _suppressPaletteModeEvents = false;
+            Sync3DEditorMode();
+        }
+    }
 
     private void LstToolPalette_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (LstToolPalette.SelectedItem == null)
+        {
+            Sync3DEditorMode();
             return;
+        }
 
         if (LstToolPalette.SelectedItem is CatalogPaletteItem)
         {
@@ -2221,12 +2267,16 @@ endlibrary
                 }
             }
 
-            // 2. Ejecutar compilación y validación del script
+            // 2. Sincronizar cambios del mundo (escenario/unidades/regiones) al script antes de compilar
+            // para que los triggers referencien variables generadas y el código fuente conserve los cambios tras guardar.
+            _mapMpqService.SyncWorldEditsToScript(_currentProject);
+
+            // 3. Ejecutar compilación y validación del script
             progressWin?.UpdateProgress(28, "Compilando y validando código JASS / vJASS (JassHelper / PJass)...");
             await Task.Yield();
 
-            var currentScript = _currentProject.RawMapScript;
-            var compileRes = await _compilerService.ValidateAndCompileAsync(currentScript, _settings, _currentProject.FileName);
+            var sourceScriptBeforeCompile = _currentProject.RawMapScript;
+            var compileRes = await _compilerService.ValidateAndCompileAsync(sourceScriptBeforeCompile, _settings, _currentProject.FileName);
 
             _diagnostics.Clear();
             foreach (var d in compileRes.Diagnostics)
@@ -2270,6 +2320,8 @@ endlibrary
             }
 
             // 3. Compilación limpia: guardar archivo MPQ
+            bool hadCompiledScriptDiff = !string.IsNullOrWhiteSpace(compileRes.CompiledScript) &&
+                                         !string.Equals(compileRes.CompiledScript, sourceScriptBeforeCompile, StringComparison.Ordinal);
             if (!string.IsNullOrWhiteSpace(compileRes.CompiledScript))
             {
                 _currentProject.RawMapScript = compileRes.CompiledScript;
@@ -2281,7 +2333,19 @@ endlibrary
             {
                 progressWin?.UpdateProgress(pct, msg);
             }));
-            _currentProject.RawMapScript = currentScript;
+
+            // Solo restaurar el script fuente sin compilar si JassHelper generó un script compilado distinto
+            // (p.ej. vJass); sourceScriptBeforeCompile ya incluye las entidades/regiones/escenario sincronizados.
+            if (hadCompiledScriptDiff)
+            {
+                _currentProject.RawMapScript = sourceScriptBeforeCompile;
+            }
+
+            var rootScriptNode = _currentProject.AllTriggerNodes.FirstOrDefault(n => n.Kind == TriggerNodeKind.RootScript);
+            if (rootScriptNode != null)
+            {
+                rootScriptNode.Code = _currentProject.RawMapScript;
+            }
             sw.Stop();
 
             progressWin?.UpdateProgress(100, "Mapa guardado con éxito.");
@@ -2613,6 +2677,21 @@ endlibrary
             else if (e.Key == Key.U) { MenuToggleUnits_Click(sender, e); e.Handled = true; }
             else if (e.Key == Key.D) { MenuToggleDoodads_Click(sender, e); e.Handled = true; }
             else if (e.Key == Key.R) { MenuToggleRegions_Click(sender, e); e.Handled = true; }
+            else if (e.Key == Key.Enter && _activeSelectedEntity != null)
+            {
+                OpenSelectedEntityPropertiesDialog();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Delete && _selectedEntities.Count > 0)
+            {
+                DeleteEntitiesSelection(_selectedEntities);
+                e.Handled = true;
+            }
+            else if ((e.Key == Key.OemOpenBrackets || e.Key == Key.OemCloseBrackets) && _selectedEntities.Count > 0)
+            {
+                RotateEntitiesSelection(e.Key == Key.OemOpenBrackets ? -15.0 : 15.0);
+                e.Handled = true;
+            }
         }
         else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.B)
         {
@@ -2622,6 +2701,13 @@ endlibrary
         else if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.F)
         {
             BtnFocusGlobalSearch_Click(sender, e);
+            e.Handled = true;
+        }
+        else if (Keyboard.Modifiers == ModifierKeys.Control && TabMapViewport.IsSelected && !IsTextInputFocused() &&
+                 (e.Key == Key.C || e.Key == Key.X || e.Key == Key.V || e.Key == Key.D))
+        {
+            string act = e.Key == Key.C ? "copy" : e.Key == Key.X ? "cut" : e.Key == Key.V ? "paste" : "duplicate";
+            HandleEntityClipboardAction(act, null, null);
             e.Handled = true;
         }
     }

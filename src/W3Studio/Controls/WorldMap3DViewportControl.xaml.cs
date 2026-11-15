@@ -27,9 +27,15 @@ public partial class WorldMap3DViewportControl : UserControl
     public event Action<float, float, bool>? TerrainBrushDabReceived;
     public event Action? TerrainBrushStrokeEnded;
     public event Action<string?, int>? EntitySelected;
+    public event Action<IReadOnlyList<ViewportEntityKey>>? EntitiesSelected;
+    public event Action<string, int>? EntityPropertiesRequested;
     public event Action<string, int, float, float, float>? EntityMoved;
+    public event Action<IReadOnlyList<ViewportEntityMoveItem>>? EntitiesMoved;
+    public event Action<IReadOnlyList<ViewportEntityRotateItem>>? EntitiesRotated;
     public event Action<string, string, float, float, float, float, float, int, int>? EntityPlaceRequested;
     public event Action<string, int>? EntityDeleteRequested;
+    public event Action<IReadOnlyList<ViewportEntityKey>>? EntitiesDeleteRequested;
+    public event Action<string, float?, float?>? EntityClipboardRequested;
     public event Action<int>? RegionSelected;
     public event Action<int, float, float, float, float>? RegionUpdated;
     public event Action<float, float, float, float>? RegionCreateRequested;
@@ -378,6 +384,67 @@ public partial class WorldMap3DViewportControl : UserControl
                 int cnum = root.GetProperty("creationNumber").GetInt32();
                 EntityDeleteRequested?.Invoke(kind, cnum);
             }
+            else if (msgType == "entities_selected" && root.TryGetProperty("entities", out var selArr) && selArr.ValueKind == JsonValueKind.Array)
+            {
+                var keys = new List<ViewportEntityKey>();
+                foreach (var item in selArr.EnumerateArray())
+                {
+                    var k = item.GetProperty("kind").GetString() ?? "unit";
+                    int cn = item.GetProperty("creationNumber").GetInt32();
+                    keys.Add(new ViewportEntityKey(k, cn));
+                }
+                EntitiesSelected?.Invoke(keys);
+            }
+            else if (msgType == "entity_properties_request")
+            {
+                var kind = root.GetProperty("kind").GetString() ?? "unit";
+                int cnum = root.GetProperty("creationNumber").GetInt32();
+                EntityPropertiesRequested?.Invoke(kind, cnum);
+            }
+            else if (msgType == "entities_moved" && root.TryGetProperty("entities", out var mvArr) && mvArr.ValueKind == JsonValueKind.Array)
+            {
+                var items = new List<ViewportEntityMoveItem>();
+                foreach (var item in mvArr.EnumerateArray())
+                {
+                    items.Add(new ViewportEntityMoveItem(
+                        item.GetProperty("kind").GetString() ?? "unit",
+                        item.GetProperty("creationNumber").GetInt32(),
+                        (float)item.GetProperty("x").GetDouble(),
+                        (float)item.GetProperty("y").GetDouble(),
+                        (float)item.GetProperty("z").GetDouble()));
+                }
+                if (items.Count > 0) EntitiesMoved?.Invoke(items);
+            }
+            else if (msgType == "entities_rotated" && root.TryGetProperty("entities", out var rotArr) && rotArr.ValueKind == JsonValueKind.Array)
+            {
+                var items = new List<ViewportEntityRotateItem>();
+                foreach (var item in rotArr.EnumerateArray())
+                {
+                    items.Add(new ViewportEntityRotateItem(
+                        item.GetProperty("kind").GetString() ?? "unit",
+                        item.GetProperty("creationNumber").GetInt32(),
+                        (float)item.GetProperty("angle").GetDouble()));
+                }
+                if (items.Count > 0) EntitiesRotated?.Invoke(items);
+            }
+            else if (msgType == "entities_delete_request" && root.TryGetProperty("entities", out var delArr) && delArr.ValueKind == JsonValueKind.Array)
+            {
+                var keys = new List<ViewportEntityKey>();
+                foreach (var item in delArr.EnumerateArray())
+                {
+                    keys.Add(new ViewportEntityKey(
+                        item.GetProperty("kind").GetString() ?? "unit",
+                        item.GetProperty("creationNumber").GetInt32()));
+                }
+                if (keys.Count > 0) EntitiesDeleteRequested?.Invoke(keys);
+            }
+            else if (msgType == "entity_clipboard_request")
+            {
+                var action = root.GetProperty("action").GetString() ?? string.Empty;
+                float? wx = root.TryGetProperty("wx", out var wxEl) && wxEl.ValueKind == JsonValueKind.Number ? (float)wxEl.GetDouble() : null;
+                float? wy = root.TryGetProperty("wy", out var wyEl) && wyEl.ValueKind == JsonValueKind.Number ? (float)wyEl.GetDouble() : null;
+                EntityClipboardRequested?.Invoke(action, wx, wy);
+            }
             else if (msgType == "placement_cancelled")
             {
                 PlacementCancelled?.Invoke();
@@ -549,6 +616,14 @@ public partial class WorldMap3DViewportControl : UserControl
         WvMap.CoreWebView2.PostWebMessageAsJson(json);
     }
 
+    public void SelectEntities(IEnumerable<ViewportEntityKey> entities, bool focus = false, float distance = 1650f)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
+        var payload = entities.Select(e => new { kind = e.Kind, creationNumber = e.CreationNumber }).ToArray();
+        var json = JsonSerializer.Serialize(new { action = "select_entities", entities = payload, focus, distance });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
     public void FocusWorldPoint(float x, float y, float distance = 1650f)
     {
         if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
@@ -667,3 +742,7 @@ public partial class WorldMap3DViewportControl : UserControl
         return tcs.Task.IsCompleted ? await tcs.Task : null;
     }
 }
+
+public sealed record ViewportEntityKey(string Kind, int CreationNumber);
+public sealed record ViewportEntityMoveItem(string Kind, int CreationNumber, float X, float Y, float Z);
+public sealed record ViewportEntityRotateItem(string Kind, int CreationNumber, float AngleRadians);
