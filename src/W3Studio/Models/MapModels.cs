@@ -669,7 +669,9 @@ public class W3TerrainData
     public byte[,]? CliffLevels { get; set; }
     public bool[,]? WaterFlags { get; set; }
     public bool[,]? RampFlags { get; set; }
+    public bool[,]? BoundaryFlags { get; set; }
     public byte[]? RawW3eBytes { get; set; }
+    public byte[]? InitialWpmBytes { get; set; }
 
     public byte[]? MinimapTgaBytes { get; set; }
 
@@ -1167,6 +1169,8 @@ public class MapProject : ObservableObject
     public bool HasRegionEdits { get; set; }
     public bool HasCameraEdits { get; set; }
 
+    public List<InitialEntityPathingSnapshot> InitialPathingFootprints { get; } = new();
+
     public bool HasUnsavedChanges =>
         HasTerrainEdits ||
         HasScenarioEdits ||
@@ -1200,4 +1204,15 @@ public class MapProject : ObservableObject
         }
         return input;
     }
+}
+
+public sealed class InitialEntityPathingSnapshot
+{
+    public string Rawcode { get; init; } = string.Empty;
+    public bool IsDoodad { get; init; }
+    public bool IsBuilding { get; init; }
+    public bool IsDead { get; init; }
+    public float X { get; init; }
+    public float Y { get; init; }
+    public string PathTexture { get; init; } = string.Empty;
 }

@@ -545,10 +545,15 @@ public partial class IconManagerWindow : Window
         TxtStatus.Text = $"Exportado a disco: {dlg.FileName}";
     }
 
+    internal Action? EmbeddedCloseHandler { get; set; }
+
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Escape)
-            Close();
+        {
+            if (EmbeddedCloseHandler != null) EmbeddedCloseHandler();
+            else Close();
+        }
     }
 }
 

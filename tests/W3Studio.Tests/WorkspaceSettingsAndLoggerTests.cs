@@ -122,4 +122,18 @@ public class WorkspaceSettingsAndLoggerTests : IDisposable
         Assert.Contains("[ERROR] [UnitTest] Simulated failure", content);
         Assert.Contains("InvalidOperationException: Boom", content);
     }
+
+    [Fact]
+    public void OpenModulesInSeparateWindows_DefaultsToTrueAndRoundtripsFalse()
+    {
+        var defaults = new WorkspaceSettings();
+        Assert.True(defaults.OpenModulesInSeparateWindows);
+
+        var path = Path.Combine(_tempDir, "window_mode_settings.json");
+        defaults.OpenModulesInSeparateWindows = false;
+        defaults.Save(path);
+
+        var loaded = WorkspaceSettings.Load(path);
+        Assert.False(loaded.OpenModulesInSeparateWindows);
+    }
 }

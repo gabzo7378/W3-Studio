@@ -35,6 +35,8 @@ public class WorkspaceSettings
     public bool ShowInternalMapFilesInImports { get; set; } = false;
     public bool ShowCompiledScriptInTriggers { get; set; } = false;
     public string AdditionalLaunchArgs { get; set; } = string.Empty;
+    public bool OpenModulesInSeparateWindows { get; set; } = true;
+    public bool IgnoreEntityPathing { get; set; } = false;
 
     public void AddRecentMap(string filePath)
     {

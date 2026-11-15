@@ -172,48 +172,36 @@
     }
   }
 
-  function applyBoundaryToShadowMap(map) {
-    try {
-      if (!map || !map.viewer || !map.viewer.gl || !map.corners || !map.columns || !map.rows) return;
+  function ensureLiveShadowWorkBuf(map) {
+    if (!map || !map.columns || !map.rows) return null;
+    const shdW = (map.columns | 0) * 4;
+    const shdH = (map.rows | 0) * 4;
+    if (shdW <= 0 || shdH <= 0) return null;
+    if (map._w3sShadowWorkBuf && map._w3sShadowWorkBuf.length === shdW * shdH) {
+      return map._w3sShadowWorkBuf;
+    }
+
+    let buf = null;
+    const shdFile = map.map && map.map.get("war3map.shd");
+    if (shdFile) {
+      try {
+        const sb = shdFile.bytes();
+        if (sb && sb.length >= shdW * shdH) {
+          buf = typeof map.softenShadowMap === "function"
+            ? new Uint8Array(map.softenShadowMap(sb, shdW, shdH))
+            : new Uint8Array(sb.subarray(0, shdW * shdH));
+        }
+      } catch {
+        buf = null;
+      }
+    }
+    if (!buf) {
+      buf = new Uint8Array(shdW * shdH);
+    }
+
+    if (map.corners) {
       const cols = map.columns | 0;
       const rows = map.rows | 0;
-      if (cols <= 0 || rows <= 0) return;
-
-      let hasBoundary = false;
-      for (let y = 0; y <= rows && !hasBoundary; y++) {
-        const row = map.corners[y];
-        if (!row) continue;
-        for (let x = 0; x <= cols; x++) {
-          const c = row[x];
-          if (c && (c.boundary || c.mapEdge)) {
-            hasBoundary = true;
-            break;
-          }
-        }
-      }
-      if (!hasBoundary) return;
-
-      const shdW = cols * 4;
-      const shdH = rows * 4;
-      let buf = null;
-
-      const shdFile = map.map && map.map.get("war3map.shd");
-      if (shdFile) {
-        try {
-          const sb = shdFile.bytes();
-          if (sb && sb.length >= shdW * shdH) {
-            buf = typeof map.softenShadowMap === "function"
-              ? new Uint8Array(map.softenShadowMap(sb, shdW, shdH))
-              : new Uint8Array(sb.subarray(0, shdW * shdH));
-          }
-        } catch {
-          buf = null;
-        }
-      }
-      if (!buf) {
-        buf = new Uint8Array(shdW * shdH);
-      }
-
       for (let y = 0; y < rows; y++) {
         const row0 = map.corners[y];
         const row1 = map.corners[y + 1];
@@ -231,26 +219,62 @@
             for (let sx = 0; sx < 4; sx++) {
               const fx = sx >= 2;
               const cornerFlag = fy ? (fx ? b11 : b01) : (fx ? b10 : b00);
-              if (cornerFlag) {
-                const idx = (y * 4 + sy) * shdW + (x * 4 + sx);
-                if (buf[idx] < 228) buf[idx] = 228;
+              if (cornerFlag && buf[(y * 4 + sy) * shdW + (x * 4 + sx)] < 228) {
+                buf[(y * 4 + sy) * shdW + (x * 4 + sx)] = 228;
               }
             }
           }
         }
       }
+    }
 
-      const gl = map.viewer.gl;
-      if (!map.shadowMap) {
-        map.shadowMap = gl.createTexture();
+    map._w3sShadowWorkBuf = buf;
+    return buf;
+  }
+
+  function uploadShadowWorkBuf(map) {
+    if (!map || !map.viewer || !map.viewer.gl || !map._w3sShadowWorkBuf) return;
+    const gl = map.viewer.gl;
+    const shdW = (map.columns | 0) * 4;
+    const shdH = (map.rows | 0) * 4;
+    if (shdW <= 0 || shdH <= 0) return;
+    if (!map.shadowMap) {
+      map.shadowMap = gl.createTexture();
+    }
+    gl.bindTexture(gl.TEXTURE_2D, map.shadowMap);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.ALPHA, shdW, shdH, 0, gl.ALPHA, gl.UNSIGNED_BYTE, map._w3sShadowWorkBuf);
+    map.hasStaticShadowMap = true;
+  }
+
+  function applyBoundaryToShadowMap(map) {
+    try {
+      if (!map || !map.viewer || !map.viewer.gl || !map.corners || !map.columns || !map.rows) return;
+      const cols = map.columns | 0;
+      const rows = map.rows | 0;
+      if (cols <= 0 || rows <= 0) return;
+
+      ensureLiveShadowWorkBuf(map);
+
+      let hasBoundary = false;
+      for (let y = 0; y <= rows && !hasBoundary; y++) {
+        const row = map.corners[y];
+        if (!row) continue;
+        for (let x = 0; x <= cols; x++) {
+          const c = row[x];
+          if (c && (c.boundary || c.mapEdge)) {
+            hasBoundary = true;
+            break;
+          }
+        }
       }
-      gl.bindTexture(gl.TEXTURE_2D, map.shadowMap);
-      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.ALPHA, shdW, shdH, 0, gl.ALPHA, gl.UNSIGNED_BYTE, buf);
+      if (!hasBoundary) return;
+
+      uploadShadowWorkBuf(map);
     } catch (err) {
       console.debug("[W3Studio Fixes] Boundary shadow mask skipped:", err);
     }
@@ -1631,25 +1655,521 @@ void main() {
     gl.depthMask(true);
   };
 
-  // 4e2. Building UberSplats (Splats\UberSplatData.slk draped over heightMap)
+  // =========================================================================
+  // 4e2. Live Entity UberSplats, ShadowMap Updates, and WC3 Pathing / Grid Snap
+  // =========================================================================
+  const PATH_TEX_CACHE = new Map();
+  const PATH_TEX_PENDING = new Map();
+
+  function normalizePathTexPath(raw) {
+    if (typeof raw !== "string") return "";
+    let p = raw.trim();
+    if (!p || p === "_" || p === "0" || /^none$/i.test(p) || /^null$/i.test(p)) return "";
+    p = p.replace(/\.tga\.blp$/i, ".tga").replace(/\.blp$/i, ".tga");
+    if (!/\.[a-z0-9]{2,4}$/i.test(p)) p += ".tga";
+    return normalizeAssetPath(p);
+  }
+
+  function decodeTgaPathGrid(buf) {
+    if (!buf || buf.length < 18) return null;
+    const idLen = buf[0];
+    const colorMapType = buf[1];
+    const imageType = buf[2];
+    const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+    const cmLen = dv.getUint16(5, true);
+    const cmBpp = buf[7];
+    const w = dv.getUint16(12, true);
+    const h = dv.getUint16(14, true);
+    const bpp = buf[16];
+    const desc = buf[17];
+    if (w <= 0 || h <= 0 || w > 512 || h > 512) return null;
+    const isRle = imageType === 10 || imageType === 11;
+    if (imageType !== 2 && imageType !== 3 && !isRle) return null;
+
+    const bytesPerPx = Math.max(1, bpp >> 3);
+    let p = 18 + idLen + (colorMapType ? cmLen * Math.ceil(cmBpp / 8) : 0);
+    const total = w * h;
+    const pixels = new Uint8Array(total);
+    const topDown = (desc & 0x20) !== 0;
+
+    const readFlagAt = (off) => {
+      if (off + bytesPerPx > buf.length) return 0;
+      let r, g, b;
+      if (bytesPerPx >= 3) {
+        b = buf[off];
+        g = buf[off + 1];
+        r = buf[off + 2];
+      } else {
+        r = g = b = buf[off];
+      }
+      return (r >= 128 ? 0x02 : 0) | (g >= 128 ? 0x04 : 0) | (b >= 128 ? 0x08 : 0);
+    };
+
+    let idx = 0;
+    if (!isRle) {
+      for (let i = 0; i < total && p + bytesPerPx <= buf.length; i++, p += bytesPerPx) {
+        const sy = (i / w) | 0;
+        const sx = i % w;
+        const dy = topDown ? (h - 1 - sy) : sy;
+        pixels[dy * w + sx] = readFlagAt(p);
+      }
+    } else {
+      while (idx < total && p < buf.length) {
+        const header = buf[p++];
+        const count = (header & 0x7f) + 1;
+        if (header & 0x80) {
+          const flag = readFlagAt(p);
+          p += bytesPerPx;
+          for (let k = 0; k < count && idx < total; k++, idx++) {
+            const sy = (idx / w) | 0;
+            const sx = idx % w;
+            const dy = topDown ? (h - 1 - sy) : sy;
+            pixels[dy * w + sx] = flag;
+          }
+        } else {
+          for (let k = 0; k < count && idx < total && p + bytesPerPx <= buf.length; k++, idx++, p += bytesPerPx) {
+            const sy = (idx / w) | 0;
+            const sx = idx % w;
+            const dy = topDown ? (h - 1 - sy) : sy;
+            pixels[dy * w + sx] = readFlagAt(p);
+          }
+        }
+      }
+    }
+    return { w, h, cells: pixels };
+  }
+
+  function requestPathTexture(map, rawPath) {
+    const clean = normalizePathTexPath(rawPath);
+    if (!clean) return null;
+    const key = clean.toLowerCase();
+    if (PATH_TEX_CACHE.has(key)) return PATH_TEX_CACHE.get(key);
+    if (!PATH_TEX_PENDING.has(key)) {
+      const url = "https://w3studio.local/mpq/" + clean.replace(/\\/g, "/");
+      const prom = fetch(url)
+        .then((r) => (r.ok ? r.arrayBuffer() : null))
+        .then((ab) => {
+          const decoded = ab ? decodeTgaPathGrid(new Uint8Array(ab)) : null;
+          PATH_TEX_CACHE.set(key, decoded || null);
+          return decoded;
+        })
+        .catch(() => {
+          PATH_TEX_CACHE.set(key, null);
+          return null;
+        });
+      PATH_TEX_PENDING.set(key, prom);
+    }
+    return null;
+  }
+
+  function getRowCaseInsensitive(table, rawcode) {
+    if (!table || !rawcode) return null;
+    let r = table.getRow(rawcode);
+    if (r) return r;
+    if (table.map instanceof Map) {
+      const want = String(rawcode).toLowerCase();
+      for (const [k, v] of table.map.entries()) {
+        if (String(k).toLowerCase() === want) return v;
+      }
+    }
+    return null;
+  }
+
+  function readSlkStr(row, ...cols) {
+    if (!row) return "";
+    for (const c of cols) {
+      try {
+        const s = row.string(c);
+        if (typeof s === "string" && s !== "" && s !== "_" && s !== "NULL") return s;
+      } catch {}
+    }
+    return "";
+  }
+
+  function readSlkNum(row, ...cols) {
+    if (!row) return 0;
+    for (const c of cols) {
+      try {
+        const v = row.number(c);
+        if (Number.isFinite(v) && v !== 0) return v;
+      } catch {}
+    }
+    return 0;
+  }
+
+  proto.getEntityPathingSpec = function (kind, rawcode) {
+    const code = String(rawcode || "").trim();
+    const lowerCode = code.toLowerCase();
+    const overrides = (this.viewer && this.viewer._w3sObjectOverrides) || window._w3sObjectOverrides || null;
+
+    if (kind === "doodad") {
+      const ov = overrides && overrides.doodads ? (overrides.doodads[code] || overrides.doodads[lowerCode]) : null;
+      const row = getRowCaseInsensitive(this.doodadsData, code);
+      const isDestructible = ov ? !!ov.isDestructible : !!(row && readSlkStr(row, "destructableid"));
+      const walkable = ov && typeof ov.walkable === "boolean"
+        ? ov.walkable
+        : !!(row && readSlkNum(row, "walkable") > 0);
+      const pathTex = (ov && ov.pathTex !== undefined ? ov.pathTex : readSlkStr(row, "pathTex", "pathtex")) || "";
+      if (pathTex) requestPathTexture(this, pathTex);
+      return {
+        kind: "doodad",
+        rawcode: code,
+        isBuilding: false,
+        isDestructible,
+        walkable,
+        pathTex,
+        moveType: "",
+        preventPlace: "",
+        requirePlace: ""
+      };
+    }
+
+    const ov = overrides && overrides.units ? (overrides.units[code] || overrides.units[lowerCode]) : null;
+    const row = getRowCaseInsensitive(this.unitsData, code);
+    const isBuilding = ov && typeof ov.isBldg === "boolean"
+      ? ov.isBldg
+      : !!(row && (readSlkNum(row, "isbldg", "ubdg") > 0));
+    const pathTex = (ov && ov.pathTex !== undefined ? ov.pathTex : readSlkStr(row, "pathTex", "pathtex")) || "";
+    const moveType = ((ov && ov.moveType !== undefined ? ov.moveType : readSlkStr(row, "movetp", "moveType")) || "").toLowerCase();
+    const preventPlace = ((ov && ov.preventPlace !== undefined ? ov.preventPlace : readSlkStr(row, "preventPlace", "upap")) || "").toLowerCase();
+    const requirePlace = ((ov && ov.requirePlace !== undefined ? ov.requirePlace : readSlkStr(row, "requirePlace", "upar")) || "").toLowerCase();
+    if (pathTex) requestPathTexture(this, pathTex);
+    return {
+      kind: "unit",
+      rawcode: code,
+      isBuilding,
+      isDestructible: false,
+      walkable: false,
+      pathTex,
+      moveType,
+      preventPlace,
+      requirePlace
+    };
+  };
+
+  proto.snapEntityPosition = function (spec, wx, wy) {
+    const ox = this.centerOffset ? this.centerOffset[0] : 0;
+    const oy = this.centerOffset ? this.centerOffset[1] : 0;
+    let grid = spec && spec.pathTex ? requestPathTexture(this, spec.pathTex) : null;
+    let pw = grid ? grid.w : 0;
+    let ph = grid ? grid.h : 0;
+
+    if (spec && spec.isBuilding && (!grid || pw <= 0 || ph <= 0)) {
+      pw = 4;
+      ph = 4;
+    }
+
+    if (spec && spec.isBuilding && pw > 0 && ph > 0) {
+      const stepX = (pw % 2 === 0) ? 64 : 32;
+      const stepY = (ph % 2 === 0) ? 64 : 32;
+      const relLeft = (wx - ox) - pw * 16;
+      const relBottom = (wy - oy) - ph * 16;
+      const snappedLeft = Math.round(relLeft / stepX) * stepX;
+      const snappedBottom = Math.round(relBottom / stepY) * stepY;
+      const gx = Math.round(snappedLeft / 32);
+      const gy = Math.round(snappedBottom / 32);
+      return {
+        x: ox + gx * 32 + pw * 16,
+        y: oy + gy * 32 + ph * 16,
+        gx,
+        gy,
+        pw,
+        ph,
+        grid
+      };
+    }
+
+    if (spec && !spec.walkable && pw > 0 && ph > 0) {
+      const gx = Math.round(((wx - ox) - pw * 16) / 32);
+      const gy = Math.round(((wy - oy) - ph * 16) / 32);
+      return {
+        x: ox + gx * 32 + pw * 16,
+        y: oy + gy * 32 + ph * 16,
+        gx,
+        gy,
+        pw,
+        ph,
+        grid
+      };
+    }
+
+    return {
+      x: wx,
+      y: wy,
+      gx: Math.floor((wx - ox) / 32),
+      gy: Math.floor((wy - oy) / 32),
+      pw: 0,
+      ph: 0,
+      grid: null
+    };
+  };
+
+  proto.computeBaseTerrainCellFlag = function (gx, gy) {
+    const cols = this.columns | 0;
+    const rows = this.rows | 0;
+    const tx = Math.floor(gx / 4);
+    const ty = Math.floor(gy / 4);
+    if (tx < 0 || ty < 0 || tx >= cols || ty >= rows || !this.corners) return 0x8e;
+
+    const r0 = this.corners[ty];
+    const r1 = this.corners[ty + 1];
+    if (!r0 || !r1) return 0x8e;
+    const c00 = r0[tx], c10 = r0[tx + 1], c01 = r1[tx], c11 = r1[tx + 1];
+    if (!c00 || !c10 || !c01 || !c11) return 0x8e;
+
+    const hasBoundary = !!(c00.boundary || c00.mapEdge || c10.boundary || c10.mapEdge || c01.boundary || c01.mapEdge || c11.boundary || c11.mapEdge);
+    if (hasBoundary) return 0x8e;
+
+    let flag = 0;
+    const hasRamp = !!(c00.ramp || c10.ramp || c01.ramp || c11.ramp);
+    const lMin = Math.min(c00.layerHeight | 0, c10.layerHeight | 0, c01.layerHeight | 0, c11.layerHeight | 0);
+    const lMax = Math.max(c00.layerHeight | 0, c10.layerHeight | 0, c01.layerHeight | 0, c11.layerHeight | 0);
+    if (!hasRamp && lMax > lMin) {
+      flag |= 0x0a; // no-walk + no-build cliff edge
+    }
+
+    const hMin = Math.min(c00.groundHeight || 0, c10.groundHeight || 0, c01.groundHeight || 0, c11.groundHeight || 0);
+    const hMax = Math.max(c00.groundHeight || 0, c10.groundHeight || 0, c01.groundHeight || 0, c11.groundHeight || 0);
+    if (!hasRamp && (hMax - hMin) > 105) {
+      flag |= 0x0a;
+    }
+
+    const anyWater = !!(c00.water || c10.water || c01.water || c11.water);
+    if (anyWater) {
+      const avgWater = ((c00.waterHeight || 0) + (c10.waterHeight || 0) + (c01.waterHeight || 0) + (c11.waterHeight || 0)) * 0.25;
+      const avgGround = ((c00.groundHeight || 0) + (c10.groundHeight || 0) + (c01.groundHeight || 0) + (c11.groundHeight || 0)) * 0.25;
+      const depth = avgWater - avgGround;
+      if (depth > 48) {
+        flag |= 0x0a; // deep water: no-walk + no-build
+      } else if (depth > 4) {
+        flag |= 0x08; // shallow water: no-build
+      }
+    }
+    return flag;
+  };
+
+  proto._collectOccupiedFootprintsInBox = function (minGx, maxGx, minGy, maxGy, excludeKind, excludeCreationNumber) {
+    const occupied = new Map();
+    const ox = this.centerOffset ? this.centerOffset[0] : 0;
+    const oy = this.centerOffset ? this.centerOffset[1] : 0;
+
+    const addEnt = (kind, ent, rawcode, loc) => {
+      if (!ent || !rawcode || !loc) return;
+      if (rawcode === "sloc") return;
+      if (excludeCreationNumber !== null && excludeCreationNumber !== undefined &&
+          kind === excludeKind && ent.creationNumber === excludeCreationNumber) {
+        return;
+      }
+      const spec = this.getEntityPathingSpec(kind, rawcode);
+      if (!spec.isBuilding && (!spec.pathTex || spec.walkable)) return;
+      let grid = spec.pathTex ? requestPathTexture(this, spec.pathTex) : null;
+      const pw = grid ? grid.w : (spec.isBuilding ? 4 : 0);
+      const ph = grid ? grid.h : (spec.isBuilding ? 4 : 0);
+      if (pw <= 0 || ph <= 0) return;
+
+      const gx = Math.round(((loc[0] - ox) - pw * 16) / 32);
+      const gy = Math.round(((loc[1] - oy) - ph * 16) / 32);
+      if (gx + pw <= minGx || gx > maxGx || gy + ph <= minGy || gy > maxGy) return;
+
+      for (let py = 0; py < ph; py++) {
+        const cy = gy + py;
+        if (cy < minGy || cy > maxGy) continue;
+        for (let px = 0; px < pw; px++) {
+          const cx = gx + px;
+          if (cx < minGx || cx > maxGx) continue;
+          const m = grid ? (grid.cells[py * pw + px] & 0x0e) : 0x0a;
+          if (m === 0) continue;
+          const k = cy * 10000 + cx;
+          occupied.set(k, (occupied.get(k) || 0) | m);
+        }
+      }
+    };
+
+    if (Array.isArray(this.units)) {
+      for (const u of this.units) {
+        if (u && u.dooUnit) addEnt("unit", u, u.dooUnit.id, u.dooUnit.location);
+      }
+    }
+    if (Array.isArray(this.doodads)) {
+      for (const d of this.doodads) {
+        if (d && d.dooDoodad && d.dooDoodad.life !== 0) addEnt("doodad", d, d.dooDoodad.id, d.dooDoodad.location);
+      }
+    }
+    return occupied;
+  };
+
+  proto.evaluateEntityPlacement = function (kind, rawcode, excludeCreationNumber, wx, wy, ignorePathing) {
+    const spec = this.getEntityPathingSpec(kind, rawcode);
+    const snap = this.snapEntityPosition(spec, wx, wy);
+    const cols = this.columns | 0;
+    const rows = this.rows | 0;
+    const maxGx = cols * 4;
+    const maxGy = rows * 4;
+    const z = typeof this.heightAt === "function" ? this.heightAt(snap.x, snap.y) : 0;
+
+    const cells = [];
+    let valid = true;
+
+    const minGx = snap.pw > 0 ? snap.gx : snap.gx;
+    const minGy = snap.ph > 0 ? snap.gy : snap.gy;
+    const spanW = snap.pw > 0 ? snap.pw : 1;
+    const spanH = snap.ph > 0 ? snap.ph : 1;
+    const occupied = this._collectOccupiedFootprintsInBox(
+      minGx, minGx + spanW - 1, minGy, minGy + spanH - 1, kind, excludeCreationNumber
+    );
+
+    const requiresWater = spec.moveType === "float" || (spec.requirePlace && spec.requirePlace.includes("water"));
+    const isFlyer = spec.moveType === "fly";
+    const isAmph = spec.moveType === "amph";
+    const allowsUnbuildable = spec.requirePlace && spec.requirePlace.includes("unbuildable");
+
+    for (let py = 0; py < spanH; py++) {
+      const cy = minGy + py;
+      for (let px = 0; px < spanW; px++) {
+        const cx = minGx + px;
+        let mask = 0x0a;
+        if (snap.pw > 0 && snap.grid) {
+          mask = snap.grid.cells[py * snap.pw + px] & 0x0e;
+        }
+        if (snap.pw > 0 && mask === 0) continue;
+
+        let blocked = false;
+        if (cx < 0 || cy < 0 || cx >= maxGx || cy >= maxGy) {
+          blocked = true;
+        } else if (!ignorePathing) {
+          const tFlag = this.computeBaseTerrainCellFlag(cx, cy);
+          const occFlag = occupied.get(cy * 10000 + cx) || 0;
+          if (tFlag & 0x80) {
+            blocked = true;
+          } else if (spec.isBuilding) {
+            if (requiresWater) {
+              const tx = Math.floor(cx / 4), ty = Math.floor(cy / 4);
+              const c = this.corners && this.corners[ty] && this.corners[ty][tx];
+              if (!c || !c.water) blocked = true;
+            } else if (!allowsUnbuildable && (tFlag & 0x08)) {
+              blocked = true;
+            }
+            if ((occFlag & 0x0a) !== 0) blocked = true;
+          } else if (snap.pw > 0 && !spec.walkable) {
+            if ((tFlag & 0x02) || (occFlag & 0x02)) blocked = true;
+          } else if (isFlyer) {
+            if ((tFlag & 0x04) || (occFlag & 0x04)) blocked = true;
+          } else if (isAmph) {
+            if (((tFlag & 0x02) && (occFlag & 0x02)) || (occFlag & 0x02)) blocked = true;
+          } else {
+            if ((tFlag & 0x02) || (occFlag & 0x02)) blocked = true;
+          }
+        }
+
+        if (blocked) valid = false;
+        cells.push({ cx, cy, blocked, mask });
+      }
+    }
+
+    return {
+      x: snap.x,
+      y: snap.y,
+      z,
+      gx: minGx,
+      gy: minGy,
+      pw: spanW,
+      ph: spanH,
+      hasFootprint: snap.pw > 0 && snap.ph > 0,
+      valid: ignorePathing ? (minGx >= 0 && minGy >= 0 && minGx + spanW <= maxGx && minGy + spanH <= maxGy) : valid,
+      cells
+    };
+  };
+
+  proto.syncLiveWpmBox = function (boxA, boxB) {
+    const wpm = this._w3sPathing;
+    if (!wpm || !wpm.cells || wpm.width <= 0 || wpm.height <= 0) return;
+
+    const boxes = [boxA, boxB].filter((b) => b && b.pw > 0 && b.ph > 0);
+    if (boxes.length === 0) return;
+
+    let minGx = wpm.width, minGy = wpm.height, maxGx = -1, maxGy = -1;
+    for (const b of boxes) {
+      if (b.gx < minGx) minGx = b.gx;
+      if (b.gy < minGy) minGy = b.gy;
+      if (b.gx + b.pw - 1 > maxGx) maxGx = b.gx + b.pw - 1;
+      if (b.gy + b.ph - 1 > maxGy) maxGy = b.gy + b.ph - 1;
+    }
+    minGx = Math.max(0, minGx);
+    minGy = Math.max(0, minGy);
+    maxGx = Math.min(wpm.width - 1, maxGx);
+    maxGy = Math.min(wpm.height - 1, maxGy);
+    if (maxGx < minGx || maxGy < minGy) return;
+
+    const occupied = this._collectOccupiedFootprintsInBox(minGx, maxGx, minGy, maxGy, null, null);
+    for (let gy = minGy; gy <= maxGy; gy++) {
+      const rowOff = gy * wpm.width;
+      for (let gx = minGx; gx <= maxGx; gx++) {
+        const baseFlag = this.computeBaseTerrainCellFlag(gx, gy) & 0x0e;
+        const occ = occupied.get(gy * 10000 + gx) || 0;
+        const old = wpm.cells[rowOff + gx];
+        wpm.cells[rowOff + gx] = (old & 0xf0) | baseFlag | occ;
+      }
+    }
+  };
+
+  // --- UberSplat entry tracking keyed by creationNumber ---
+  function getEntityCreationNumber(ent) {
+    if (!ent) return -1;
+    if (typeof ent.creationNumber === "number") return ent.creationNumber;
+    if (ent.dooUnit && typeof ent.dooUnit.creationNumber === "number") return ent.dooUnit.creationNumber;
+    if (ent.dooDoodad && typeof ent.dooDoodad.editorId === "number") return ent.dooDoodad.editorId;
+    return -1;
+  }
+
+  function rebuildSplatBatchGeometry(batch) {
+    batch.vertices.length = 0;
+    batch.indices.length = 0;
+    if (!batch.entries || batch.entries.size === 0) {
+      batch.indexCount = 0;
+      return;
+    }
+    const grid = 4;
+    const stride = grid + 1;
+    for (const ent of batch.entries.values()) {
+      const baseVert = batch.vertices.length / 8;
+      if (baseVert + 25 >= 65535) break;
+      const ux = ent.x;
+      const uy = ent.y;
+      const s = ent.scale;
+      for (let iy = 0; iy <= grid; iy++) {
+        const fy = iy / grid;
+        const py = uy + (fy - 0.5) * 2 * s;
+        for (let ix = 0; ix <= grid; ix++) {
+          const fx = ix / grid;
+          const px = ux + (fx - 0.5) * 2 * s;
+          batch.vertices.push(px, py, fx, 1 - fy, ent.r, ent.g, ent.b, ent.a);
+        }
+      }
+      for (let iy = 0; iy < grid; iy++) {
+        for (let ix = 0; ix < grid; ix++) {
+          const v00 = baseVert + iy * stride + ix;
+          const v10 = v00 + 1;
+          const v01 = v00 + stride;
+          const v11 = v01 + 1;
+          batch.indices.push(v00, v10, v11, v00, v11, v01);
+        }
+      }
+    }
+    batch.indexCount = batch.indices.length;
+  }
+
   async function addUnitUberSplat(map, unit) {
     if (!unit || !unit.dooUnit || map._w3sDead) return;
     const id = unit.dooUnit.id;
     if (!id || id === "sloc") return;
     await ensureExtraBaseFiles(map.viewer);
     const splatTable = map.viewer._w3sUberSplatData;
-    const uRow = map.unitsData && map.unitsData.getRow(id);
+    const uRow = getRowCaseInsensitive(map.unitsData, id);
     if (!splatTable || !uRow) return;
     const splatName = uRow.string("uberSplat");
     if (!splatName || splatName === "_" || splatName === "0" || splatName === "NULL") return;
 
-    let sRow = splatTable.getRow(splatName);
-    if (!sRow && splatTable.map instanceof Map) {
-      const want = splatName.toLowerCase();
-      for (const [k, v] of splatTable.map.entries()) {
-        if (String(k).toLowerCase() === want) { sRow = v; break; }
-      }
-    }
+    const sRow = getRowCaseInsensitive(splatTable, splatName);
     if (!sRow) return;
 
     const texPath = normalizeAssetPath(`${sRow.string("Dir") || "ReplaceableTextures\\Splats"}\\${sRow.string("file")}.blp`);
@@ -1671,38 +2191,223 @@ void main() {
     const key = `${blend}:${texPath.toLowerCase()}`;
     let batch = batches.get(key);
     if (!batch) {
-      batch = { texturePath: texPath, texture: null, blend, vertices: [], indices: [], vb: null, ib: null, indexCount: 0, dirty: true };
+      batch = { texturePath: texPath, texture: null, blend, entries: new Map(), vertices: [], indices: [], vb: null, ib: null, indexCount: 0, dirty: true };
       batches.set(key, batch);
       map.load(texPath).then((res) => {
         if (batch && res && !map._w3sDead) batch.texture = res;
       });
     }
 
-    const ux = unit.dooUnit.location[0];
-    const uy = unit.dooUnit.location[1];
-    const grid = 4;
-    const baseVert = batch.vertices.length / 8;
-    if (baseVert + 25 >= 65535) return;
-    for (let iy = 0; iy <= grid; iy++) {
-      const fy = iy / grid;
-      const py = uy + (fy - 0.5) * 2 * scale;
-      for (let ix = 0; ix <= grid; ix++) {
-        const fx = ix / grid;
-        const px = ux + (fx - 0.5) * 2 * scale;
-        batch.vertices.push(px, py, fx, 1 - fy, r, g, b, a);
-      }
+    const cn = getEntityCreationNumber(unit);
+    if (cn >= 0) {
+      batch.entries.set(cn, { x: unit.dooUnit.location[0], y: unit.dooUnit.location[1], scale, r, g, b, a });
+      const unitMap = map._w3sUnitSplatBatchMap || (map._w3sUnitSplatBatchMap = new Map());
+      unitMap.set(cn, batch);
+      batch.dirty = true;
     }
-    const stride = grid + 1;
-    for (let iy = 0; iy < grid; iy++) {
-      for (let ix = 0; ix < grid; ix++) {
-        const v00 = baseVert + iy * stride + ix;
-        const v10 = v00 + 1;
-        const v01 = v00 + stride;
-        const v11 = v01 + 1;
-        batch.indices.push(v00, v10, v11, v00, v11, v01);
-      }
-    }
+  }
+
+  function updateUnitUberSplatLocation(map, creationNumber, x, y) {
+    const unitMap = map && map._w3sUnitSplatBatchMap;
+    if (!unitMap) return;
+    const batch = unitMap.get(creationNumber);
+    if (!batch || !batch.entries) return;
+    const entry = batch.entries.get(creationNumber);
+    if (!entry) return;
+    entry.x = x;
+    entry.y = y;
     batch.dirty = true;
+  }
+
+  function removeUnitUberSplat(map, creationNumber) {
+    const unitMap = map && map._w3sUnitSplatBatchMap;
+    if (!unitMap) return;
+    const batch = unitMap.get(creationNumber);
+    if (batch && batch.entries && batch.entries.delete(creationNumber)) {
+      batch.dirty = true;
+    }
+    unitMap.delete(creationNumber);
+  }
+
+  // --- Live ShadowMap & Dynamic Shadow Decals ---
+  function getEntityStaticShadowProfile(map, kind, rawcode, loc, scale, life) {
+    if (!rawcode || rawcode === "sloc" || !loc) return null;
+    if (kind === "doodad") {
+      if (life === 0) return null;
+      const row = getRowCaseInsensitive(map.doodadsData, rawcode);
+      const isDestructible = !!(row && readSlkStr(row, "destructableid"));
+      const shTex = row ? readSlkStr(row, "shadow") : "";
+      if (!isDestructible && (!shTex || shTex === "_" || shTex === "0" || /^none$/i.test(shTex))) return null;
+      const occh = row ? readSlkNum(row, "occh") : 0;
+      const s = Math.max(0.25, scale || 1);
+      const rad = Math.max(42, (occh > 0 ? occh * 0.45 : 88) * s);
+      return { x: loc[0], y: loc[1], rx: rad, ry: rad, alpha: 185 };
+    }
+    const spec = map.getEntityPathingSpec("unit", rawcode);
+    if (!spec.isBuilding) return null;
+    const row = getRowCaseInsensitive(map.unitsData, rawcode);
+    const shName = row ? readSlkStr(row, "buildingshadow") : "";
+    if (shName === "_" || /^none$/i.test(shName)) return null;
+    const grid = spec.pathTex ? requestPathTexture(map, spec.pathTex) : null;
+    const pw = grid ? grid.w : 4;
+    const ph = grid ? grid.h : 4;
+    const shW = row ? readSlkNum(row, "shadoww") : 0;
+    const shH = row ? readSlkNum(row, "shadowh") : 0;
+    const rx = Math.max(64, shW > 0 ? shW * 0.55 : Math.max(4, pw) * 18);
+    const ry = Math.max(64, shH > 0 ? shH * 0.55 : Math.max(4, ph) * 18);
+    return { x: loc[0], y: loc[1], rx, ry, alpha: 195 };
+  }
+
+  function stampStaticShadowEllipse(buf, shdW, shdH, ox, oy, prof) {
+    const minSx = Math.max(0, Math.floor(((prof.x - prof.rx - ox) / 32)));
+    const maxSx = Math.min(shdW - 1, Math.ceil(((prof.x + prof.rx - ox) / 32)));
+    const minSy = Math.max(0, Math.floor(((prof.y - prof.ry - oy) / 32)));
+    const maxSy = Math.min(shdH - 1, Math.ceil(((prof.y + prof.ry - oy) / 32)));
+    for (let sy = minSy; sy <= maxSy; sy++) {
+      const wy = oy + (sy + 0.5) * 32;
+      const dy = (wy - prof.y) / prof.ry;
+      for (let sx = minSx; sx <= maxSx; sx++) {
+        const wx = ox + (sx + 0.5) * 32;
+        const dx = (wx - prof.x) / prof.rx;
+        const d2 = dx * dx + dy * dy;
+        if (d2 >= 1.0) continue;
+        const t = Math.max(0, Math.min(1, (1.0 - Math.sqrt(d2)) * 1.35));
+        const val = Math.round(prof.alpha * t);
+        const idx = sy * shdW + sx;
+        if (val > buf[idx]) buf[idx] = val;
+      }
+    }
+  }
+
+  function refreshEntityStaticShadow(map, oldProf, newProf) {
+    const buf = ensureLiveShadowWorkBuf(map);
+    if (!buf || !map.centerOffset) return;
+    const cols = map.columns | 0;
+    const rows = map.rows | 0;
+    const shdW = cols * 4;
+    const shdH = rows * 4;
+    const ox = map.centerOffset[0];
+    const oy = map.centerOffset[1];
+
+    const profiles = [oldProf, newProf].filter(Boolean);
+    if (profiles.length === 0) return;
+
+    // 1. Clear old footprint disk back to boundary (228) or 0
+    if (oldProf) {
+      const minSx = Math.max(0, Math.floor((oldProf.x - oldProf.rx - 32 - ox) / 32));
+      const maxSx = Math.min(shdW - 1, Math.ceil((oldProf.x + oldProf.rx + 32 - ox) / 32));
+      const minSy = Math.max(0, Math.floor((oldProf.y - oldProf.ry - 32 - oy) / 32));
+      const maxSy = Math.min(shdH - 1, Math.ceil((oldProf.y + oldProf.ry + 32 - oy) / 32));
+      for (let sy = minSy; sy <= maxSy; sy++) {
+        const ty = Math.min(rows - 1, Math.floor(sy / 4));
+        const row0 = map.corners && map.corners[ty];
+        for (let sx = minSx; sx <= maxSx; sx++) {
+          const tx = Math.min(cols - 1, Math.floor(sx / 4));
+          const c = row0 && row0[tx];
+          const isBound = c && (c.boundary || c.mapEdge);
+          buf[sy * shdW + sx] = isBound ? 228 : 0;
+        }
+      }
+    }
+
+    // 2. Re-stamp all living buildings & destructibles intersecting either dirty region
+    let dirtyMinX = Infinity, dirtyMaxX = -Infinity, dirtyMinY = Infinity, dirtyMaxY = -Infinity;
+    for (const p of profiles) {
+      dirtyMinX = Math.min(dirtyMinX, p.x - p.rx - 48);
+      dirtyMaxX = Math.max(dirtyMaxX, p.x + p.rx + 48);
+      dirtyMinY = Math.min(dirtyMinY, p.y - p.ry - 48);
+      dirtyMaxY = Math.max(dirtyMaxY, p.y + p.ry + 48);
+    }
+
+    if (Array.isArray(map.units)) {
+      for (const u of map.units) {
+        if (!u || !u.dooUnit) continue;
+        const p = getEntityStaticShadowProfile(map, "unit", u.dooUnit.id, u.dooUnit.location, u.dooUnit.scale[0] || 1, 100);
+        if (!p) continue;
+        if (p.x + p.rx < dirtyMinX || p.x - p.rx > dirtyMaxX || p.y + p.ry < dirtyMinY || p.y - p.ry > dirtyMaxY) continue;
+        stampStaticShadowEllipse(buf, shdW, shdH, ox, oy, p);
+      }
+    }
+    if (Array.isArray(map.doodads)) {
+      for (const d of map.doodads) {
+        if (!d || !d.dooDoodad) continue;
+        const p = getEntityStaticShadowProfile(map, "doodad", d.dooDoodad.id, d.dooDoodad.location, d.dooDoodad.scale[0] || 1, d.dooDoodad.life);
+        if (!p) continue;
+        if (p.x + p.rx < dirtyMinX || p.x - p.rx > dirtyMaxX || p.y + p.ry < dirtyMinY || p.y - p.ry > dirtyMaxY) continue;
+        stampStaticShadowEllipse(buf, shdW, shdH, ox, oy, p);
+      }
+    }
+
+    if (newProf) {
+      stampStaticShadowEllipse(buf, shdW, shdH, ox, oy, newProf);
+    }
+
+    uploadShadowWorkBuf(map);
+  }
+
+  function rebuildDynamicUnitShadowDecals(map) {
+    if (!map || !map.shadowBatches) return;
+    for (const batch of map.shadowBatches.values()) {
+      batch.vertices.length = 0;
+      batch.indices.length = 0;
+      batch.indexCount = 0;
+      batch.dirty = true;
+    }
+
+    if (Array.isArray(map.units)) {
+      for (const u of map.units) {
+        if (!u || !u.dooUnit) continue;
+        const id = u.dooUnit.id;
+        if (!id || id === "sloc") continue;
+        const t = u.row || getRowCaseInsensitive(map.unitsData, id);
+        if (!t) continue;
+        const r = readSlkStr(t, "unitshadow");
+        if (!r || r === "_" || r === "0") continue;
+        const n = (u.dooUnit.scale[0] || 1) * (readSlkNum(t, "modelScale") || 1);
+        const a = (u.dooUnit.scale[1] || 1) * (readSlkNum(t, "modelScale") || 1);
+        const w = (readSlkNum(t, "shadoww") || 120) * n;
+        const h = (readSlkNum(t, "shadowh") || 120) * a;
+        const sx = readSlkNum(t, "shadowx") * n;
+        const sy = readSlkNum(t, "shadowy") * a;
+        const cx = u.dooUnit.location[0] + 0.5 * w - sx;
+        const cy = u.dooUnit.location[1] + 0.5 * h - sy;
+        proto.addShadowDecal.call(map, `ReplaceableTextures\\Shadows\\${r}.blp`, cx, cy, w, h, 0.62);
+      }
+    }
+
+    if (!map._mapHasShdFile && Array.isArray(map.doodads)) {
+      for (const d of map.doodads) {
+        if (!d || !d.dooDoodad) continue;
+        const t = d.row || getRowCaseInsensitive(map.doodadsData, d.dooDoodad.id);
+        if (!t) continue;
+        const o = d.dooDoodad.scale[0] || 1;
+        const l = d.dooDoodad.scale[1] || 1;
+        const isDest = !!readSlkStr(t, "destructableid");
+        const u = readSlkStr(t, "shadow");
+        if (isDest && d.dooDoodad.life === 0) {
+          proto.addShadowDecal.call(map, "ReplaceableTextures\\Shadows\\Shadow.blp", d.dooDoodad.location[0] + 8 * o, d.dooDoodad.location[1] + 8 * l, 75 * o, 75 * l, 0.42);
+        } else if (u && u !== "_" && u !== "0") {
+          proto.addShadowDecal.call(map, `ReplaceableTextures\\Shadows\\${u}.blp`, d.dooDoodad.location[0] + 18 * o, d.dooDoodad.location[1] + 18 * l, 240 * o, 240 * l, 0.46);
+        }
+      }
+    }
+  }
+
+  function snapshotEntityFootprint(map, kind, rawcode, loc) {
+    if (!map || !rawcode || !loc) return null;
+    const spec = map.getEntityPathingSpec(kind, rawcode);
+    const grid = spec.pathTex ? requestPathTexture(map, spec.pathTex) : null;
+    const pw = grid ? grid.w : (spec.isBuilding ? 4 : 0);
+    const ph = grid ? grid.h : (spec.isBuilding ? 4 : 0);
+    if (pw <= 0 || ph <= 0) return null;
+    const ox = map.centerOffset ? map.centerOffset[0] : 0;
+    const oy = map.centerOffset ? map.centerOffset[1] : 0;
+    return {
+      gx: Math.round(((loc[0] - ox) - pw * 16) / 32),
+      gy: Math.round(((loc[1] - oy) - ph * 16) / 32),
+      pw,
+      ph
+    };
   }
 
   const origLoadUnits = proto.loadUnitsAndItems;
@@ -1719,6 +2424,133 @@ void main() {
       };
     }
     return origLoadUnits.apply(this, arguments);
+  };
+
+  // Wrap live unit & doodad mutations so UberSplats, Shadows, and Pathing update live (including Undo/Redo!)
+  const origAddLiveUnit = proto.addLiveUnit;
+  proto.addLiveUnit = function (spec) {
+    const res = origAddLiveUnit ? origAddLiveUnit.apply(this, arguments) : undefined;
+    if (spec) {
+      const loc = [spec.x, spec.y, spec.z || 0];
+      const shProf = getEntityStaticShadowProfile(this, "unit", spec.id, loc, spec.scale || 1, 100);
+      if (shProf) refreshEntityStaticShadow(this, null, shProf);
+      else rebuildDynamicUnitShadowDecals(this);
+      const box = snapshotEntityFootprint(this, "unit", spec.id, loc);
+      if (box) this.syncLiveWpmBox(box, null);
+    }
+    return res;
+  };
+
+  const origUpdateLiveUnit = proto.updateLiveUnit;
+  proto.updateLiveUnit = function (creationNumber, opts) {
+    const existing = Array.isArray(this.units) ? this.units.find((u) => u.creationNumber === creationNumber) : null;
+    const oldDoo = existing && existing.dooUnit ? {
+      id: existing.dooUnit.id,
+      x: existing.dooUnit.location[0],
+      y: existing.dooUnit.location[1],
+      scale: existing.dooUnit.scale[0] || 1
+    } : null;
+
+    const res = origUpdateLiveUnit ? origUpdateLiveUnit.apply(this, arguments) : undefined;
+
+    if (existing && existing.dooUnit) {
+      const newLoc = existing.dooUnit.location;
+      updateUnitUberSplatLocation(this, creationNumber, newLoc[0], newLoc[1]);
+      const oldProf = oldDoo ? getEntityStaticShadowProfile(this, "unit", oldDoo.id, [oldDoo.x, oldDoo.y, 0], oldDoo.scale, 100) : null;
+      const newProf = getEntityStaticShadowProfile(this, "unit", existing.dooUnit.id, newLoc, existing.dooUnit.scale[0] || 1, 100);
+      if (oldProf || newProf) refreshEntityStaticShadow(this, oldProf, newProf);
+      else rebuildDynamicUnitShadowDecals(this);
+      const oldBox = oldDoo ? snapshotEntityFootprint(this, "unit", oldDoo.id, [oldDoo.x, oldDoo.y, 0]) : null;
+      const newBox = snapshotEntityFootprint(this, "unit", existing.dooUnit.id, newLoc);
+      this.syncLiveWpmBox(oldBox, newBox);
+    }
+    return res;
+  };
+
+  const origRemoveLiveUnit = proto.removeLiveUnit;
+  proto.removeLiveUnit = function (creationNumber) {
+    const existing = Array.isArray(this.units) ? this.units.find((u) => u.creationNumber === creationNumber) : null;
+    const oldDoo = existing && existing.dooUnit ? {
+      id: existing.dooUnit.id,
+      x: existing.dooUnit.location[0],
+      y: existing.dooUnit.location[1],
+      scale: existing.dooUnit.scale[0] || 1
+    } : null;
+
+    const res = origRemoveLiveUnit ? origRemoveLiveUnit.apply(this, arguments) : undefined;
+
+    removeUnitUberSplat(this, creationNumber);
+    if (oldDoo) {
+      const oldProf = getEntityStaticShadowProfile(this, "unit", oldDoo.id, [oldDoo.x, oldDoo.y, 0], oldDoo.scale, 100);
+      if (oldProf) refreshEntityStaticShadow(this, oldProf, null);
+      else rebuildDynamicUnitShadowDecals(this);
+      const oldBox = snapshotEntityFootprint(this, "unit", oldDoo.id, [oldDoo.x, oldDoo.y, 0]);
+      this.syncLiveWpmBox(oldBox, null);
+    }
+    return res;
+  };
+
+  const origAddLiveDoodad = proto.addLiveDoodad;
+  proto.addLiveDoodad = function (spec) {
+    const res = origAddLiveDoodad ? origAddLiveDoodad.apply(this, arguments) : undefined;
+    if (spec) {
+      const loc = [spec.x, spec.y, spec.z || 0];
+      const shProf = getEntityStaticShadowProfile(this, "doodad", spec.id, loc, spec.scale || 1, spec.life ?? 100);
+      if (shProf) refreshEntityStaticShadow(this, null, shProf);
+      else rebuildDynamicUnitShadowDecals(this);
+      const box = snapshotEntityFootprint(this, "doodad", spec.id, loc);
+      if (box) this.syncLiveWpmBox(box, null);
+    }
+    return res;
+  };
+
+  const origUpdateLiveDoodad = proto.updateLiveDoodad;
+  proto.updateLiveDoodad = function (creationNumber, opts) {
+    const existing = Array.isArray(this.doodads) ? this.doodads.find((d) => d.creationNumber === creationNumber) : null;
+    const oldDoo = existing && existing.dooDoodad ? {
+      id: existing.dooDoodad.id,
+      x: existing.dooDoodad.location[0],
+      y: existing.dooDoodad.location[1],
+      scale: existing.dooDoodad.scale[0] || 1,
+      life: existing.dooDoodad.life
+    } : null;
+
+    const res = origUpdateLiveDoodad ? origUpdateLiveDoodad.apply(this, arguments) : undefined;
+
+    if (existing && existing.dooDoodad) {
+      const newLoc = existing.dooDoodad.location;
+      const oldProf = oldDoo ? getEntityStaticShadowProfile(this, "doodad", oldDoo.id, [oldDoo.x, oldDoo.y, 0], oldDoo.scale, oldDoo.life) : null;
+      const newProf = getEntityStaticShadowProfile(this, "doodad", existing.dooDoodad.id, newLoc, existing.dooDoodad.scale[0] || 1, existing.dooDoodad.life);
+      if (oldProf || newProf) refreshEntityStaticShadow(this, oldProf, newProf);
+      else rebuildDynamicUnitShadowDecals(this);
+      const oldBox = oldDoo ? snapshotEntityFootprint(this, "doodad", oldDoo.id, [oldDoo.x, oldDoo.y, 0]) : null;
+      const newBox = snapshotEntityFootprint(this, "doodad", existing.dooDoodad.id, newLoc);
+      this.syncLiveWpmBox(oldBox, newBox);
+    }
+    return res;
+  };
+
+  const origRemoveLiveDoodad = proto.removeLiveDoodad;
+  proto.removeLiveDoodad = function (creationNumber) {
+    const existing = Array.isArray(this.doodads) ? this.doodads.find((d) => d.creationNumber === creationNumber) : null;
+    const oldDoo = existing && existing.dooDoodad ? {
+      id: existing.dooDoodad.id,
+      x: existing.dooDoodad.location[0],
+      y: existing.dooDoodad.location[1],
+      scale: existing.dooDoodad.scale[0] || 1,
+      life: existing.dooDoodad.life
+    } : null;
+
+    const res = origRemoveLiveDoodad ? origRemoveLiveDoodad.apply(this, arguments) : undefined;
+
+    if (oldDoo) {
+      const oldProf = getEntityStaticShadowProfile(this, "doodad", oldDoo.id, [oldDoo.x, oldDoo.y, 0], oldDoo.scale, oldDoo.life);
+      if (oldProf) refreshEntityStaticShadow(this, oldProf, null);
+      else rebuildDynamicUnitShadowDecals(this);
+      const oldBox = snapshotEntityFootprint(this, "doodad", oldDoo.id, [oldDoo.x, oldDoo.y, 0]);
+      this.syncLiveWpmBox(oldBox, null);
+    }
+    return res;
   };
 
   proto.renderSplats = function () {
@@ -1765,18 +2597,17 @@ void main() {
     setFogUniforms(gl, u, this._w3sVisuals && this._w3sVisuals.fog);
 
     for (const batch of this._w3sSplatBatches.values()) {
-      if (!batch.texture || batch.indices.length === 0) continue;
       if (batch.dirty) {
         batch.dirty = false;
+        rebuildSplatBatchGeometry(batch);
         if (!batch.vb) batch.vb = gl.createBuffer();
         if (!batch.ib) batch.ib = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, batch.vb);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(batch.vertices), gl.STATIC_DRAW);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, batch.ib);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(batch.indices), gl.STATIC_DRAW);
-        batch.indexCount = batch.indices.length;
       }
-      if (!batch.indexCount) continue;
+      if (!batch.texture || !batch.indexCount) continue;
 
       gl.blendFunc(gl.SRC_ALPHA, batch.blend === 1 ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA);
       if (u.u_additive !== undefined) gl.uniform1f(u.u_additive, batch.blend === 1 ? 1 : 0);
@@ -1823,6 +2654,9 @@ void main() {
         }
       }
       this._w3sSplatBatches.clear();
+    }
+    if (this._w3sUnitSplatBatchMap instanceof Map) {
+      this._w3sUnitSplatBatchMap.clear();
     }
     return origDie.apply(this, arguments);
   };

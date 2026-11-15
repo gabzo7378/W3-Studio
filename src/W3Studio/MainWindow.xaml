@@ -11,6 +11,7 @@
         Width="1540" Height="920"
         MinWidth="1120" MinHeight="680"
         WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"
         Background="{DynamicResource Win10WindowBg}"
         Foreground="{DynamicResource Win10Text}"
         FontFamily="Segoe UI"
@@ -22,7 +23,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="24"/>
-            <RowDefinition Height="32"/>
+            <RowDefinition Height="Auto" MinHeight="32"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="25"/>
         </Grid.RowDefinitions>
@@ -129,6 +130,7 @@
                 <Separator/>
                 <MenuItem x:Name="MenuWar3Dir" Header="Directorio de Warcraft III..." Click="BtnBrowseWar3Dir_Click"/>
                 <MenuItem x:Name="MenuWindowedMode" Header="Probar Mapa en Modo Ventana (-window)" IsCheckable="True" IsChecked="True" Click="MenuToggleWindowed_Click"/>
+                <MenuItem x:Name="MenuModulesSeparateWindows" Header="Ventana (Módulos en ventanas independientes)" IsCheckable="True" IsChecked="True" Click="MenuToggleModulesSeparateWindows_Click"/>
                 <Separator/>
                 <MenuItem x:Name="MenuSettingsItem" Header="Opciones y Preferencias..." Click="MenuSettings_Click" InputGestureText="Ctrl+P">
                     <MenuItem.Icon><Image Source="pack://application:,,,/Assets/Icons/settings.png" Width="16" Height="16"/></MenuItem.Icon>
@@ -136,16 +138,10 @@
             </MenuItem>
         </Menu>
 
-        <!-- 2. BARRA DE HERRAMIENTAS RESPONSIVA (MÓDULOS + GUARDAR/PROBAR + DIRECTORIO W3 + CONFIGURACIÓN) -->
+        <!-- 2. BARRA DE HERRAMIENTAS RESPONSIVA -->
         <Border Grid.Row="1" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="0,0,0,1" Padding="6,3">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <!-- Botones esenciales del Editor a la izquierda (envuelven automáticamente si falta ancho) -->
-                <WrapPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+            <!-- Botones esenciales del Editor (envuelven automáticamente si falta ancho) -->
+            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Style="{StaticResource WeToolbarIconBtn}" Padding="6,2" Margin="0,1,3,1" ToolTip="Abrir Mapa .w3x / .w3m (Ctrl+O)" Click="BtnOpenMap_Click">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/Icons/open.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
@@ -185,42 +181,6 @@
                             <TextBlock Text="Imports (F12)" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="6,2" Margin="0,1,3,1" FontWeight="SemiBold" ToolTip="Icon Manager estilo Button Manager (BTN, PAS, ATC, recuadros de color y DISBTN automático)" Click="BtnOpenIconManager_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/icon_manager.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Icon Manager" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="6,2" Margin="0,1,3,1" FontWeight="SemiBold" ToolTip="Generador de Loading Screen (Pantalla de Carga) y MapPreview (Imagen de Sala de Espera war3mapPreview.tga)" Click="BtnOpenMapMedia_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/mode_2d.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Loading / Preview" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="6,2" Margin="0,1,3,1" FontWeight="SemiBold" ToolTip="Optimizador de Mapa estilo WC3 Map Optimizer 5.0 (JASS, Strings, Bloat y Protección MPQ)" Click="BtnOpenOptimizer_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/optimizer.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Optimizador" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="6,2" Margin="0,1,3,1" FontWeight="SemiBold" ToolTip="Escenario: Propiedades del Mapa, Jugadores y Fuerzas" Click="BtnOpenScenarioDescription_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/scenario.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Escenario" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="6,2" Margin="0,1,3,1" ToolTip="Avanzado: Gameplay Constants y Game Interface" Click="BtnOpenGameplayConstants_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/constants.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Constantes" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Button Style="{StaticResource WeToolbarIconBtn}" Padding="6,2" Margin="0,1,3,1" ToolTip="Variables Globales y Buscador (Ctrl+B)" Click="BtnFocusGlobalSearch_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/variables.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Variables" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
 
                     <Rectangle Width="1" Height="20" Fill="{DynamicResource Win10Border}" Margin="3,1,5,1"/>
 
@@ -236,47 +196,7 @@
                             <TextBlock Text="Probar (F9)" Foreground="{DynamicResource ThemeSuccessText}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                </WrapPanel>
-
-                <!-- Selector directo del directorio de Warcraft III y configuración a la derecha -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="8,1,0,1">
-                    <TextBlock Text="Warcraft III:" VerticalAlignment="Center" Foreground="{DynamicResource Win10Text}" FontSize="11.5" Margin="0,0,5,0"/>
-                    <TextBox x:Name="TxtTopWar3Dir"
-                             Width="175"
-                             Height="22"
-                             Style="{StaticResource Win10TextBox}"
-                             IsReadOnly="True"
-                             VerticalContentAlignment="Center"
-                             FontSize="11"
-                             ToolTip="Directorio de Warcraft III 1.27b (war3.exe y MPQs base)"/>
-                    <Button Style="{StaticResource WeToolbarIconBtn}"
-                            Padding="6,1"
-                            Margin="3,0,4,0"
-                            ToolTip="Seleccionar carpeta de Warcraft III (war3.exe)"
-                            Click="BtnBrowseWar3Dir_Click">
-                        <Image Source="pack://application:,,,/Assets/Icons/open.png" Width="15" Height="15" RenderOptions.BitmapScalingMode="HighQuality"/>
-                    </Button>
-                    <CheckBox x:Name="ChkWindowedTest"
-                              Content="Ventana"
-                              IsChecked="True"
-                              VerticalAlignment="Center"
-                              FontSize="11.5"
-                              Foreground="{DynamicResource Win10Text}"
-                              ToolTip="Iniciar Warcraft III en modo ventana (-window)"
-                              Checked="ChkWindowedTest_Changed"
-                              Unchecked="ChkWindowedTest_Changed"/>
-                    <Button Style="{StaticResource WeToolbarIconBtn}"
-                            Padding="6,1"
-                            Margin="6,0,0,0"
-                            ToolTip="Configuración, Temas y Preferencias (Ctrl+P)"
-                            Click="MenuSettings_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/Icons/settings.png" Width="15" Height="15" Margin="0,0,4,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="Config" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                </StackPanel>
-            </Grid>
+            </WrapPanel>
         </Border>
 
         <!-- 3. CUERPO CENTRAL: SIDEBAR IZQUIERDO CLÁSICO WORLD EDITOR + ÁREA PRINCIPAL -->
@@ -626,6 +546,12 @@
                                         </ComboBox>
 
                                         <ComboBox x:Name="CmbPlaceOwner" SelectedIndex="0" FontSize="11" ToolTip="Dueño de la unidad al colocar en el mapa" SelectionChanged="CmbPlaceOwner_SelectionChanged"/>
+
+                                        <CheckBox x:Name="ChkIgnorePathing" Margin="0,4,0,0" FontSize="10.5"
+                                                  ToolTip="Desactivado (recomendado): aplica snap de grilla WC3 y bloquea colocación/movimiento sobre agua, cliffs u otros edificios."
+                                                  Checked="ChkIgnorePathing_Changed" Unchecked="ChkIgnorePathing_Changed">
+                                            <TextBlock Text="Ignorar Pathing (Forzar posición)"/>
+                                        </CheckBox>
                                     </StackPanel>
 
                                     <TextBox x:Name="TxtPaletteFilter"
@@ -1059,6 +985,11 @@
                     </Grid>
                 </TabItem>
 
+                <!-- ==================== PESTAÑA 6: HOST DE MÓDULO EMBEBIDO ==================== -->
+                <TabItem x:Name="TabEmbeddedModule" Visibility="Collapsed">
+                    <ContentControl x:Name="EmbeddedModuleHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
+                </TabItem>
+
             </TabControl>
         </Grid>
 
@@ -1081,11 +1012,11 @@
                 </Border>
 
                 <Border Grid.Column="2" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="6,0" Margin="0,0,3,0">
-                    <TextBlock x:Name="TxtStatusBarLeft" Text="Esperando mapa..." Foreground="{DynamicResource Win10Text}" VerticalAlignment="Center" FontSize="11.5" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock x:Name="TxtStatusBarLeft" Text="" Foreground="{DynamicResource Win10Text}" VerticalAlignment="Center" FontSize="11.5" TextTrimming="CharacterEllipsis"/>
                 </Border>
 
                 <Border Grid.Column="3" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="6,0">
-                    <TextBlock x:Name="TxtStatusBarRight" Text="JassHelper 1.27b: Listo" Foreground="{DynamicResource Win10Text}" VerticalAlignment="Center" FontSize="11.5" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock x:Name="TxtStatusBarRight" Text="" Foreground="{DynamicResource Win10Text}" VerticalAlignment="Center" FontSize="11.5" TextTrimming="CharacterEllipsis"/>
                 </Border>
             </Grid>
         </Border>

@@ -16,6 +16,7 @@ namespace W3Studio.Services;
 public class MapMpqService
 {
     private readonly WarcraftBaseDataService _baseDataService;
+    private readonly BlpIconService? _blpIconService;
 
     private static readonly string[] StandardMpqFiles =
     {
@@ -35,9 +36,10 @@ public class MapMpqService
         "LoadingScreenBL.tga", "LoadingScreenBR.tga", "LoadingScreenTR.tga", "LoadingScreenTL.tga"
     };
 
-    public MapMpqService(WarcraftBaseDataService baseDataService)
+    public MapMpqService(WarcraftBaseDataService baseDataService, BlpIconService? blpIconService = null)
     {
         _baseDataService = baseDataService;
+        _blpIconService = blpIconService;
     }
 
     public MapProject LoadMap(string filePath, Action<int, string>? onProgress = null)
@@ -311,6 +313,9 @@ public class MapMpqService
         if (string.IsNullOrWhiteSpace(project.MapName))
             project.MapName = Path.GetFileNameWithoutExtension(filePath);
 
+        project.RawMpqFiles.TryGetValue("war3map.wpm", out var initialWpmBytes);
+        PathingService.CaptureInitialSnapshots(project, initialWpmBytes, _baseDataService);
+
         return project;
     }
 
@@ -351,6 +356,7 @@ public class MapMpqService
         terrain.CliffLevels = new byte[w, h];
         terrain.WaterFlags = new bool[w, h];
         terrain.RampFlags = new bool[w, h];
+        terrain.BoundaryFlags = new bool[w, h];
 
         for (var y = 0; y < h; y++)
         {
@@ -376,6 +382,7 @@ public class MapMpqService
                 terrain.TextureIndices[x, y] = (byte)(flagsAndTex & 0x0F);
                 terrain.WaterFlags[x, y] = hasWaterFlag && waterDepth > 0f;
                 terrain.RampFlags[x, y] = (flagsAndTex & 0x10) != 0;
+                terrain.BoundaryFlags[x, y] = (flagsAndTex & 0x80) != 0 || (waterAndBoundary & 0x4000) != 0;
                 terrain.CliffLevels[x, y] = (byte)layerHeight;
             }
         }
@@ -467,7 +474,7 @@ public class MapMpqService
                 unitName = baseObj?.Name ?? rawcode;
 
             bool isItem = baseObj?.Category == W3ObjectCategory.Items;
-            bool isBldg = baseObj?.DefaultFields.TryGetValue("ubdg", out var ubdg) == true && (ubdg == "1" || ubdg.Equals("true", StringComparison.OrdinalIgnoreCase));
+            bool isBldg = PathingService.IsUnitBuilding(rawcode, project, _baseDataService);
 
             project.PlacedUnits.Add(new W3PlacedUnit
             {
@@ -1984,8 +1991,11 @@ public class MapMpqService
 
         if (project.HasTerrainEdits || project.HasUnitDoodadEdits)
         {
-            onProgress?.Invoke(58, "Recalculando mapa de sombras estáticas (war3map.shd)...");
-            project.RawMpqFiles["war3map.shd"] = MapShadowAndMinimapService.GenerateShadowMapShd(project);
+            onProgress?.Invoke(56, "Sincronizando pathing del mapa (war3map.wpm)...");
+            PathingService.SyncWpm(project, _baseDataService, _blpIconService);
+            onProgress?.Invoke(59, "Recalculando mapa de sombras estáticas (war3map.shd)...");
+            project.RawMpqFiles["war3map.shd"] = MapShadowAndMinimapService.GenerateShadowMapShd(project, _baseDataService, _blpIconService);
+            PathingService.CaptureInitialSnapshots(project, project.RawMpqFiles["war3map.wpm"], _baseDataService);
         }
 
         if (project.TriggerStrings.Count > 0 && project.RawMpqFiles.ContainsKey("war3map.wts"))

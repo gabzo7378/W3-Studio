@@ -70,10 +70,14 @@
 
   const editorState = {
     mode: 'select', // 'select' | 'terrain' | 'place_unit' | 'place_doodad' | 'select_region' | 'place_region'
-    placeSpec: null, // { kind, rawcode, player, angle, scale, variation, life, modelPath }
+    placeSpec: null, // { kind, rawcode, player, angle, scale, variation, life, modelPath, pathTex, isBuilding, ... }
     selectedEntity: null, // { kind, creationNumber, id, x, y, z, angle, scale, player, variation, life }
     isDraggingEntity: false,
     dragMoved: false,
+    dragOrigPos: null,
+    dragLastValidPos: null,
+    placementEval: null,
+    ignorePathing: false,
     hoverWx: null,
     hoverWy: null
   };
@@ -799,6 +803,51 @@
     overlayCtx.restore();
   }
 
+  function drawPlacementCellsOverlay(evalRes, vp, hasHeight) {
+    if (!evalRes || !Array.isArray(evalRes.cells) || evalRes.cells.length === 0 || !viewer || !viewer.map || !viewer.map.centerOffset) return;
+    const ox = viewer.map.centerOffset[0];
+    const oy = viewer.map.centerOffset[1];
+    const inset = 1.5;
+
+    overlayCtx.save();
+    overlayCtx.lineWidth = 1;
+    for (let i = 0; i < evalRes.cells.length; i++) {
+      const c = evalRes.cells[i];
+      const wx0 = ox + c.cx * 32 + inset;
+      const wy0 = oy + c.cy * 32 + inset;
+      const wx1 = ox + (c.cx + 1) * 32 - inset;
+      const wy1 = oy + (c.cy + 1) * 32 - inset;
+      const z00 = (hasHeight ? viewer.map.heightAt(wx0, wy0) : 0) + 7;
+      const z10 = (hasHeight ? viewer.map.heightAt(wx1, wy0) : 0) + 7;
+      const z11 = (hasHeight ? viewer.map.heightAt(wx1, wy1) : 0) + 7;
+      const z01 = (hasHeight ? viewer.map.heightAt(wx0, wy1) : 0) + 7;
+
+      const p0 = projectWorld(wx0, wy0, z00, vp);
+      const p1 = projectWorld(wx1, wy0, z10, vp);
+      const p2 = projectWorld(wx1, wy1, z11, vp);
+      const p3 = projectWorld(wx0, wy1, z01, vp);
+      if (!p0 || !p1 || !p2 || !p3) continue;
+
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(p0[0], p0[1]);
+      overlayCtx.lineTo(p1[0], p1[1]);
+      overlayCtx.lineTo(p2[0], p2[1]);
+      overlayCtx.lineTo(p3[0], p3[1]);
+      overlayCtx.closePath();
+
+      if (c.blocked) {
+        overlayCtx.fillStyle = 'rgba(245, 45, 45, 0.54)';
+        overlayCtx.strokeStyle = 'rgba(255, 95, 95, 0.85)';
+      } else {
+        overlayCtx.fillStyle = 'rgba(40, 225, 75, 0.34)';
+        overlayCtx.strokeStyle = 'rgba(90, 255, 130, 0.72)';
+      }
+      overlayCtx.fill();
+      overlayCtx.stroke();
+    }
+    overlayCtx.restore();
+  }
+
   function drawViewportOverlays(nowMs) {
     if (!overlayCtx || !overlayCanvas) return;
     overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
@@ -824,6 +873,12 @@
     drawRegionsOverlay(vp, hasHeight);
     drawWeatherOverlay(dt);
 
+    // 0b. Placement / Dragging WC3 32x32 Pathing Grid Footprint
+    if ((editorState.isDraggingEntity && editorState.dragMoved && editorState.placementEval) ||
+        ((editorState.mode === 'place_unit' || editorState.mode === 'place_doodad') && editorState.placementEval)) {
+      drawPlacementCellsOverlay(editorState.placementEval, vp, hasHeight);
+    }
+
     // 1. Selected Entity selection circle + facing vector
     if (editorState.selectedEntity) {
       let live = typeof viewer.map.getEntityTransform === 'function'
@@ -831,7 +886,9 @@
         : null;
       let ent = live || editorState.selectedEntity;
       let rad = Math.max(52, 68 * (ent.scale || 1));
-      let ringColor = ent.kind === 'unit' ? '#33FF55' : '#40D8FF';
+      let ringColor = (editorState.isDraggingEntity && editorState.placementEval && !editorState.placementEval.valid && !editorState.ignorePathing)
+        ? '#FF3B3B'
+        : (ent.kind === 'unit' ? '#33FF55' : '#40D8FF');
       drawWorldRing(ent.x, ent.y, ent.z || 0, rad, ringColor, 2.5, ent.angle, vp);
     }
 
@@ -841,7 +898,10 @@
       let hz = hasHeight ? viewer.map.heightAt(editorState.hoverWx, editorState.hoverWy) : 0;
       let pAngle = editorState.placeSpec ? editorState.placeSpec.angle : (270 * Math.PI) / 180;
       let pScale = editorState.placeSpec ? (editorState.placeSpec.scale || 1) : 1;
-      drawWorldRing(editorState.hoverWx, editorState.hoverWy, hz, 64 * pScale, '#00FFE5', 2, pAngle, vp);
+      let ghostColor = (editorState.placementEval && !editorState.placementEval.valid && !editorState.ignorePathing)
+        ? '#FF3B3B'
+        : '#00FFE5';
+      drawWorldRing(editorState.hoverWx, editorState.hoverWy, hz, 64 * pScale, ghostColor, 2, pAngle, vp);
     }
 
     // 3. Terrain Brush circle / square
@@ -995,13 +1055,31 @@
     if ((editorState.mode === 'place_unit' || editorState.mode === 'place_doodad') && !e.ctrlKey && !e.altKey) {
       let hit = raycastTerrain(e.clientX, e.clientY);
       if (hit && editorState.placeSpec) {
+        let px = hit[0], py = hit[1], pz = hit[2];
+        if (viewer && viewer.map && typeof viewer.map.evaluateEntityPlacement === 'function') {
+          let evalRes = viewer.map.evaluateEntityPlacement(
+            editorState.placeSpec.kind,
+            editorState.placeSpec.rawcode,
+            null,
+            hit[0],
+            hit[1],
+            editorState.ignorePathing
+          );
+          editorState.placementEval = evalRes;
+          if (!evalRes.valid && !editorState.ignorePathing) {
+            return;
+          }
+          px = evalRes.x;
+          py = evalRes.y;
+          pz = evalRes.z;
+        }
         postMsg({
           type: 'entity_place_request',
           kind: editorState.placeSpec.kind,
           rawcode: editorState.placeSpec.rawcode,
-          x: hit[0],
-          y: hit[1],
-          z: hit[2],
+          x: px,
+          y: py,
+          z: pz,
           angle: editorState.placeSpec.angle ?? (270 * Math.PI) / 180,
           scale: editorState.placeSpec.scale ?? 1,
           player: editorState.placeSpec.player ?? 0,
@@ -1065,6 +1143,9 @@
           editorState.selectedEntity = picked;
           editorState.isDraggingEntity = true;
           editorState.dragMoved = false;
+          editorState.dragOrigPos = { x: picked.x, y: picked.y, z: picked.z || 0 };
+          editorState.dragLastValidPos = { x: picked.x, y: picked.y, z: picked.z || 0 };
+          editorState.placementEval = null;
           postMsg({ type: 'entity_selected', entity: picked });
           return;
         }
@@ -1148,15 +1229,35 @@
     regionState.createDraft = null;
 
     if (editorState.isDraggingEntity && editorState.dragMoved && editorState.selectedEntity) {
-      postMsg({
-        type: 'entity_moved',
-        kind: editorState.selectedEntity.kind,
-        creationNumber: editorState.selectedEntity.creationNumber,
-        x: editorState.selectedEntity.x,
-        y: editorState.selectedEntity.y,
-        z: editorState.selectedEntity.z
-      });
+      let ent = editorState.selectedEntity;
+      if (editorState.placementEval && !editorState.placementEval.valid && !editorState.ignorePathing) {
+        let fallback = editorState.dragLastValidPos || editorState.dragOrigPos;
+        if (fallback && viewer && viewer.map) {
+          ent.x = fallback.x;
+          ent.y = fallback.y;
+          ent.z = fallback.z;
+          if (ent.kind === 'unit' && typeof viewer.map.updateLiveUnit === 'function') {
+            viewer.map.updateLiveUnit(ent.creationNumber, { x: fallback.x, y: fallback.y, z: fallback.z });
+          } else if (ent.kind === 'doodad' && typeof viewer.map.updateLiveDoodad === 'function') {
+            viewer.map.updateLiveDoodad(ent.creationNumber, { x: fallback.x, y: fallback.y, z: fallback.z });
+          }
+        }
+      }
+      let orig = editorState.dragOrigPos;
+      if (!orig || Math.abs(ent.x - orig.x) > 0.5 || Math.abs(ent.y - orig.y) > 0.5) {
+        postMsg({
+          type: 'entity_moved',
+          kind: ent.kind,
+          creationNumber: ent.creationNumber,
+          x: ent.x,
+          y: ent.y,
+          z: ent.z
+        });
+      }
     }
+    editorState.dragOrigPos = null;
+    editorState.dragLastValidPos = null;
+    if (editorState.isDraggingEntity) editorState.placementEval = null;
 
     let wasPainting = cameraState.isPainting;
     cameraState.isRotating = false;
@@ -1252,21 +1353,54 @@
                !cameraState.isRotating && !cameraState.isPanning) {
       let hit = raycastTerrain(e.clientX, e.clientY);
       if (hit) {
-        editorState.hoverWx = hit[0];
-        editorState.hoverWy = hit[1];
+        if (editorState.placeSpec && viewer && viewer.map && typeof viewer.map.evaluateEntityPlacement === 'function') {
+          let evalRes = viewer.map.evaluateEntityPlacement(
+            editorState.placeSpec.kind,
+            editorState.placeSpec.rawcode,
+            null,
+            hit[0],
+            hit[1],
+            editorState.ignorePathing
+          );
+          editorState.placementEval = evalRes;
+          editorState.hoverWx = evalRes.x;
+          editorState.hoverWy = evalRes.y;
+        } else {
+          editorState.placementEval = null;
+          editorState.hoverWx = hit[0];
+          editorState.hoverWy = hit[1];
+        }
       }
     } else if (editorState.isDraggingEntity && editorState.selectedEntity) {
       if (Math.hypot(e.clientX - cameraState.downX, e.clientY - cameraState.downY) >= 4) {
         let hit = raycastTerrain(e.clientX, e.clientY);
         if (hit && viewer && viewer.map) {
           editorState.dragMoved = true;
-          editorState.selectedEntity.x = hit[0];
-          editorState.selectedEntity.y = hit[1];
-          editorState.selectedEntity.z = hit[2];
+          let tx = hit[0], ty = hit[1], tz = hit[2];
+          if (typeof viewer.map.evaluateEntityPlacement === 'function') {
+            let evalRes = viewer.map.evaluateEntityPlacement(
+              editorState.selectedEntity.kind,
+              editorState.selectedEntity.id,
+              editorState.selectedEntity.creationNumber,
+              hit[0],
+              hit[1],
+              editorState.ignorePathing
+            );
+            editorState.placementEval = evalRes;
+            tx = evalRes.x;
+            ty = evalRes.y;
+            tz = evalRes.z;
+            if (evalRes.valid || editorState.ignorePathing) {
+              editorState.dragLastValidPos = { x: tx, y: ty, z: tz };
+            }
+          }
+          editorState.selectedEntity.x = tx;
+          editorState.selectedEntity.y = ty;
+          editorState.selectedEntity.z = tz;
           if (editorState.selectedEntity.kind === 'unit' && typeof viewer.map.updateLiveUnit === 'function') {
-            viewer.map.updateLiveUnit(editorState.selectedEntity.creationNumber, { x: hit[0], y: hit[1], z: hit[2] });
+            viewer.map.updateLiveUnit(editorState.selectedEntity.creationNumber, { x: tx, y: ty, z: tz });
           } else if (editorState.selectedEntity.kind === 'doodad' && typeof viewer.map.updateLiveDoodad === 'function') {
-            viewer.map.updateLiveDoodad(editorState.selectedEntity.creationNumber, { x: hit[0], y: hit[1], z: hit[2] });
+            viewer.map.updateLiveDoodad(editorState.selectedEntity.creationNumber, { x: tx, y: ty, z: tz });
           }
         }
       }
@@ -1430,12 +1564,20 @@
       } else if (data.action === 'set_editor_mode') {
         editorState.mode = data.mode || 'select';
         editorState.placeSpec = data.placeSpec || null;
+        editorState.placementEval = null;
         brushState.active = editorState.mode === 'terrain';
         canvas.style.cursor = (editorState.mode === 'select') ? 'default' : 'crosshair';
         if (editorState.mode !== 'place_unit' && editorState.mode !== 'place_doodad') {
           editorState.hoverWx = null;
           editorState.hoverWy = null;
+        } else if (editorState.placeSpec && viewer && viewer.map && typeof viewer.map.getEntityPathingSpec === 'function') {
+          viewer.map.getEntityPathingSpec(editorState.placeSpec.kind, editorState.placeSpec.rawcode);
         }
+      } else if (data.action === 'set_pathing_options') {
+        editorState.ignorePathing = !!data.ignorePathing;
+      } else if (data.action === 'set_object_overrides') {
+        window._w3sObjectOverrides = data.overrides || null;
+        if (viewer) viewer._w3sObjectOverrides = window._w3sObjectOverrides;
       } else if (data.action === 'select_entity') {
         if (viewer && viewer.map && typeof viewer.map.getEntityTransform === 'function') {
           let ent = viewer.map.getEntityTransform(data.kind, data.creationNumber);

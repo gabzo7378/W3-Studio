@@ -78,9 +78,21 @@ public static class MapScriptSyncService
                 };
             }
 
+            bool hasBounds = project.Terrain.GridWidth > 1 && project.Terrain.GridHeight > 1;
+            float clampedX = float.IsFinite(pu.X)
+                ? (hasBounds ? Math.Clamp(pu.X, project.Terrain.OffsetX, project.Terrain.MaxX) : pu.X)
+                : 0f;
+            float clampedY = float.IsFinite(pu.Y)
+                ? (hasBounds ? Math.Clamp(pu.Y, project.Terrain.OffsetY, project.Terrain.MaxY) : pu.Y)
+                : 0f;
+            float clampedZ = float.IsFinite(pu.Z) ? pu.Z : 0f;
+            pu.X = clampedX;
+            pu.Y = clampedY;
+            pu.Z = clampedZ;
+
             ud.TypeId = WarcraftBaseDataService.RawcodeToInt(pu.Rawcode);
             ud.Variation = pu.Variation;
-            ud.Position = new Vector3(pu.X, pu.Y, pu.Z);
+            ud.Position = new Vector3(clampedX, clampedY, clampedZ);
             ud.Rotation = pu.AngleRadians;
             ud.Scale = new Vector3(pu.Scale, pu.ScaleY, pu.ScaleZ);
             ud.Flags = pu.Flags;
@@ -129,9 +141,21 @@ public static class MapScriptSyncService
                 };
             }
 
+            bool hasBoundsD = project.Terrain.GridWidth > 1 && project.Terrain.GridHeight > 1;
+            float clampedDX = float.IsFinite(pd.X)
+                ? (hasBoundsD ? Math.Clamp(pd.X, project.Terrain.OffsetX, project.Terrain.MaxX) : pd.X)
+                : 0f;
+            float clampedDY = float.IsFinite(pd.Y)
+                ? (hasBoundsD ? Math.Clamp(pd.Y, project.Terrain.OffsetY, project.Terrain.MaxY) : pd.Y)
+                : 0f;
+            float clampedDZ = float.IsFinite(pd.Z) ? pd.Z : 0f;
+            pd.X = clampedDX;
+            pd.Y = clampedDY;
+            pd.Z = clampedDZ;
+
             dd.TypeId = WarcraftBaseDataService.RawcodeToInt(pd.Rawcode);
             dd.Variation = pd.Variation;
-            dd.Position = new Vector3(pd.X, pd.Y, pd.Z);
+            dd.Position = new Vector3(clampedDX, clampedDY, clampedDZ);
             dd.Rotation = pd.AngleRadians;
             dd.Scale = new Vector3(pd.Scale, pd.ScaleY, pd.ScaleZ);
             dd.State = (DoodadState)pd.Flags;
@@ -429,7 +453,7 @@ public static class MapScriptSyncService
                 continue;
             }
 
-            bool isBldg = u.IsBuilding || IsBuildingRawcode(u.Rawcode, baseObj);
+            bool isBldg = u.IsBuilding || PathingService.IsUnitBuilding(u.Rawcode, project, baseData);
             if (u.PlayerId == 12)
             {
                 if (isBldg) neutralHostileBuildings.Add(u);
@@ -577,17 +601,33 @@ public static class MapScriptSyncService
             string ggName = $"gg_unit_{u.Rawcode}_{u.CreationNumber:D4}";
             bool keepGlobal = declaredGlobals.Contains(ggName);
             float deg = (float)(u.AngleRadians * 180.0 / Math.PI);
-
-            if (u.Rawcode is "ngol" or "ugol" or "egol")
+            string ownerExpr = u.PlayerId switch
             {
-                sb.AppendLine($"    set u = CreateBlightedGoldmine( p, {Fmt(u.X)}, {Fmt(u.Y)}, {Fmt(deg)} )");
+                12 => "Player(PLAYER_NEUTRAL_AGGRESSIVE)",
+                13 => "Player(bj_PLAYER_NEUTRAL_VICTIM)",
+                14 => "Player(bj_PLAYER_NEUTRAL_EXTRA)",
+                15 => "Player(PLAYER_NEUTRAL_PASSIVE)",
+                _ => "p"
+            };
+
+            if (u.Rawcode.Equals("ugol", StringComparison.OrdinalIgnoreCase))
+            {
+                sb.AppendLine($"    set u = CreateBlightedGoldmine( {ownerExpr}, {Fmt(u.X)}, {Fmt(u.Y)}, {Fmt(deg)} )");
+                if (keepGlobal)
+                    sb.AppendLine($"    set {ggName} = u");
+                sb.AppendLine($"    call SetResourceAmount( u, {Math.Max(0, u.GoldAmount)} )");
+            }
+            else if (u.Rawcode.Equals("ngol", StringComparison.OrdinalIgnoreCase) ||
+                     u.Rawcode.Equals("egol", StringComparison.OrdinalIgnoreCase))
+            {
+                sb.AppendLine($"    set u = CreateUnit( {ownerExpr}, '{u.Rawcode}', {Fmt(u.X)}, {Fmt(u.Y)}, {Fmt(deg)} )");
                 if (keepGlobal)
                     sb.AppendLine($"    set {ggName} = u");
                 sb.AppendLine($"    call SetResourceAmount( u, {Math.Max(0, u.GoldAmount)} )");
             }
             else
             {
-                sb.AppendLine($"    set u = CreateUnit( p, '{u.Rawcode}', {Fmt(u.X)}, {Fmt(u.Y)}, {Fmt(deg)} )");
+                sb.AppendLine($"    set u = CreateUnit( {ownerExpr}, '{u.Rawcode}', {Fmt(u.X)}, {Fmt(u.Y)}, {Fmt(deg)} )");
                 if (keepGlobal)
                     sb.AppendLine($"    set {ggName} = u");
             }
@@ -614,10 +654,15 @@ public static class MapScriptSyncService
 
     private static bool IsBuildingRawcode(string rawcode, BaseObjectMetadata? baseObj)
     {
-        if (baseObj != null &&
-            baseObj.DefaultFields.TryGetValue("ubdg", out var ubdg) &&
-            (ubdg == "1" || ubdg.Equals("true", StringComparison.OrdinalIgnoreCase)))
-            return true;
+        if (baseObj != null)
+        {
+            if (baseObj.DefaultFields.TryGetValue("isbldg", out var isb) &&
+                (isb == "1" || isb.Equals("true", StringComparison.OrdinalIgnoreCase)))
+                return true;
+            if (baseObj.DefaultFields.TryGetValue("ubdg", out var ubdg) &&
+                (ubdg == "1" || ubdg.Equals("true", StringComparison.OrdinalIgnoreCase)))
+                return true;
+        }
 
         return false;
     }

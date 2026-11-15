@@ -1187,7 +1187,13 @@ public partial class MapMediaManagerWindow : Window
             LoadExternalImageForLoadingScreen(files[0]);
     }
 
-    private void BtnClose_Click(object sender, RoutedEventArgs e) => Close();
+    internal Action? EmbeddedCloseHandler { get; set; }
+
+    private void BtnClose_Click(object sender, RoutedEventArgs e)
+    {
+        if (EmbeddedCloseHandler != null) EmbeddedCloseHandler();
+        else Close();
+    }
 
     private static MapInfo EnsureMapInfo(MapProject project)
     {

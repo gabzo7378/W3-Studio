@@ -182,7 +182,8 @@
                             <TextBlock x:Name="LblEditorBehaviorTitle" Text="Comportamiento del Editor:" FontWeight="Bold" FontSize="13" Margin="0,0,0,8"/>
 
                             <CheckBox x:Name="ChkAutoSaveBeforeTest" Content="Guardar mapa automáticamente antes de Probar (F9)" IsChecked="True" Margin="0,3,0,8"/>
-                            <CheckBox x:Name="ChkShowGridByDefault" Content="Mostrar cuadrícula de terreno (Terrain Grid) por defecto" Margin="0,3,0,12"/>
+                            <CheckBox x:Name="ChkShowGridByDefault" Content="Mostrar cuadrícula de terreno (Terrain Grid) por defecto" Margin="0,3,0,8"/>
+                            <CheckBox x:Name="ChkOpenModulesSeparateWindows" Content="Ventana: abrir módulos en ventanas independientes (desmarcar para abrirlos en el área del viewport)" IsChecked="True" FontWeight="SemiBold" Margin="0,3,0,12"/>
 
                             <TextBlock x:Name="LblAdvancedViewTitle" Text="Modo Inspector Avanzado (Archivos Internos del Mapa):" FontWeight="Bold" FontSize="13" Margin="0,4,0,4"/>
                             <TextBlock x:Name="LblAdvancedViewWarning" Text="⚠ Por defecto se ocultan los archivos internos del sistema de Warcraft III (war3map.w3e, war3map.wtg, war3map.shd, etc.) para evitar modificaciones accidentales que corrompan el mapa." Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"/>

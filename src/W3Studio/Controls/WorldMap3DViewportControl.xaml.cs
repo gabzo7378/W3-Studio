@@ -528,6 +528,20 @@ public partial class WorldMap3DViewportControl : UserControl
         WvMap.CoreWebView2.PostWebMessageAsJson(json);
     }
 
+    public void SetPathingOptions(bool ignorePathing)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
+        var json = JsonSerializer.Serialize(new { action = "set_pathing_options", ignorePathing });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
+    public void SetCustomObjectOverrides(object overrides)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null || overrides == null) return;
+        var json = JsonSerializer.Serialize(new { action = "set_object_overrides", overrides });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
     public void SelectEntity(string kind, int creationNumber, bool focus = false, float distance = 1650f)
     {
         if (!_isEngineReady || WvMap.CoreWebView2 == null) return;

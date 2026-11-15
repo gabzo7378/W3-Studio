@@ -176,6 +176,29 @@ public partial class MainWindow
         Sync3DEditorMode();
     }
 
+    private void ChkIgnorePathing_Changed(object sender, RoutedEventArgs e)
+    {
+        if (ChkIgnorePathing == null || _settings == null)
+            return;
+
+        _settings.IgnoreEntityPathing = ChkIgnorePathing.IsChecked == true;
+        _settings.Save();
+        Map3DViewport?.SetPathingOptions(_settings.IgnoreEntityPathing);
+    }
+
+    private void Sync3DPathingMetadata()
+    {
+        if (Map3DViewport == null)
+            return;
+
+        Map3DViewport.SetPathingOptions(_settings.IgnoreEntityPathing);
+        if (_currentProject != null)
+        {
+            var overrides = PathingService.BuildClientOverrides(_currentProject, _baseDataService);
+            Map3DViewport.SetCustomObjectOverrides(overrides);
+        }
+    }
+
     private void Sync3DEditorMode()
     {
         if (Map3DViewport == null || CmbPaletteMode == null)
@@ -206,6 +229,13 @@ public partial class MainWindow
         {
             int owner = (CmbPlaceOwner?.SelectedItem as PlayerOwnerOption)?.PlayerId ?? 0;
             string jsMode = cat.IsDoodadKind ? "place_doodad" : "place_unit";
+            string pathTex = cat.IsDoodadKind
+                ? PathingService.ResolveObjectField(cat.Rawcode, true, _currentProject, _baseDataService, cat.IsDestructible ? "bptx" : "dptx", "pathTex")
+                : PathingService.ResolveObjectField(cat.Rawcode, false, _currentProject, _baseDataService, "upat", "pathTex");
+            string moveType = cat.IsDoodadKind ? string.Empty : PathingService.ResolveObjectField(cat.Rawcode, false, _currentProject, _baseDataService, "umvt", "movetp");
+            string preventPlace = cat.IsDoodadKind ? string.Empty : PathingService.ResolveObjectField(cat.Rawcode, false, _currentProject, _baseDataService, "upap", "preventPlace");
+            string requirePlace = cat.IsDoodadKind ? string.Empty : PathingService.ResolveObjectField(cat.Rawcode, false, _currentProject, _baseDataService, "upar", "requirePlace");
+
             Map3DViewport.SetEditorMode(jsMode, new
             {
                 kind = cat.IsDoodadKind ? "doodad" : "unit",
@@ -215,7 +245,13 @@ public partial class MainWindow
                 scale = 1.0,
                 variation = 0,
                 life = 100,
-                modelPath = cat.ModelPath
+                modelPath = cat.ModelPath,
+                isBuilding = cat.IsBuilding,
+                isDestructible = cat.IsDestructible,
+                pathTex,
+                moveType,
+                preventPlace,
+                requirePlace
             });
             TxtStatusBarLeft.Text = $"Modo Colocar: [{cat.Rawcode}] {cat.Name} — Clic izquierdo en terreno para colocar, Esc o Clic derecho para salir.";
         }
@@ -253,8 +289,8 @@ public partial class MainWindow
             string name = StripColorCodes(obj.Name);
             if (string.IsNullOrWhiteSpace(name)) name = obj.Rawcode;
             string model = ResolveModelPathFromEntry(obj) ?? _baseDataService.GetBaseObject(obj.Rawcode)?.ModelFile ?? string.Empty;
-            var baseMeta = _baseDataService.GetBaseObject(obj.Rawcode);
-            bool isBldg = baseMeta?.DefaultFields.TryGetValue("ubdg", out var ubdg) == true && (ubdg == "1" || ubdg == "true");
+            bool isBldg = obj.Category == W3ObjectCategory.Units &&
+                          PathingService.IsUnitBuilding(obj.Rawcode, _currentProject, _baseDataService);
 
             list.Add(new CatalogPaletteItem
             {
@@ -282,7 +318,8 @@ public partial class MainWindow
             if (!matches || string.IsNullOrWhiteSpace(meta.ModelFile))
                 continue;
 
-            bool isBldg = meta.DefaultFields.TryGetValue("ubdg", out var ubdg) == true && (ubdg == "1" || ubdg == "true");
+            bool isBldg = meta.Category == W3ObjectCategory.Units &&
+                          PathingService.IsUnitBuilding(meta.Rawcode, _currentProject, _baseDataService);
             list.Add(new CatalogPaletteItem
             {
                 Rawcode = meta.Rawcode,
@@ -420,7 +457,7 @@ public partial class MainWindow
                 : 0;
             var baseMeta = _baseDataService.GetBaseObject(rawcode);
             bool isItem = (customObj?.Category ?? baseMeta?.Category) == W3ObjectCategory.Items;
-            bool isBldg = baseMeta?.DefaultFields.TryGetValue("ubdg", out var ubdg) == true && (ubdg == "1" || ubdg == "true");
+            bool isBldg = !isItem && PathingService.IsUnitBuilding(rawcode, _currentProject, _baseDataService);
 
             var placed = new W3PlacedUnit
             {

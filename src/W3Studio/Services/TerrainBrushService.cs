@@ -472,6 +472,8 @@ namespace W3Studio.Services
                 t.WaterDepths[sx, sy] = waterDepth;
             if (t.RampFlags != null && sx < t.RampFlags.GetLength(0) && sy < t.RampFlags.GetLength(1))
                 t.RampFlags[sx, sy] = (flags & 0x10) != 0;
+            if (t.BoundaryFlags != null && sx < t.BoundaryFlags.GetLength(0) && sy < t.BoundaryFlags.GetLength(1))
+                t.BoundaryFlags[sx, sy] = (flags & 0x80) != 0 || (waterRaw & 0x4000) != 0;
             if (t.GroundHeights != null && sx < t.GroundHeights.GetLength(0) && sy < t.GroundHeights.GetLength(1))
                 t.GroundHeights[sx, sy] = realHeight;
 

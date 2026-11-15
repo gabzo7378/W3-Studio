@@ -46,7 +46,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        _mapMpqService = new MapMpqService(_baseDataService);
+        _mapMpqService = new MapMpqService(_baseDataService, _blpIconService);
 
         CodeEditor.SyntaxHighlighting = VjassSyntaxHighlighter.GetDefinition();
         _mainCodeIde = new JassIdeAttachment(CodeEditor, null, _settings);
@@ -66,6 +66,7 @@ public partial class MainWindow : Window
         {
             SyncTerrainBrushToViewport();
             Sync3DLayersAndRegions();
+            Sync3DPathingMetadata();
             Sync3DEditorMode();
             Map3DViewport.SetLightingPreset(LightingPresets[_lightingPresetIndex]);
         };
@@ -94,10 +95,10 @@ public partial class MainWindow : Window
         ApplyMainWindowLocalization();
         RefreshRecentMapsMenu();
 
-        TxtTopWar3Dir.Text = _settings.Warcraft3Dir;
-        ChkWindowedTest.IsChecked = _settings.WindowedMode;
         if (MenuWindowedMode != null)
             MenuWindowedMode.IsChecked = _settings.WindowedMode;
+        if (MenuModulesSeparateWindows != null)
+            MenuModulesSeparateWindows.IsChecked = _settings.OpenModulesInSeparateWindows;
 
         await InitializeBaseMpqAsync();
 
@@ -110,7 +111,7 @@ public partial class MainWindow : Window
         Map3DViewport.LoadMap(null);
         ImgSidebarMinimap.Source = null;
         Title = "Warcraft III World Editor (1.27b)";
-        TxtStatusBarLeft.Text = "Ningún mapa cargado. Usa Archivo -> Abrir Mapa (Ctrl+O)";
+        TxtStatusBarLeft.Text = string.Empty;
 
         // Pre-warm WebView2 3D engine while TabMapViewport is visible so loading a map never stalls at 74%
         if (TabMapViewport != null)
@@ -137,18 +138,10 @@ public partial class MainWindow : Window
 
     private async Task InitializeBaseMpqAsync()
     {
-        TxtStatusBarRight.Text = "Cargando SLKs e Iconos .BLP Base 1.27b...";
+        TxtStatusBarRight.Text = string.Empty;
         _blpIconService.ConfigureBaseMpqs(_settings);
         await Task.Run(() => _baseDataService.LoadFromWarcraftFolder(_settings));
-
-        if (_baseDataService.IsBaseMpqLoaded)
-        {
-            TxtStatusBarRight.Text = $"MPQ 1.27b ({_baseDataService.LoadedBaseObjectsCount:N0} base SLK) | JassHelper Listo";
-        }
-        else
-        {
-            TxtStatusBarRight.Text = "MPQ Base no detectado (Ver Config)";
-        }
+        TxtStatusBarRight.Text = string.Empty;
     }
 
     private async Task LoadMapFileAsync(string filePath)
@@ -209,9 +202,13 @@ public partial class MainWindow : Window
             _mainCodeIde.SetContext(project, _settings);
             RefreshToolPaletteList();
             if (FloatingToolPalette != null)
-                FloatingToolPalette.Visibility = Visibility.Visible;
+                FloatingToolPalette.Visibility = _settings.ShowToolPalette ? Visibility.Visible : Visibility.Collapsed;
             TreeTriggers.ItemsSource = project.TriggerTree;
             EmbeddedObjectEditor.LoadProject(project);
+            _embeddedTriggerEditorWindow?.LoadProject(project);
+            _embeddedIconManagerWindow?.SetProject(project);
+            _embeddedOptimizerWindow?.SetProject(project);
+            _embeddedMapMediaWindow?.SetProject(project, MapViewport.MinimapBitmap);
             if (_standaloneObjectEditorWindow != null && _standaloneObjectEditorWindow.IsLoaded)
             {
                 _standaloneObjectEditorWindow.LoadProject(project);
@@ -286,9 +283,96 @@ public partial class MainWindow : Window
     private IconManagerWindow? _standaloneIconManagerWindow;
     private OptimizerWindow? _standaloneOptimizerWindow;
     private MapMediaManagerWindow? _standaloneMapMediaWindow;
+    private Window? _standaloneImportsWindow;
+    private Window? _standaloneGlobalSearchWindow;
+
+    private TriggerEditorWindow? _embeddedTriggerEditorWindow;
+    private UIElement? _embeddedTriggerEditorContent;
+    private IconManagerWindow? _embeddedIconManagerWindow;
+    private UIElement? _embeddedIconManagerContent;
+    private OptimizerWindow? _embeddedOptimizerWindow;
+    private UIElement? _embeddedOptimizerContent;
+    private MapMediaManagerWindow? _embeddedMapMediaWindow;
+    private UIElement? _embeddedMapMediaContent;
+
+    private object? _importsTabOriginalContent;
+    private object? _globalSearchTabOriginalContent;
+
+    private void ReturnToMapViewport()
+    {
+        if (TabMapViewport != null)
+            TabMapViewport.IsSelected = true;
+    }
+
+    private void ShowEmbeddedModuleControl(UIElement? content)
+    {
+        if (EmbeddedModuleHost == null || TabEmbeddedModule == null)
+            return;
+
+        if (!ReferenceEquals(EmbeddedModuleHost.Content, content))
+            EmbeddedModuleHost.Content = content;
+
+        TabEmbeddedModule.IsSelected = true;
+    }
+
+    private static UIElement? DetachWindowContent(Window win)
+    {
+        var content = win.Content as UIElement;
+        win.Content = null;
+        return content;
+    }
+
+    private Window CreateHostedTabWindow(string title, object? content, Action onRestoring)
+    {
+        var win = new Window
+        {
+            Title = title,
+            Width = 1120,
+            Height = 720,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = this,
+            Background = Background,
+            Content = content
+        };
+
+        win.Closed += (_, _) =>
+        {
+            win.Content = null;
+            onRestoring();
+        };
+
+        return win;
+    }
+
+    private void ResetModuleHostsForModeChange()
+    {
+        if (_settings.OpenModulesInSeparateWindows)
+        {
+            if (EmbeddedModuleHost != null)
+                EmbeddedModuleHost.Content = null;
+            ReturnToMapViewport();
+            return;
+        }
+
+        try { _standaloneImportsWindow?.Close(); } catch { }
+        try { _standaloneGlobalSearchWindow?.Close(); } catch { }
+        try { _standaloneObjectEditorWindow?.Close(); } catch { }
+        try { _standaloneTriggerEditorWindow?.Close(); } catch { }
+        try { _standaloneIconManagerWindow?.Close(); } catch { }
+        try { _standaloneOptimizerWindow?.Close(); } catch { }
+        try { _standaloneMapMediaWindow?.Close(); } catch { }
+    }
 
     private void OpenOrFocusObjectEditorWindow(W3ObjectCategory cat = W3ObjectCategory.Units, string? rawcode = null)
     {
+        if (!_settings.OpenModulesInSeparateWindows)
+        {
+            EmbeddedObjectEditor.SelectCategoryAndSearch(cat, rawcode);
+            if (TabObjects != null)
+                TabObjects.IsSelected = true;
+            return;
+        }
+
         if (_standaloneObjectEditorWindow == null || !_standaloneObjectEditorWindow.IsLoaded)
         {
             _standaloneObjectEditorWindow = new ObjectEditorWindow(_baseDataService, _blpIconService, _currentProject, cat, rawcode)
@@ -311,6 +395,29 @@ public partial class MainWindow : Window
 
     private void OpenOrFocusTriggerEditorWindow(TriggerNode? initialNode = null)
     {
+        if (!_settings.OpenModulesInSeparateWindows)
+        {
+            if (_embeddedTriggerEditorWindow == null || _embeddedTriggerEditorContent == null)
+            {
+                _embeddedTriggerEditorWindow = new TriggerEditorWindow(_compilerService, _settings, _currentProject, initialNode)
+                {
+                    EmbeddedCloseHandler = ReturnToMapViewport
+                };
+                _embeddedTriggerEditorWindow.RequestOpenObjectEditor += () => OpenOrFocusObjectEditorWindow();
+                _embeddedTriggerEditorWindow.RequestSaveAndCompile += SaveAndCompileMapAsync;
+                _embeddedTriggerEditorContent = DetachWindowContent(_embeddedTriggerEditorWindow);
+            }
+            else
+            {
+                _embeddedTriggerEditorWindow.LoadProject(_currentProject);
+                if (initialNode != null)
+                    _embeddedTriggerEditorWindow.SelectTriggerNode(initialNode);
+            }
+
+            ShowEmbeddedModuleControl(_embeddedTriggerEditorContent);
+            return;
+        }
+
         if (_standaloneTriggerEditorWindow == null || !_standaloneTriggerEditorWindow.IsLoaded)
         {
             _standaloneTriggerEditorWindow = new TriggerEditorWindow(_compilerService, _settings, _currentProject, initialNode)
@@ -345,17 +452,38 @@ public partial class MainWindow : Window
 
     private void OpenOrFocusIconManagerWindow(string? initialIconPath = null)
     {
+        Action<string> onIconImported = savedMpqPath =>
+        {
+            RefreshImportsGrid();
+            UpdateTestButtonState();
+            TxtStatusBarLeft.Text = $"Icono custom agregado a Importaciones: {savedMpqPath} (con DISBTN automático)";
+        };
+
+        if (!_settings.OpenModulesInSeparateWindows)
+        {
+            if (_embeddedIconManagerWindow == null || _embeddedIconManagerContent == null)
+            {
+                _embeddedIconManagerWindow = new IconManagerWindow(_blpIconService, _currentProject, onIconImported)
+                {
+                    EmbeddedCloseHandler = ReturnToMapViewport
+                };
+                _embeddedIconManagerContent = DetachWindowContent(_embeddedIconManagerWindow);
+            }
+            else
+            {
+                _embeddedIconManagerWindow.SetProject(_currentProject);
+            }
+
+            if (!string.IsNullOrWhiteSpace(initialIconPath))
+                _embeddedIconManagerWindow.LoadIconByMpqPath(initialIconPath);
+
+            ShowEmbeddedModuleControl(_embeddedIconManagerContent);
+            return;
+        }
+
         if (_standaloneIconManagerWindow == null || !_standaloneIconManagerWindow.IsLoaded)
         {
-            _standaloneIconManagerWindow = new IconManagerWindow(
-                _blpIconService,
-                _currentProject,
-                savedMpqPath =>
-                {
-                    RefreshImportsGrid();
-                    UpdateTestButtonState();
-                    TxtStatusBarLeft.Text = $"Icono custom agregado a Importaciones: {savedMpqPath} (con DISBTN automático)";
-                })
+            _standaloneIconManagerWindow = new IconManagerWindow(_blpIconService, _currentProject, onIconImported)
             {
                 Owner = this
             };
@@ -389,18 +517,45 @@ public partial class MainWindow : Window
 
     public void OpenOrFocusMapMediaWindow(int initialTabIndex = 0)
     {
+        Action<string> onMediaApplied = summaryMsg =>
+        {
+            RefreshImportsGrid();
+            UpdateTestButtonState();
+            TxtStatusBarLeft.Text = summaryMsg;
+        };
+
+        if (!_settings.OpenModulesInSeparateWindows)
+        {
+            if (_embeddedMapMediaWindow == null || _embeddedMapMediaContent == null)
+            {
+                _embeddedMapMediaWindow = new MapMediaManagerWindow(
+                    _blpIconService,
+                    _currentProject,
+                    MapViewport?.MinimapBitmap,
+                    onMediaApplied,
+                    initialTabIndex)
+                {
+                    EmbeddedCloseHandler = ReturnToMapViewport
+                };
+                _embeddedMapMediaContent = DetachWindowContent(_embeddedMapMediaWindow);
+            }
+            else
+            {
+                _embeddedMapMediaWindow.SetProject(_currentProject, MapViewport?.MinimapBitmap);
+                _embeddedMapMediaWindow.SelectTab(initialTabIndex);
+            }
+
+            ShowEmbeddedModuleControl(_embeddedMapMediaContent);
+            return;
+        }
+
         if (_standaloneMapMediaWindow == null || !_standaloneMapMediaWindow.IsLoaded)
         {
             _standaloneMapMediaWindow = new MapMediaManagerWindow(
                 _blpIconService,
                 _currentProject,
                 MapViewport?.MinimapBitmap,
-                summaryMsg =>
-                {
-                    RefreshImportsGrid();
-                    UpdateTestButtonState();
-                    TxtStatusBarLeft.Text = summaryMsg;
-                },
+                onMediaApplied,
                 initialTabIndex)
             {
                 Owner = this
@@ -421,6 +576,22 @@ public partial class MainWindow : Window
 
     private void OpenOrFocusOptimizerWindow()
     {
+        if (!_settings.OpenModulesInSeparateWindows)
+        {
+            if (_embeddedOptimizerWindow == null || _embeddedOptimizerContent == null)
+            {
+                _embeddedOptimizerWindow = new OptimizerWindow(_settings, _currentProject);
+                _embeddedOptimizerContent = DetachWindowContent(_embeddedOptimizerWindow);
+            }
+            else
+            {
+                _embeddedOptimizerWindow.SetProject(_currentProject);
+            }
+
+            ShowEmbeddedModuleControl(_embeddedOptimizerContent);
+            return;
+        }
+
         if (_standaloneOptimizerWindow == null || !_standaloneOptimizerWindow.IsLoaded)
         {
             _standaloneOptimizerWindow = new OptimizerWindow(_settings, _currentProject)
@@ -437,6 +608,102 @@ public partial class MainWindow : Window
             _standaloneOptimizerWindow.SetProject(_currentProject);
             _standaloneOptimizerWindow.Activate();
             _standaloneOptimizerWindow.Focus();
+        }
+    }
+
+    private void OpenOrFocusImportsModule()
+    {
+        if (!_settings.OpenModulesInSeparateWindows)
+        {
+            if (_standaloneImportsWindow != null)
+            {
+                try { _standaloneImportsWindow.Close(); } catch { }
+            }
+            if (TabImports != null)
+            {
+                if (TabImports.Content == null && _importsTabOriginalContent != null)
+                    TabImports.Content = _importsTabOriginalContent;
+                TabImports.IsSelected = true;
+            }
+            return;
+        }
+
+        if (_standaloneImportsWindow == null || !_standaloneImportsWindow.IsLoaded)
+        {
+            if (TabImports == null)
+                return;
+
+            _importsTabOriginalContent ??= TabImports.Content;
+            TabImports.Content = null;
+
+            _standaloneImportsWindow = CreateHostedTabWindow(
+                LocalizationService.L("Gestor de Importaciones (F12)", "Import Manager (F12)"),
+                _importsTabOriginalContent,
+                () =>
+                {
+                    if (TabImports != null && _importsTabOriginalContent != null)
+                        TabImports.Content = _importsTabOriginalContent;
+                    _standaloneImportsWindow = null;
+                });
+            _standaloneImportsWindow.Show();
+        }
+        else
+        {
+            if (_standaloneImportsWindow.WindowState == WindowState.Minimized)
+                _standaloneImportsWindow.WindowState = WindowState.Normal;
+            _standaloneImportsWindow.Activate();
+            _standaloneImportsWindow.Focus();
+        }
+    }
+
+    private void OpenOrFocusGlobalSearchModule(bool focusQuery = true)
+    {
+        if (!_settings.OpenModulesInSeparateWindows)
+        {
+            if (_standaloneGlobalSearchWindow != null)
+            {
+                try { _standaloneGlobalSearchWindow.Close(); } catch { }
+            }
+            if (TabGlobalSearch != null)
+            {
+                if (TabGlobalSearch.Content == null && _globalSearchTabOriginalContent != null)
+                    TabGlobalSearch.Content = _globalSearchTabOriginalContent;
+                TabGlobalSearch.IsSelected = true;
+            }
+            if (focusQuery)
+                TxtGlobalSearchQuery?.Focus();
+            return;
+        }
+
+        if (_standaloneGlobalSearchWindow == null || !_standaloneGlobalSearchWindow.IsLoaded)
+        {
+            if (TabGlobalSearch == null)
+                return;
+
+            _globalSearchTabOriginalContent ??= TabGlobalSearch.Content;
+            TabGlobalSearch.Content = null;
+
+            _standaloneGlobalSearchWindow = CreateHostedTabWindow(
+                LocalizationService.L("Variables & Buscador Global", "Variables & Global Search"),
+                _globalSearchTabOriginalContent,
+                () =>
+                {
+                    if (TabGlobalSearch != null && _globalSearchTabOriginalContent != null)
+                        TabGlobalSearch.Content = _globalSearchTabOriginalContent;
+                    _standaloneGlobalSearchWindow = null;
+                });
+            _standaloneGlobalSearchWindow.Show();
+            if (focusQuery)
+                TxtGlobalSearchQuery?.Focus();
+        }
+        else
+        {
+            if (_standaloneGlobalSearchWindow.WindowState == WindowState.Minimized)
+                _standaloneGlobalSearchWindow.WindowState = WindowState.Normal;
+            _standaloneGlobalSearchWindow.Activate();
+            _standaloneGlobalSearchWindow.Focus();
+            if (focusQuery)
+                TxtGlobalSearchQuery?.Focus();
         }
     }
 
@@ -1694,6 +1961,40 @@ endlibrary
                 try { _standaloneMapMediaWindow.Close(); } catch { }
                 _standaloneMapMediaWindow = null;
             }
+            if (_standaloneImportsWindow != null)
+            {
+                try { _standaloneImportsWindow.Close(); } catch { }
+                _standaloneImportsWindow = null;
+            }
+            if (_standaloneGlobalSearchWindow != null)
+            {
+                try { _standaloneGlobalSearchWindow.Close(); } catch { }
+                _standaloneGlobalSearchWindow = null;
+            }
+            if (_embeddedTriggerEditorWindow != null)
+            {
+                try { _embeddedTriggerEditorWindow.ShutdownEmbedded(); _embeddedTriggerEditorWindow.Close(); } catch { }
+                _embeddedTriggerEditorWindow = null;
+                _embeddedTriggerEditorContent = null;
+            }
+            if (_embeddedIconManagerWindow != null)
+            {
+                try { _embeddedIconManagerWindow.Close(); } catch { }
+                _embeddedIconManagerWindow = null;
+                _embeddedIconManagerContent = null;
+            }
+            if (_embeddedOptimizerWindow != null)
+            {
+                try { _embeddedOptimizerWindow.Close(); } catch { }
+                _embeddedOptimizerWindow = null;
+                _embeddedOptimizerContent = null;
+            }
+            if (_embeddedMapMediaWindow != null)
+            {
+                try { _embeddedMapMediaWindow.Close(); } catch { }
+                _embeddedMapMediaWindow = null;
+                _embeddedMapMediaContent = null;
+            }
         }
         catch { }
     }
@@ -1735,6 +2036,10 @@ endlibrary
             {
                 _standaloneMapMediaWindow.SetProject(null, null);
             }
+            _embeddedTriggerEditorWindow?.LoadProject(null);
+            _embeddedIconManagerWindow?.SetProject(null);
+            _embeddedOptimizerWindow?.SetProject(null);
+            _embeddedMapMediaWindow?.SetProject(null, null);
 
             _terrainStrokeSnapshot = null;
             _undoService.Clear();
@@ -1748,8 +2053,8 @@ endlibrary
             Map3DViewport.LoadMap(null);
             RefreshToolPaletteList();
 
-            TxtStatusBarLeft.Text = "Mapa cerrado. Usa Archivo -> Abrir Mapa (Ctrl+O) para cargar otro mapa.";
-            TxtStatusBarRight.Text = "Sin mapa";
+            TxtStatusBarLeft.Text = string.Empty;
+            TxtStatusBarRight.Text = string.Empty;
         }
         catch { }
     }
@@ -2061,7 +2366,6 @@ endlibrary
         {
             _settings.Warcraft3Dir = dlg.FolderName;
             _settings.Save();
-            TxtTopWar3Dir.Text = _settings.Warcraft3Dir;
             await InitializeBaseMpqAsync();
 
             if (_currentProject != null)
@@ -2071,17 +2375,6 @@ endlibrary
                 EmbeddedObjectEditor.LoadProject(_currentProject);
             }
         }
-    }
-
-    private void ChkWindowedTest_Changed(object sender, RoutedEventArgs e)
-    {
-        if (ChkWindowedTest == null)
-            return;
-
-        _settings.WindowedMode = ChkWindowedTest.IsChecked == true;
-        if (MenuWindowedMode != null)
-            MenuWindowedMode.IsChecked = _settings.WindowedMode;
-        _settings.Save();
     }
 
     private void MenuTheme_Click(object sender, RoutedEventArgs e)
@@ -2143,6 +2436,7 @@ endlibrary
             {
                 _standaloneTriggerEditorWindow.LoadProject(_currentProject);
             }
+            _embeddedTriggerEditorWindow?.LoadProject(_currentProject);
         });
     }
 
@@ -2156,21 +2450,33 @@ endlibrary
         if (MenuThemeSub != null) MenuThemeSub.Header = LocalizationService.L("_Tema Visual", "_Visual Theme");
         if (MenuWar3Dir != null) MenuWar3Dir.Header = LocalizationService.L("Directorio de Warcraft III...", "Warcraft III Directory...");
         if (MenuWindowedMode != null) MenuWindowedMode.Header = LocalizationService.L("Probar Mapa en Modo Ventana (-window)", "Test Map in Windowed Mode (-window)");
+        if (MenuModulesSeparateWindows != null) MenuModulesSeparateWindows.Header = LocalizationService.L("Ventana (Abrir Módulos en Ventanas Independientes)", "Windowed Modules (Open Modules in Separate Windows)");
         if (MenuSettingsItem != null) MenuSettingsItem.Header = LocalizationService.L("Opciones y Preferencias...", "Options & Preferences...");
-        if (ChkWindowedTest != null) ChkWindowedTest.Content = LocalizationService.L("Ventana", "Windowed");
     }
 
     private void MenuToggleWindowed_Click(object sender, RoutedEventArgs e)
     {
-        if (MenuWindowedMode != null && ChkWindowedTest != null)
-        {
-            ChkWindowedTest.IsChecked = MenuWindowedMode.IsChecked;
-        }
+        if (MenuWindowedMode == null)
+            return;
+
+        _settings.WindowedMode = MenuWindowedMode.IsChecked;
+        _settings.Save();
+    }
+
+    private void MenuToggleModulesSeparateWindows_Click(object sender, RoutedEventArgs e)
+    {
+        if (MenuModulesSeparateWindows == null)
+            return;
+
+        _settings.OpenModulesInSeparateWindows = MenuModulesSeparateWindows.IsChecked;
+        _settings.Save();
+        ResetModuleHostsForModeChange();
     }
 
     private async void MenuSettings_Click(object sender, RoutedEventArgs e)
     {
         var prevDir = _settings.Warcraft3Dir;
+        var prevSeparateWindows = _settings.OpenModulesInSeparateWindows;
         var dlg = new SettingsWindow(_settings)
         {
             Owner = this
@@ -2178,10 +2484,13 @@ endlibrary
 
         if (dlg.ShowDialog() == true || !string.Equals(prevDir, _settings.Warcraft3Dir, StringComparison.OrdinalIgnoreCase))
         {
-            TxtTopWar3Dir.Text = _settings.Warcraft3Dir;
-            ChkWindowedTest.IsChecked = _settings.WindowedMode;
             if (MenuWindowedMode != null)
                 MenuWindowedMode.IsChecked = _settings.WindowedMode;
+            if (MenuModulesSeparateWindows != null)
+                MenuModulesSeparateWindows.IsChecked = _settings.OpenModulesInSeparateWindows;
+
+            if (prevSeparateWindows != _settings.OpenModulesInSeparateWindows)
+                ResetModuleHostsForModeChange();
 
             if (!string.Equals(prevDir, _settings.Warcraft3Dir, StringComparison.OrdinalIgnoreCase))
             {
@@ -2200,7 +2509,7 @@ endlibrary
 
     // ==================== NAVEGACIÓN Y ATAJOS DE TECLADO ====================
 
-    private void BtnFocusMapTab_Click(object sender, RoutedEventArgs e) => TabMapViewport.IsSelected = true;
+    private void BtnFocusMapTab_Click(object sender, RoutedEventArgs e) => ReturnToMapViewport();
 
     private void UpdateSidebarLightingLabel()
     {
@@ -2225,18 +2534,14 @@ endlibrary
     }
     private void BtnFocusTriggers_Click(object sender, RoutedEventArgs e) => OpenOrFocusTriggerEditorWindow();
     private void BtnFocusObjects_Click(object sender, RoutedEventArgs e) => OpenOrFocusObjectEditorWindow(W3ObjectCategory.Units);
-    private void BtnFocusImports_Click(object sender, RoutedEventArgs e) => TabImports.IsSelected = true;
-    private void BtnFocusGlobalSearch_Click(object sender, RoutedEventArgs e)
-    {
-        TabGlobalSearch.IsSelected = true;
-        TxtGlobalSearchQuery.Focus();
-    }
+    private void BtnFocusImports_Click(object sender, RoutedEventArgs e) => OpenOrFocusImportsModule();
+    private void BtnFocusGlobalSearch_Click(object sender, RoutedEventArgs e) => OpenOrFocusGlobalSearchModule(focusQuery: true);
 
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.F3)
         {
-            TabMapViewport.IsSelected = true;
+            ReturnToMapViewport();
             e.Handled = true;
         }
         else if (e.Key == Key.F4)
@@ -2261,7 +2566,7 @@ endlibrary
         }
         else if (e.Key == Key.F12)
         {
-            TabImports.IsSelected = true;
+            OpenOrFocusImportsModule();
             e.Handled = true;
         }
         else if (e.Key == Key.Home && TabMapViewport.IsSelected)
@@ -2311,7 +2616,7 @@ endlibrary
         }
         else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.B)
         {
-            TabGlobalSearch.IsSelected = true;
+            OpenOrFocusGlobalSearchModule(focusQuery: false);
             e.Handled = true;
         }
         else if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.F)
@@ -2340,7 +2645,7 @@ endlibrary
             Top = Math.Clamp(top, vsTop, Math.Max(vsTop, vsBottom - Height));
         }
 
-        WindowState = _settings.WindowMaximized ? WindowState.Maximized : WindowState.Normal;
+        WindowState = WindowState.Maximized;
 
         if (MapViewport != null)
             MapViewport.ShowUnits = _settings.ShowUnits;
@@ -2350,6 +2655,7 @@ endlibrary
         if (ChkShowPathing != null) ChkShowPathing.IsChecked = _settings.ShowPathing;
         if (ChkShowBounds != null) ChkShowBounds.IsChecked = _settings.ShowCameraBounds;
         if (MenuToggleWeather != null) MenuToggleWeather.IsChecked = _settings.ShowWeather;
+        if (ChkIgnorePathing != null) ChkIgnorePathing.IsChecked = _settings.IgnoreEntityPathing;
         if (FloatingToolPalette != null)
             FloatingToolPalette.Visibility = _settings.ShowToolPalette ? Visibility.Visible : Visibility.Collapsed;
 

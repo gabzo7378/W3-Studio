@@ -1144,6 +1144,18 @@ public partial class TriggerEditorWindow : Window
         CodeEditor.Focus();
     }
 
-    private void MenuClose_Click(object sender, RoutedEventArgs e) => Close();
+    internal Action? EmbeddedCloseHandler { get; set; }
+
+    internal void ShutdownEmbedded()
+    {
+        _liveAnalyzeTimer.Stop();
+        _ideAttachment.Dispose();
+    }
+
+    private void MenuClose_Click(object sender, RoutedEventArgs e)
+    {
+        if (EmbeddedCloseHandler != null) EmbeddedCloseHandler();
+        else Close();
+    }
     private void MenuOpenObjectEditor_Click(object sender, RoutedEventArgs e) => RequestOpenObjectEditor?.Invoke();
 }

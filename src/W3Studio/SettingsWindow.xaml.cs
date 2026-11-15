@@ -49,6 +49,7 @@ public partial class SettingsWindow : Window
         // Preferencias del Editor
         ChkAutoSaveBeforeTest.IsChecked = _settings.AutoSaveBeforeTest;
         ChkShowGridByDefault.IsChecked = _settings.ShowGridByDefault;
+        ChkOpenModulesSeparateWindows.IsChecked = _settings.OpenModulesInSeparateWindows;
         ChkShowInternalImports.IsChecked = _settings.ShowInternalMapFilesInImports;
         ChkShowCompiledTriggerScript.IsChecked = _settings.ShowCompiledScriptInTriggers;
 
@@ -92,6 +93,9 @@ public partial class SettingsWindow : Window
         if (ChkShowGridByDefault != null) ChkShowGridByDefault.Content = LocalizationService.L(
             "Mostrar cuadrícula de terreno por defecto",
             "Show terrain grid by default");
+        if (ChkOpenModulesSeparateWindows != null) ChkOpenModulesSeparateWindows.Content = LocalizationService.L(
+            "Ventana: abrir módulos en ventanas independientes (desmarcar para abrirlos en el área del viewport)",
+            "Windowed: open modules in separate windows (uncheck to open inside the viewport area)");
         if (LblEditorBehaviorTitle != null) LblEditorBehaviorTitle.Text = LocalizationService.L(
             "Comportamiento del Editor:",
             "Editor Behavior:");
@@ -199,6 +203,7 @@ public partial class SettingsWindow : Window
         _settings.AdditionalLaunchArgs = TxtExtraArgs.Text.Trim();
         _settings.AutoSaveBeforeTest = ChkAutoSaveBeforeTest.IsChecked == true;
         _settings.ShowGridByDefault = ChkShowGridByDefault.IsChecked == true;
+        _settings.OpenModulesInSeparateWindows = ChkOpenModulesSeparateWindows.IsChecked == true;
         _settings.ShowInternalMapFilesInImports = ChkShowInternalImports.IsChecked == true;
         _settings.ShowCompiledScriptInTriggers = ChkShowCompiledTriggerScript.IsChecked == true;
         _settings.AppThemeName = ThemeService.CurrentTheme.ToString();

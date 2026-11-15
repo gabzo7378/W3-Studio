@@ -62,7 +62,10 @@ public static class MapShadowAndMinimapService
     /// <summary>
     /// Computes war3map.shd (4x4 subcells per tile) from terrain slopes, cliffs, and placed buildings/trees.
     /// </summary>
-    public static byte[] GenerateShadowMapShd(MapProject project)
+    public static byte[] GenerateShadowMapShd(
+        MapProject project,
+        WarcraftBaseDataService? baseData = null,
+        BlpIconService? blpService = null)
     {
         var t = project.Terrain;
         int cellsW = Math.Max(1, t.GridWidth - 1);
@@ -158,14 +161,29 @@ public static class MapShadowAndMinimapService
 
         foreach (var d in project.PlacedDoodads)
         {
+            if (d.Life == 0)
+                continue;
             if (d.IsTree || d.IsDestructible)
                 StampShadowEllipse(d.X, d.Y, Math.Clamp(52f * d.Scale, 32f, 110f));
         }
 
         foreach (var u in project.PlacedUnits)
         {
-            if (u.IsBuilding && !u.IsStartLocation)
-                StampShadowEllipse(u.X, u.Y, Math.Clamp(115f * u.Scale, 75f, 210f));
+            bool isBldg = u.IsBuilding || PathingService.IsUnitBuilding(u.Rawcode, project, baseData);
+            if (!isBldg || u.IsStartLocation)
+                continue;
+
+            float radius = Math.Clamp(115f * u.Scale, 75f, 210f);
+            if (baseData != null && blpService != null)
+            {
+                var pathTex = PathingService.ResolveObjectField(u.Rawcode, false, project, baseData, "upat", "pathTex");
+                var grid = PathingService.GetPathTexture(pathTex, project, blpService);
+                if (grid != null)
+                {
+                    radius = Math.Clamp(Math.Max(grid.Width, grid.Height) * 16f * Math.Max(0.7f, u.Scale) * 0.92f, 52f, 224f);
+                }
+            }
+            StampShadowEllipse(u.X, u.Y, radius);
         }
 
         return shadows;
