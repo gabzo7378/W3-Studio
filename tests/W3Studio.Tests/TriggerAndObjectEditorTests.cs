@@ -279,6 +279,138 @@ public class TriggerAndObjectEditorTests : IDisposable
     }
 
     [Fact]
+    public void ObjectEditorHelper_AttackArmorAndHeroAttributeIcons_UseAuthenticWc3InfoCardPaths()
+    {
+        var expectedAttacks = new Dictionary<string, string>
+        {
+            ["normal"] = @"UI\Widgets\Console\Human\infocard-neutral-attack-melee.blp",
+            ["pierce"] = @"UI\Widgets\Console\Human\infocard-neutral-attack-piercing.blp",
+            ["siege"] = @"UI\Widgets\Console\Human\infocard-neutral-attack-siege.blp",
+            ["magic"] = @"UI\Widgets\Console\Human\infocard-neutral-attack-magic.blp",
+            ["chaos"] = @"UI\Widgets\Console\Human\infocard-neutral-attack-chaos.blp",
+            ["spells"] = @"ReplaceableTextures\CommandButtons\BTNFireBolt.blp",
+            ["hero"] = @"UI\Widgets\Console\Human\infocard-neutral-attack-hero.blp"
+        };
+        foreach (var (key, expectedPath) in expectedAttacks)
+        {
+            var (path, label) = ObjectEditorHelper.ResolveAttackTypeHudInfo(key);
+            Assert.Equal(expectedPath, path);
+            Assert.False(string.IsNullOrWhiteSpace(label));
+        }
+
+        var expectedArmors = new Dictionary<string, string>
+        {
+            ["none"] = @"UI\Widgets\Console\Human\infocard-neutral-armor-unarmored.blp",
+            ["small"] = @"UI\Widgets\Console\Human\infocard-neutral-armor-small.blp",
+            ["medium"] = @"UI\Widgets\Console\Human\infocard-neutral-armor-medium.blp",
+            ["large"] = @"UI\Widgets\Console\Human\infocard-neutral-armor-large.blp",
+            ["heavy"] = @"UI\Widgets\Console\Human\infocard-neutral-armor-large.blp",
+            ["fort"] = @"UI\Widgets\Console\Human\infocard-neutral-armor-fortified.blp",
+            ["hero"] = @"UI\Widgets\Console\Human\infocard-armor-hero.blp",
+            ["divine"] = @"UI\Widgets\Console\Human\infocard-armor-divine.blp"
+        };
+        foreach (var (key, expectedPath) in expectedArmors)
+        {
+            var (path, label) = ObjectEditorHelper.ResolveArmorTypeHudInfo(key);
+            Assert.Equal(expectedPath, path);
+            Assert.False(string.IsNullOrWhiteSpace(label));
+        }
+
+        Assert.Equal(@"UI\Widgets\Console\Human\infocard-heroattributes-str.blp", ObjectEditorHelper.ResolveHeroPrimaryAttributeIconPath("STR"));
+        Assert.Equal(@"UI\Widgets\Console\Human\infocard-heroattributes-agi.blp", ObjectEditorHelper.ResolveHeroPrimaryAttributeIconPath("AGI"));
+        Assert.Equal(@"UI\Widgets\Console\Human\infocard-heroattributes-int.blp", ObjectEditorHelper.ResolveHeroPrimaryAttributeIconPath("INT"));
+
+        // When Warcraft III 1.27 MPQs are available locally, verify every single BLP exists and decodes cleanly (non-fallback)
+        const string wc3Dir = @"F:\WARCRAFT\Warcraft III 1.27";
+        if (Directory.Exists(wc3Dir))
+        {
+            var blp = new BlpIconService();
+            blp.ConfigureBaseMpqs(new WorkspaceSettings { Warcraft3Dir = wc3Dir });
+            var allPaths = expectedAttacks.Values
+                .Concat(expectedArmors.Values)
+                .Append(ObjectEditorHelper.HeroStrengthIconPath)
+                .Append(ObjectEditorHelper.HeroAgilityIconPath)
+                .Append(ObjectEditorHelper.HeroIntelligenceIconPath)
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var iconPath in allPaths)
+            {
+                var bytes = blp.FindRawFileBytes(iconPath);
+                Assert.True(bytes != null && bytes.Length > 20, $"Falta el icono oficial en MPQ: {iconPath}");
+            }
+        }
+    }
+
+    [Fact]
+    public void IconCatalogFilterHelper_FiltersByStyleRaceUsageAndSearch_WithoutTruncation()
+    {
+        var samplePaths = new List<string>
+        {
+            @"ReplaceableTextures\CommandButtons\BTNHeroPaladin.blp",
+            @"ReplaceableTextures\CommandButtonsDisabled\DISBTNHeroPaladin.blp",
+            @"ReplaceableTextures\PassiveButtons\PASBTNDevotion.blp",
+            @"ReplaceableTextures\CommandButtonsDisabled\DISPASBTNDevotion.blp",
+            @"ReplaceableTextures\CommandButtons\BTNGrunt.blp",
+            @"ReplaceableTextures\CommandButtons\BTNGhoul.blp",
+            @"ReplaceableTextures\CommandButtons\BTNArcher.blp",
+            @"ReplaceableTextures\CommandButtons\BTNPotionGreenSmall.blp",
+            @"ReplaceableTextures\CommandButtons\BTNTownHall.blp",
+            @"UI\Widgets\Console\Human\infocard-neutral-attack-hero.blp",
+            @"war3mapImported\BTNCustomHero.blp"
+        };
+        // Add 1,400 extra synthetic icons to confirm there is NO artificial 1200-item truncation
+        for (int i = 0; i < 1400; i++)
+            samplePaths.Add($@"ReplaceableTextures\CommandButtons\BTNSynthOrcUnit{i:D4}.blp");
+
+        var imported = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { @"war3mapImported\BTNCustomHero.blp" };
+        var catalog = IconCatalogFilterHelper.BuildCatalog(samplePaths, imported, baseData: null);
+
+        // Default NoDis hides all DIS* icons and returns ALL >1400 non-DIS icons (no 1200 cap!)
+        var noDis = IconCatalogFilterHelper.Filter(catalog, IconStyleFilter.NoDis, IconRaceFilter.All, IconUsageFilter.All, "");
+        Assert.DoesNotContain(noDis, e => e.IsDisabled);
+        Assert.True(noDis.Count > 1400);
+
+        // Style filters
+        var onlyDis = IconCatalogFilterHelper.Filter(catalog, IconStyleFilter.Dis, IconRaceFilter.All, IconUsageFilter.All, "");
+        Assert.Equal(2, onlyDis.Count);
+        Assert.All(onlyDis, e => Assert.True(e.IsDisabled));
+
+        var onlyPas = IconCatalogFilterHelper.Filter(catalog, IconStyleFilter.Pas, IconRaceFilter.All, IconUsageFilter.All, "");
+        Assert.Single(onlyPas);
+        Assert.Equal("PASBTNDevotion.blp", onlyPas[0].FileName);
+
+        var onlyUi = IconCatalogFilterHelper.Filter(catalog, IconStyleFilter.Ui, IconRaceFilter.All, IconUsageFilter.All, "");
+        Assert.Single(onlyUi);
+        Assert.Equal("infocard-neutral-attack-hero.blp", onlyUi[0].FileName);
+
+        var onlyImported = IconCatalogFilterHelper.Filter(catalog, IconStyleFilter.Imported, IconRaceFilter.All, IconUsageFilter.All, "");
+        Assert.Single(onlyImported);
+        Assert.Equal("BTNCustomHero.blp", onlyImported[0].FileName);
+
+        // Race & category filters
+        var humanHeroes = IconCatalogFilterHelper.Filter(catalog, IconStyleFilter.NoDis, IconRaceFilter.Human, IconUsageFilter.Heroes, "");
+        Assert.Contains(humanHeroes, e => e.FileName == "BTNHeroPaladin.blp");
+        Assert.DoesNotContain(humanHeroes, e => e.FileName == "BTNGrunt.blp");
+
+        var undead = IconCatalogFilterHelper.Filter(catalog, IconStyleFilter.NoDis, IconRaceFilter.Undead, IconUsageFilter.All, "");
+        Assert.Contains(undead, e => e.FileName == "BTNGhoul.blp");
+
+        var nightElf = IconCatalogFilterHelper.Filter(catalog, IconStyleFilter.NoDis, IconRaceFilter.NightElf, IconUsageFilter.All, "");
+        Assert.Contains(nightElf, e => e.FileName == "BTNArcher.blp");
+
+        var items = IconCatalogFilterHelper.Filter(catalog, IconStyleFilter.NoDis, IconRaceFilter.All, IconUsageFilter.Items, "");
+        Assert.Contains(items, e => e.FileName == "BTNPotionGreenSmall.blp");
+
+        var buildings = IconCatalogFilterHelper.Filter(catalog, IconStyleFilter.NoDis, IconRaceFilter.Human, IconUsageFilter.Buildings, "");
+        Assert.Contains(buildings, e => e.FileName == "BTNTownHall.blp");
+
+        // Multi-token search
+        var multi = IconCatalogFilterHelper.Filter(catalog, IconStyleFilter.NoDis, IconRaceFilter.All, IconUsageFilter.All, "orc 1399");
+        Assert.Single(multi);
+        Assert.Equal("BTNSynthOrcUnit1399.blp", multi[0].FileName);
+    }
+
+    [Fact]
     public void ObjectEditorPersistence_DeleteCustomAndResetField_RoundtripsCleanlyToW3u()
     {
         var mapPath = Path.Combine(_tempDir, "ObjPersistBase.w3m");

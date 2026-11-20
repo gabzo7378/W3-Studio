@@ -106,7 +106,22 @@ public class WorkspaceSettingsAndLoggerTests : IDisposable
         Assert.NotNull(loaded);
         Assert.Equal("Noon", loaded.LightingPreset);
         Assert.True(loaded.ShowUnits);
+        Assert.False(loaded.UseSafeWpfSoftwareRendering);
         Assert.Empty(loaded.RecentMaps);
+    }
+
+    [Fact]
+    public void UseSafeWpfSoftwareRendering_DefaultsToFalseAndRoundtripsTrue()
+    {
+        var path = Path.Combine(_tempDir, "safe_render_settings.json");
+        var def = new WorkspaceSettings();
+        Assert.False(def.UseSafeWpfSoftwareRendering);
+
+        def.UseSafeWpfSoftwareRendering = true;
+        def.Save(path);
+
+        var loaded = WorkspaceSettings.Load(path);
+        Assert.True(loaded.UseSafeWpfSoftwareRendering);
     }
 
     [Fact]

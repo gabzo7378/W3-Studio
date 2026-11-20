@@ -74,7 +74,10 @@ public class MapMpqService
                         discoveredNames.Add(trimmed);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordLoadWarning(project, "listfile", "(listfile)", ex);
+            }
         }
 
         // 2. Read war3map.imp, war3mapImp.txt & war3mapSkin.txt
@@ -89,7 +92,10 @@ public class MapMpqService
                         || impFile.Equals("war3mapImp.txt", StringComparison.OrdinalIgnoreCase);
                     ReadImportedPathsFromStream(s, isBinaryImp, discoveredNames);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    RecordLoadWarning(project, "imports", impFile, ex);
+                }
             }
         }
 
@@ -102,7 +108,10 @@ public class MapMpqService
                 using var reader = new StreamReader(wtsStream, Encoding.UTF8);
                 ParseWts(reader.ReadToEnd(), project.TriggerStrings);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordLoadWarning(project, "strings", "war3map.wts", ex);
+            }
         }
 
         // 4. Read war3map.w3i metadata (full MapInfo + fallback header)
@@ -126,13 +135,17 @@ public class MapMpqService
                     project.MapDescription = project.ResolveTrigStr(project.MapInfo.MapDescription);
                     project.SuggestedPlayers = project.ResolveTrigStr(project.MapInfo.RecommendedPlayers);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    AppLogger.Warn("MapMpqService.LoadMap", $"{project.FileName}: ReadMapInfo fallback to ParseW3iHeader.", ex);
                     using var msHdr = new MemoryStream(w3iBytes);
                     ParseW3iHeader(msHdr, project);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordLoadWarning(project, "map-info", "war3map.w3i", ex);
+            }
         }
 
         // 5. Read war3map.j
@@ -166,7 +179,10 @@ public class MapMpqService
                 using var parseStream = new MemoryStream(w3eBytes);
                 ParseW3eTerrain(parseStream, project.Terrain);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordLoadWarning(project, "terrain", "war3map.w3e", ex);
+            }
         }
 
         foreach (var tgaName in new[] { "war3mapMap.tga", "war3mapPreview.tga" })
@@ -181,7 +197,10 @@ public class MapMpqService
                     project.Terrain.MinimapTgaBytes = ms.ToArray();
                     break;
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    AppLogger.Warn("MapMpqService.LoadMap", $"{project.FileName}: Could not read minimap '{tgaName}'.", ex);
+                }
             }
         }
 
@@ -201,12 +220,18 @@ public class MapMpqService
                     using var brRawU = new BinaryReader(msRawU, Encoding.UTF8, leaveOpen: true);
                     project.RawMapUnitsData = brRawU.ReadMapUnits();
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    AppLogger.Warn("MapMpqService.LoadMap", $"{project.FileName}: War3Net ReadMapUnits skipped; using W3Studio parser.", ex);
+                }
 
                 using var msParseU = new MemoryStream(uBytes);
                 ParsePlacedUnits(msParseU, project);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordLoadWarning(project, "units", "war3mapUnits.doo", ex);
+            }
         }
 
         if (archive.FileExists("war3map.doo"))
@@ -223,12 +248,18 @@ public class MapMpqService
                     using var brRawD = new BinaryReader(msRawD, Encoding.UTF8, leaveOpen: true);
                     project.RawMapDoodadsData = brRawD.ReadMapDoodads();
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    AppLogger.Warn("MapMpqService.LoadMap", $"{project.FileName}: War3Net ReadMapDoodads skipped; using W3Studio parser.", ex);
+                }
 
                 using var msParseD = new MemoryStream(dBytes);
                 ParsePlacedDoodads(msParseD, project);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordLoadWarning(project, "doodads", "war3map.doo", ex);
+            }
         }
 
         if (archive.FileExists("war3map.w3r"))
@@ -238,7 +269,10 @@ public class MapMpqService
                 using var rStream = archive.OpenFile("war3map.w3r");
                 ParseRegions(rStream, project);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordLoadWarning(project, "regions", "war3map.w3r", ex);
+            }
         }
 
         if (archive.FileExists("war3map.w3c"))
@@ -248,7 +282,10 @@ public class MapMpqService
                 using var cStream = archive.OpenFile("war3map.w3c");
                 ParseCameras(cStream, project);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordLoadWarning(project, "cameras", "war3map.w3c", ex);
+            }
         }
 
         // 9. Read WTG Categories + Variables and WCT Custom Text Triggers
@@ -261,7 +298,10 @@ public class MapMpqService
                 using var wtgStream = archive.OpenFile("war3map.wtg");
                 ParseWtgCategoriesAndVariables(wtgStream, wtgCategories, project.GlobalVariables);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordLoadWarning(project, "triggers", "war3map.wtg", ex);
+            }
         }
 
         string? wctHeader = null;
@@ -273,7 +313,10 @@ public class MapMpqService
                 using var wctStream = archive.OpenFile("war3map.wct");
                 ParseWct(wctStream, out wctHeader, wctBlocks);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordLoadWarning(project, "custom-text", "war3map.wct", ex);
+            }
         }
 
         BuildTriggerHierarchy(project, wtgCategories, wctHeader, wctBlocks);
@@ -307,7 +350,10 @@ public class MapMpqService
                     Status = "En MPQ"
                 });
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordLoadWarning(project, "mpq-entry", name, ex);
+            }
         }
 
         if (string.IsNullOrWhiteSpace(project.MapName))
@@ -1422,6 +1468,13 @@ public class MapMpqService
         }
     }
 
+    private static void RecordLoadWarning(MapProject project, string stage, string itemName, Exception ex)
+    {
+        var msg = $"No se pudo leer '{itemName}' ({stage}): {ex.Message}";
+        project.LoadWarnings.Add(msg);
+        AppLogger.Warn("MapMpqService.LoadMap", $"{project.FileName} — {msg}", ex);
+    }
+
     private void LoadAllObjectData(MpqArchive archive, MapProject project, HashSet<string> discoveredNames)
     {
         // 1. Units (.w3u)
@@ -1439,7 +1492,10 @@ public class MapMpqService
                 project.UnitData = br.ReadUnitObjectData();
                 PopulateSimpleObjectData(project, W3ObjectCategory.Units, project.UnitData.BaseUnits, project.UnitData.NewUnits, discoveredNames);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordLoadWarning(project, "object-data", "war3map.w3u", ex);
+            }
         }
 
         // 2. Items (.w3t)
@@ -1457,7 +1513,10 @@ public class MapMpqService
                 project.ItemData = br.ReadItemObjectData();
                 PopulateSimpleObjectData(project, W3ObjectCategory.Items, project.ItemData.BaseItems, project.ItemData.NewItems, discoveredNames);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordLoadWarning(project, "object-data", "war3map.w3t", ex);
+            }
         }
 
         // 3. Abilities (.w3a)
@@ -1475,7 +1534,10 @@ public class MapMpqService
                 project.AbilityData = br.ReadAbilityObjectData();
                 PopulateLevelObjectData(project, W3ObjectCategory.Abilities, project.AbilityData.BaseAbilities, project.AbilityData.NewAbilities, discoveredNames);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordLoadWarning(project, "object-data", "war3map.w3a", ex);
+            }
         }
 
         // 4. Buffs (.w3h)
@@ -1493,7 +1555,10 @@ public class MapMpqService
                 project.BuffData = br.ReadBuffObjectData();
                 PopulateSimpleObjectData(project, W3ObjectCategory.Buffs, project.BuffData.BaseBuffs, project.BuffData.NewBuffs, discoveredNames);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordLoadWarning(project, "object-data", "war3map.w3h", ex);
+            }
         }
 
         // 5. Destructables (.w3b)
@@ -1511,7 +1576,10 @@ public class MapMpqService
                 project.DestructableData = br.ReadDestructableObjectData();
                 PopulateSimpleObjectData(project, W3ObjectCategory.Destructables, project.DestructableData.BaseDestructables, project.DestructableData.NewDestructables, discoveredNames);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordLoadWarning(project, "object-data", "war3map.w3b", ex);
+            }
         }
 
         // 6. Doodads (.w3d)
@@ -1529,7 +1597,10 @@ public class MapMpqService
                 project.DoodadData = br.ReadDoodadObjectData();
                 PopulateVariationObjectData(project, W3ObjectCategory.Doodads, project.DoodadData.BaseDoodads, project.DoodadData.NewDoodads, discoveredNames);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordLoadWarning(project, "object-data", "war3map.w3d", ex);
+            }
         }
 
         // 7. Upgrades (.w3q)
@@ -1547,7 +1618,10 @@ public class MapMpqService
                 project.UpgradeData = br.ReadUpgradeObjectData();
                 PopulateLevelObjectData(project, W3ObjectCategory.Upgrades, project.UpgradeData.BaseUpgrades, project.UpgradeData.NewUpgrades, discoveredNames);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordLoadWarning(project, "object-data", "war3map.w3q", ex);
+            }
         }
     }
 
@@ -2148,26 +2222,13 @@ public class MapMpqService
             }
         }
 
-        onProgress?.Invoke(82, "Creando copia de seguridad (.bak)...");
-        if (File.Exists(targetPath))
-        {
-            var backupPath = targetPath + ".bak";
-            File.Copy(targetPath, backupPath, overwrite: true);
-        }
-
-        onProgress?.Invoke(88, "Empaquetando archivos en el contenedor MPQ...");
+        onProgress?.Invoke(86, "Empaquetando archivos en contenedor MPQ (guardado atómico)...");
         var mpqFiles = new List<MpqFile>();
         foreach (var kvp in project.RawMpqFiles)
         {
             var memStream = new MemoryStream(kvp.Value);
             var mpqFile = MpqFile.New(memStream, kvp.Key);
             mpqFiles.Add(mpqFile);
-        }
-
-        using var outFs = new FileStream(targetPath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
-        if (hm3wHeader != null)
-        {
-            outFs.Write(hm3wHeader, 0, hm3wHeader.Length);
         }
 
         var createOptions = new MpqArchiveCreateOptions
@@ -2182,7 +2243,15 @@ public class MapMpqService
             hashSize <<= 1;
         createOptions.HashTableSize = hashSize;
 
-        using var createdArchive = MpqArchive.Create(outFs, mpqFiles, createOptions, leaveOpen: true);
+        AtomicFileHelper.WriteAtomically(targetPath, outFs =>
+        {
+            if (hm3wHeader != null)
+            {
+                outFs.Write(hm3wHeader, 0, hm3wHeader.Length);
+            }
+            using var createdArchive = MpqArchive.Create(outFs, mpqFiles, createOptions, leaveOpen: true);
+        }, createBackup: true);
+
         onProgress?.Invoke(98, "Finalizando guardado...");
 
         // Reset dirty flags after successful save

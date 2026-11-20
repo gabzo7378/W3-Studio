@@ -45,7 +45,8 @@ public partial class ObjectEditorView : UserControl
             _currentProject,
             TxtPropIconPath?.Text?.Trim(),
             _selectedEntry.Name,
-            path => RequestOpenIconManager?.Invoke(path))
+            path => RequestOpenIconManager?.Invoke(path),
+            _baseDataService)
         {
             Owner = win
         };
@@ -876,15 +877,16 @@ public partial class ObjectEditorView : UserControl
             return int.TryParse(str, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var r) ? r : defVal;
         }
 
-        // Unit Name
+        // Unit class name (used only inside Hero XP bar; no redundant proper-name header)
         var cleanName = StripColorCodes(entry.Name);
-        TxtHudUnitName.Text = string.IsNullOrWhiteSpace(cleanName) ? entry.Rawcode : cleanName;
+        var heroClassName = string.IsNullOrWhiteSpace(cleanName) ? entry.Rawcode : cleanName;
 
-        // Damage calculation
-        var dmgplus1 = GetInt("dmgplus1", "ua1b", 0);
-        var dice1 = GetInt("dice1", "ua1d", 0);
-        var sides1 = GetInt("sides1", "ua1s", 0);
+        // Damage calculation (use Attack 2 when only Attack 2 is enabled: weapsOn == 2)
         var weapsOn = GetInt("weapsOn", "uaen", 1);
+        var useAttack2 = weapsOn == 2;
+        var dmgplus1 = useAttack2 ? GetInt("dmgplus2", "ua2b", 0) : GetInt("dmgplus1", "ua1b", 0);
+        var dice1 = useAttack2 ? GetInt("dice2", "ua2d", 0) : GetInt("dice1", "ua1d", 0);
+        var sides1 = useAttack2 ? GetInt("sides2", "ua2s", 0) : GetInt("sides1", "ua1s", 0);
         var def = GetInt("def", "udef", 0);
 
         // Hero Stats
@@ -932,20 +934,14 @@ public partial class ObjectEditorView : UserControl
             TxtHudArmorBonus.Text = string.Empty;
         }
 
-        // Hero Attributes panel
+        // Hero XP bar & Attributes panel (authentic in-game WC3 InfoPanel style)
         if (isHero)
         {
-            BorderHeroAttributes.Visibility = Visibility.Visible;
-            TxtHudUnitSub.Visibility = Visibility.Visible;
+            BorderHudXpBar.Visibility = Visibility.Visible;
+            GridHeroAttributes.Visibility = Visibility.Visible;
 
-            var primaryTitle = primaryRaw switch
-            {
-                "STR" => LocalizationService.L("Fuerza", "Strength"),
-                "AGI" => LocalizationService.L("Agilidad", "Agility"),
-                "INT" => LocalizationService.L("Inteligencia", "Intelligence"),
-                _ => LocalizationService.L("Héroe", "Hero")
-            };
-            TxtHudUnitSub.Text = $"{LocalizationService.L("Héroe", "Hero")} ({primaryTitle})";
+            var levelPrefix = LocalizationService.L("Nivel", "Level");
+            TxtHudXpLabel.Text = $"{levelPrefix} 1 {heroClassName}";
 
             TxtHudStr.Text = str.ToString();
             TxtHudAgi.Text = agi.ToString();
@@ -955,65 +951,57 @@ public partial class ObjectEditorView : UserControl
             var agiLbl = LocalizationService.L("Agilidad:", "Agility:");
             var intLbl = LocalizationService.L("Inteligencia:", "Intelligence:");
 
-            TxtHudStrLabel.Text = primaryRaw == "STR" ? $"★ {strLbl}" : strLbl;
-            TxtHudStrLabel.Foreground = primaryRaw == "STR"
-                ? new SolidColorBrush(Color.FromRgb(255, 215, 0))
-                : new SolidColorBrush(Color.FromRgb(220, 200, 140));
+            TxtHudStrLabel.Text = strLbl;
+            TxtHudAgiLabel.Text = agiLbl;
+            TxtHudIntLabel.Text = intLbl;
 
-            TxtHudAgiLabel.Text = primaryRaw == "AGI" ? $"★ {agiLbl}" : agiLbl;
-            TxtHudAgiLabel.Foreground = primaryRaw == "AGI"
-                ? new SolidColorBrush(Color.FromRgb(255, 215, 0))
-                : new SolidColorBrush(Color.FromRgb(220, 200, 140));
-
-            TxtHudIntLabel.Text = primaryRaw == "INT" ? $"★ {intLbl}" : intLbl;
-            TxtHudIntLabel.Foreground = primaryRaw == "INT"
-                ? new SolidColorBrush(Color.FromRgb(255, 215, 0))
-                : new SolidColorBrush(Color.FromRgb(220, 200, 140));
+            var primaryTitle = primaryRaw switch
+            {
+                "STR" => LocalizationService.L("Fuerza", "Strength"),
+                "AGI" => LocalizationService.L("Agilidad", "Agility"),
+                "INT" => LocalizationService.L("Inteligencia", "Intelligence"),
+                _ => LocalizationService.L("Fuerza", "Strength")
+            };
+            BorderHudPrimaryAttr.ToolTip = $"{LocalizationService.L("Atributo principal", "Primary Attribute")}: {primaryTitle}";
         }
         else
         {
-            BorderHeroAttributes.Visibility = Visibility.Collapsed;
-            TxtHudUnitSub.Visibility = Visibility.Collapsed;
+            BorderHudXpBar.Visibility = Visibility.Collapsed;
+            GridHeroAttributes.Visibility = Visibility.Collapsed;
         }
 
-        // Icons and Attack / Armor type labels
-        var atkType1 = GetVal("atkType1", "ua1t").Trim().ToLowerInvariant();
-        var (attackIcon, attackTypeLabel) = atkType1 switch
-        {
-            "normal" => (@"ReplaceableTextures\CommandButtons\BTNAttack.blp", LocalizationService.L("Normal", "Normal")),
-            "pierce" => (@"ReplaceableTextures\CommandButtons\BTNHumanMissileUpOne.blp", LocalizationService.L("Perforación", "Pierce")),
-            "siege" => (@"ReplaceableTextures\CommandButtons\BTNMortarTeam.blp", LocalizationService.L("Asedio", "Siege")),
-            "magic" => (@"ReplaceableTextures\CommandButtons\BTNFireBolt.blp", LocalizationService.L("Mágico", "Magic")),
-            "chaos" => (@"ReplaceableTextures\CommandButtons\BTNDoom.blp", LocalizationService.L("Caos", "Chaos")),
-            "hero" => (@"ReplaceableTextures\CommandButtons\BTNAttack.blp", LocalizationService.L("Héroe", "Hero")),
-            "spells" => (@"ReplaceableTextures\CommandButtons\BTNDispelMagic.blp", LocalizationService.L("Hechizos", "Spells")),
-            _ => (@"ReplaceableTextures\CommandButtons\BTNAttack.blp", string.IsNullOrEmpty(atkType1) ? "Normal" : atkType1)
-        };
-        TxtHudAttackType.Text = $"({attackTypeLabel})";
+        // Authentic Warcraft III InfoPanel icons and Attack / Armor type labels
+        var atkType = useAttack2
+            ? GetVal("atkType2", "ua2t")
+            : GetVal("atkType1", "ua1t");
+        var (attackIcon, attackTypeLabel) = ObjectEditorHelper.ResolveAttackTypeHudInfo(atkType);
+        var atkDisplay = weapsOn == 0 ? LocalizationService.L("Ninguno", "None") : attackTypeLabel;
+        TxtHudAttackType.Text = $"({atkDisplay})";
+        BorderHudAttackIcon.ToolTip = $"{LocalizationService.L("Tipo de ataque", "Attack Type")}: {atkDisplay}";
 
-        var defType = GetVal("defType", "udty").Trim().ToLowerInvariant();
-        var (armorIcon, armorTypeLabel) = defType switch
-        {
-            "small" => (@"ReplaceableTextures\CommandButtons\BTNLeatherUpgradeOne.blp", LocalizationService.L("Ligera", "Light")),
-            "medium" => (@"ReplaceableTextures\CommandButtons\BTNHumanArmorUpOne.blp", LocalizationService.L("Media", "Medium")),
-            "heavy" or "large" => (@"ReplaceableTextures\CommandButtons\BTNHumanArmorUpTwo.blp", LocalizationService.L("Pesada", "Heavy")),
-            "fort" => (@"ReplaceableTextures\CommandButtons\BTNCastle.blp", LocalizationService.L("Fortificada", "Fortified")),
-            "hero" => (@"ReplaceableTextures\CommandButtons\BTNCirclet.blp", LocalizationService.L("Héroe", "Hero")),
-            "divine" => (@"ReplaceableTextures\CommandButtons\BTNDivineIntervention.blp", LocalizationService.L("Divina", "Divine")),
-            "none" or "unarmored" => (@"ReplaceableTextures\CommandButtons\BTNGlove.blp", LocalizationService.L("Sin armadura", "Unarmored")),
-            _ => (@"ReplaceableTextures\CommandButtons\BTNHumanArmorUpOne.blp", string.IsNullOrEmpty(defType) ? LocalizationService.L("Media", "Medium") : defType)
-        };
+        var defType = GetVal("defType", "udty");
+        var (armorIcon, armorTypeLabel) = ObjectEditorHelper.ResolveArmorTypeHudInfo(defType);
         TxtHudArmorType.Text = $"({armorTypeLabel})";
+        BorderHudArmorIcon.ToolTip = $"{LocalizationService.L("Tipo de armadura", "Armor Type")}: {armorTypeLabel}";
 
         if (_blpIconService != null)
         {
-            ImgHudAttack.Source = _blpIconService.GetIcon(attackIcon);
-            ImgHudArmor.Source = _blpIconService.GetIcon(armorIcon);
+            bool atkIsInfoCard = attackIcon.Contains("infocard-", StringComparison.OrdinalIgnoreCase);
+            BorderHudAttackIcon.BorderThickness = atkIsInfoCard ? new Thickness(0) : new Thickness(1.2);
+            ImgHudAttack.Source = atkIsInfoCard
+                ? _blpIconService.GetTrimmedIcon(attackIcon, _currentProject)
+                : _blpIconService.GetIcon(attackIcon, _currentProject);
+
+            bool armIsInfoCard = armorIcon.Contains("infocard-", StringComparison.OrdinalIgnoreCase);
+            BorderHudArmorIcon.BorderThickness = armIsInfoCard ? new Thickness(0) : new Thickness(1.2);
+            ImgHudArmor.Source = armIsInfoCard
+                ? _blpIconService.GetTrimmedIcon(armorIcon, _currentProject)
+                : _blpIconService.GetIcon(armorIcon, _currentProject);
+
             if (isHero)
             {
-                ImgHudStr.Source ??= _blpIconService.GetIcon(@"ReplaceableTextures\CommandButtons\BTNGauntletsOfOgrePower.blp");
-                ImgHudAgi.Source ??= _blpIconService.GetIcon(@"ReplaceableTextures\CommandButtons\BTNSlippersOfAgility.blp");
-                ImgHudInt.Source ??= _blpIconService.GetIcon(@"ReplaceableTextures\CommandButtons\BTNMantleOfIntelligence.blp");
+                var primaryIconPath = ObjectEditorHelper.ResolveHeroPrimaryAttributeIconPath(primaryRaw);
+                ImgHudPrimaryAttr.Source = _blpIconService.GetTrimmedIcon(primaryIconPath, _currentProject);
             }
         }
     }
@@ -1170,7 +1158,8 @@ public partial class ObjectEditorView : UserControl
                 _currentProject,
                 field.ResolvedValue,
                 field.FieldName,
-                path => RequestOpenIconManager?.Invoke(path))
+                path => RequestOpenIconManager?.Invoke(path),
+                _baseDataService)
             {
                 Owner = win
             };

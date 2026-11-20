@@ -50,6 +50,7 @@ public partial class SettingsWindow : Window
         ChkAutoSaveBeforeTest.IsChecked = _settings.AutoSaveBeforeTest;
         ChkShowGridByDefault.IsChecked = _settings.ShowGridByDefault;
         ChkOpenModulesSeparateWindows.IsChecked = _settings.OpenModulesInSeparateWindows;
+        ChkSafeWpfRendering.IsChecked = _settings.UseSafeWpfSoftwareRendering;
         ChkShowInternalImports.IsChecked = _settings.ShowInternalMapFilesInImports;
         ChkShowCompiledTriggerScript.IsChecked = _settings.ShowCompiledScriptInTriggers;
 
@@ -96,6 +97,9 @@ public partial class SettingsWindow : Window
         if (ChkOpenModulesSeparateWindows != null) ChkOpenModulesSeparateWindows.Content = LocalizationService.L(
             "Ventana: abrir módulos en ventanas independientes (desmarcar para abrirlos en el área del viewport)",
             "Windowed: open modules in separate windows (uncheck to open inside the viewport area)");
+        if (ChkSafeWpfRendering != null) ChkSafeWpfRendering.Content = LocalizationService.L(
+            "Renderizado seguro de interfaz WPF (evita pantalla gris/negra al minimizar Chrome/Discord; el visor 3D sigue usando GPU)",
+            "Safe WPF UI rendering (prevents grey/black screen when switching from Chrome/Discord; 3D viewport still uses GPU)");
         if (LblEditorBehaviorTitle != null) LblEditorBehaviorTitle.Text = LocalizationService.L(
             "Comportamiento del Editor:",
             "Editor Behavior:");
@@ -204,6 +208,8 @@ public partial class SettingsWindow : Window
         _settings.AutoSaveBeforeTest = ChkAutoSaveBeforeTest.IsChecked == true;
         _settings.ShowGridByDefault = ChkShowGridByDefault.IsChecked == true;
         _settings.OpenModulesInSeparateWindows = ChkOpenModulesSeparateWindows.IsChecked == true;
+        _settings.UseSafeWpfSoftwareRendering = ChkSafeWpfRendering.IsChecked == true;
+        WpfGraphicsRecoveryService.ApplyRenderMode(_settings.UseSafeWpfSoftwareRendering);
         _settings.ShowInternalMapFilesInImports = ChkShowInternalImports.IsChecked == true;
         _settings.ShowCompiledScriptInTriggers = ChkShowCompiledTriggerScript.IsChecked == true;
         _settings.AppThemeName = ThemeService.CurrentTheme.ToString();

@@ -292,7 +292,7 @@ public static class IconProcessorService
             return;
         }
 
-        // BTN / ATC / UPG: marco biselado 5px estilo Warcraft III Command Button
+        // BTN / ATC / UPG: marco biselado 4px con esquinas redondeadas oscuras fiel al Command Button de Warcraft III
         bool isGold = style == IconBorderStyle.Upg;
         bool isAutocast = style == IconBorderStyle.Atc;
 
@@ -300,48 +300,53 @@ public static class IconProcessorService
         {
             for (int x = 0; x < IconSize; x++)
             {
-                int edge = Math.Min(Math.Min(x, IconSize - 1 - x), Math.Min(y, IconSize - 1 - y));
-                if (edge > 5) continue;
+                int dx = Math.Min(x, IconSize - 1 - x);
+                int dy = Math.Min(y, IconSize - 1 - y);
+                int edge = Math.Min(dx, dy);
+                if (edge > 4) continue;
 
-                if (edge == 0)
+                // Esquinas redondeadas oscuras clásicas de los iconos BTN de Warcraft III
+                int cornerSum = dx + dy;
+                if (cornerSum <= 2 || edge == 0)
                 {
-                    SetRgbOpaque(bgra, x, y, 10, 10, 12);
+                    SetRgbOpaque(bgra, x, y, 8, 8, 10);
                     continue;
                 }
-                if (edge == 5)
+
+                if (edge == 4 || cornerSum == 5)
                 {
-                    // Surco interno oscuro que separa el bisel de la ilustración
+                    // Surco interno oscuro de 1px que separa el bisel de la ilustración
                     int i = (y * IconSize + x) * 4;
-                    bgra[i] = (byte)(bgra[i] * 0.35f);
-                    bgra[i + 1] = (byte)(bgra[i + 1] * 0.35f);
-                    bgra[i + 2] = (byte)(bgra[i + 2] * 0.35f);
+                    bgra[i] = (byte)(bgra[i] * 0.32f);
+                    bgra[i + 1] = (byte)(bgra[i + 1] * 0.32f);
+                    bgra[i + 2] = (byte)(bgra[i + 2] * 0.32f);
                     continue;
                 }
 
-                bool topOrLeft = y <= 4 || x <= 4;
-                bool bottomOrRight = y >= IconSize - 5 || x >= IconSize - 5;
+                bool topOrLeft = y <= 3 || x <= 3;
+                bool bottomOrRight = y >= IconSize - 4 || x >= IconSize - 4;
                 bool litSide = (y < IconSize - 1 - x) ? topOrLeft : !bottomOrRight;
 
                 if (isGold)
                 {
-                    byte r = litSide ? (byte)(edge == 1 ? 242 : 210) : (byte)(edge == 4 ? 95 : 132);
-                    byte g = litSide ? (byte)(edge == 1 ? 202 : 162) : (byte)(edge == 4 ? 66 : 94);
-                    byte b = litSide ? (byte)(edge == 1 ? 92 : 64) : (byte)(edge == 4 ? 22 : 34);
+                    byte r = litSide ? (byte)(edge == 1 ? 215 : edge == 2 ? 242 : 185) : (byte)(edge == 3 ? 98 : 138);
+                    byte g = litSide ? (byte)(edge == 1 ? 172 : edge == 2 ? 202 : 145) : (byte)(edge == 3 ? 68 : 96);
+                    byte b = litSide ? (byte)(edge == 1 ? 72 : edge == 2 ? 95 : 54) : (byte)(edge == 3 ? 22 : 36);
                     SetRgbOpaque(bgra, x, y, r, g, b);
                 }
                 else
                 {
-                    // Stone / Steel grey WC3 bevel
+                    // Bisel metálico gris piedra de Warcraft III (cresta luminosa en edge==2)
                     byte baseVal = litSide
-                        ? (edge == 1 ? (byte)196 : edge == 2 ? (byte)162 : (byte)128)
-                        : (edge == 4 ? (byte)54 : edge == 3 ? (byte)76 : (byte)96);
+                        ? (edge == 1 ? (byte)150 : edge == 2 ? (byte)198 : (byte)134)
+                        : (edge == 3 ? (byte)58 : edge == 2 ? (byte)96 : (byte)76);
                     SetRgbOpaque(bgra, x, y, baseVal, (byte)(baseVal + 2), (byte)Math.Min(255, baseVal + 6));
                 }
 
                 if (isAutocast)
                 {
-                    // Esquineros dorados/ámbar brillantes característicos del marco ATC de Warcraft III
-                    bool nearCorner = (x < 18 || x >= IconSize - 18) && (y < 18 || y >= IconSize - 18);
+                    // Esquineros dorados/ámbar característicos del marco ATC de Warcraft III
+                    bool nearCorner = (x < 16 || x >= IconSize - 16) && (y < 16 || y >= IconSize - 16);
                     if (nearCorner || edge == 2)
                     {
                         float blend = nearCorner ? 0.85f : 0.45f;

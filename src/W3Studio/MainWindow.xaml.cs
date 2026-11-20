@@ -137,7 +137,10 @@ public partial class MainWindow : Window
                 $"Triggers: {_currentProject?.TriggerTree.Sum(c => c.Children.Count) ?? 0}\n";
             File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_status.log"), statusReport);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            AppLogger.Warn("MainWindow.Startup", "Could not write startup_status.log.", ex);
+        }
     }
 
     private async Task InitializeBaseMpqAsync()
@@ -265,6 +268,23 @@ public partial class MainWindow : Window
                 Message = $"Mapa cargado en {sw.Elapsed.TotalSeconds:F2}s — Terreno {project.Terrain.GridWidth - 1}x{project.Terrain.GridHeight - 1}, {project.PlacedUnits.Count} unidades, {project.PlacedDoodads.Count:N0} doodads, {project.Regions.Count} regiones, {project.GlobalVariables.Count:N0} variables globales y {project.Objects.Count:N0} objetos personalizados."
             });
 
+            if (project.LoadWarnings.Count > 0)
+            {
+                AppLogger.Warn("MainWindow.LoadMap", $"Map '{project.FileName}' loaded with {project.LoadWarnings.Count} warning(s).");
+                foreach (var w in project.LoadWarnings)
+                {
+                    _diagnostics.Add(new CompilerDiagnostic
+                    {
+                        Severity = "Warning",
+                        Line = 1,
+                        Source = "MPQ Loader",
+                        TriggerOrFile = project.FileName,
+                        Message = w
+                    });
+                }
+                TxtStatusBarRight.Text = $"⚠ {project.LoadWarnings.Count} aviso(s) al cargar (ver log/diagnósticos)";
+            }
+
             TxtStatusBarLeft.Text = $"{project.FileName}  |  Terreno: {project.Terrain.GridWidth - 1}x{project.Terrain.GridHeight - 1} ({project.Terrain.TilesetName})  |  Unidades: {project.PlacedUnits.Count}  |  Doodads: {project.PlacedDoodads.Count:N0}  |  Regiones: {project.Regions.Count}";
             _isMapCompiledAndReady = false;
             UpdateTestButtonState();
@@ -358,13 +378,20 @@ public partial class MainWindow : Window
             return;
         }
 
-        try { _standaloneImportsWindow?.Close(); } catch { }
-        try { _standaloneGlobalSearchWindow?.Close(); } catch { }
-        try { _standaloneObjectEditorWindow?.Close(); } catch { }
-        try { _standaloneTriggerEditorWindow?.Close(); } catch { }
-        try { _standaloneIconManagerWindow?.Close(); } catch { }
-        try { _standaloneOptimizerWindow?.Close(); } catch { }
-        try { _standaloneMapMediaWindow?.Close(); } catch { }
+        SafeCloseChildWindow(_standaloneImportsWindow, nameof(_standaloneImportsWindow));
+        SafeCloseChildWindow(_standaloneGlobalSearchWindow, nameof(_standaloneGlobalSearchWindow));
+        SafeCloseChildWindow(_standaloneObjectEditorWindow, nameof(_standaloneObjectEditorWindow));
+        SafeCloseChildWindow(_standaloneTriggerEditorWindow, nameof(_standaloneTriggerEditorWindow));
+        SafeCloseChildWindow(_standaloneIconManagerWindow, nameof(_standaloneIconManagerWindow));
+        SafeCloseChildWindow(_standaloneOptimizerWindow, nameof(_standaloneOptimizerWindow));
+        SafeCloseChildWindow(_standaloneMapMediaWindow, nameof(_standaloneMapMediaWindow));
+    }
+
+    private static void SafeCloseChildWindow(Window? win, string name)
+    {
+        if (win == null) return;
+        try { win.Close(); }
+        catch (Exception ex) { AppLogger.Warn("MainWindow.ChildWindow", $"Error closing '{name}'.", ex); }
     }
 
     private void OpenOrFocusObjectEditorWindow(W3ObjectCategory cat = W3ObjectCategory.Units, string? rawcode = null)
@@ -385,13 +412,25 @@ public partial class MainWindow : Window
             };
             _standaloneObjectEditorWindow.RequestOpenIconManager += OpenOrFocusIconManagerWindow;
             _standaloneObjectEditorWindow.ObjectDataChanged += OnObjectEditorDataChanged;
-            _standaloneObjectEditorWindow.Closed += (_, _) => _standaloneObjectEditorWindow = null;
+            _standaloneObjectEditorWindow.Activated += (_, _) => Map3DViewport?.SetRenderPaused(true);
+            _standaloneObjectEditorWindow.Deactivated += (_, _) =>
+            {
+                if (IsActive) Map3DViewport?.SetRenderPaused(false);
+            };
+            _standaloneObjectEditorWindow.Closed += (_, _) =>
+            {
+                _standaloneObjectEditorWindow = null;
+                Map3DViewport?.SetRenderPaused(false);
+            };
+            Activated += (_, _) => Map3DViewport?.SetRenderPaused(false);
+            Map3DViewport?.SetRenderPaused(true);
             _standaloneObjectEditorWindow.Show();
         }
         else
         {
             if (_standaloneObjectEditorWindow.WindowState == WindowState.Minimized)
                 _standaloneObjectEditorWindow.WindowState = WindowState.Normal;
+            Map3DViewport?.SetRenderPaused(true);
             _standaloneObjectEditorWindow.Activate();
             _standaloneObjectEditorWindow.Focus();
             _standaloneObjectEditorWindow.SelectCategoryAndSearch(cat, rawcode);
@@ -475,7 +514,7 @@ public partial class MainWindow : Window
         {
             if (_embeddedIconManagerWindow == null || _embeddedIconManagerContent == null)
             {
-                _embeddedIconManagerWindow = new IconManagerWindow(_blpIconService, _currentProject, onIconImported)
+                _embeddedIconManagerWindow = new IconManagerWindow(_blpIconService, _currentProject, onIconImported, _baseDataService)
                 {
                     EmbeddedCloseHandler = ReturnToMapViewport
                 };
@@ -495,7 +534,7 @@ public partial class MainWindow : Window
 
         if (_standaloneIconManagerWindow == null || !_standaloneIconManagerWindow.IsLoaded)
         {
-            _standaloneIconManagerWindow = new IconManagerWindow(_blpIconService, _currentProject, onIconImported)
+            _standaloneIconManagerWindow = new IconManagerWindow(_blpIconService, _currentProject, onIconImported, _baseDataService)
             {
                 Owner = this
             };
@@ -629,7 +668,7 @@ public partial class MainWindow : Window
         {
             if (_standaloneImportsWindow != null)
             {
-                try { _standaloneImportsWindow.Close(); } catch { }
+                SafeCloseChildWindow(_standaloneImportsWindow, nameof(_standaloneImportsWindow));
             }
             if (TabImports != null)
             {
@@ -674,7 +713,7 @@ public partial class MainWindow : Window
         {
             if (_standaloneGlobalSearchWindow != null)
             {
-                try { _standaloneGlobalSearchWindow.Close(); } catch { }
+                SafeCloseChildWindow(_standaloneGlobalSearchWindow, nameof(_standaloneGlobalSearchWindow));
             }
             if (TabGlobalSearch != null)
             {
@@ -848,10 +887,14 @@ public partial class MainWindow : Window
             ChkShowGrid?.IsChecked == true,
             ChkShowPathing?.IsChecked == true,
             ChkShowBounds?.IsChecked == true,
-            MenuToggleWeather?.IsChecked != false);
+            MenuToggleWeather?.IsChecked != false,
+            showCameras: ChkShowCameras?.IsChecked == true);
 
         if (_currentProject != null)
+        {
             Map3DViewport.SyncRegions(_currentProject.Regions);
+            Map3DViewport.SyncCameras(_currentProject.Cameras);
+        }
     }
 
     private void BtnDistanceDec_Click(object sender, RoutedEventArgs e)
@@ -906,6 +949,12 @@ public partial class MainWindow : Window
             PnlCameraPaletteControls.Visibility = isCameraMode ? Visibility.Visible : Visibility.Collapsed;
         if (CmbPlaceOwner != null)
             CmbPlaceOwner.Visibility = mode == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (PnlPlaceRandomOptions != null)
+            PnlPlaceRandomOptions.Visibility = showEntityModeControls ? Visibility.Visible : Visibility.Collapsed;
+        if (ChkPlaceRandomScale != null)
+            ChkPlaceRandomScale.Visibility = mode == 1 ? Visibility.Visible : Visibility.Collapsed;
+        if (PnlPlaceVariationRow != null)
+            PnlPlaceVariationRow.Visibility = mode == 1 ? Visibility.Visible : Visibility.Collapsed;
         if (TxtPaletteFilter != null)
             TxtPaletteFilter.Visibility = isTerrainMode ? Visibility.Collapsed : Visibility.Visible;
         if (PnlPaletteActions != null)
@@ -1736,7 +1785,11 @@ public partial class MainWindow : Window
         }
         else if (LstToolPalette.SelectedItem is W3MapCamera cam)
         {
-            Map3DViewport.FocusCameraPreset(cam);
+            int camIdx = _currentProject?.Cameras.IndexOf(cam) ?? -1;
+            if (camIdx >= 0)
+                Map3DViewport.SelectCamera(camIdx, focus: true);
+            else
+                Map3DViewport.FocusCameraPreset(cam);
         }
     }
 
@@ -2353,69 +2406,50 @@ endlibrary
 
         try
         {
-            if (_standaloneObjectEditorWindow != null)
-            {
-                try { _standaloneObjectEditorWindow.Close(); } catch { }
-                _standaloneObjectEditorWindow = null;
-            }
+            SafeCloseChildWindow(_standaloneObjectEditorWindow, nameof(_standaloneObjectEditorWindow));
+            _standaloneObjectEditorWindow = null;
 
-            if (_standaloneTriggerEditorWindow != null)
-            {
-                try { _standaloneTriggerEditorWindow.Close(); } catch { }
-                _standaloneTriggerEditorWindow = null;
-            }
+            SafeCloseChildWindow(_standaloneTriggerEditorWindow, nameof(_standaloneTriggerEditorWindow));
+            _standaloneTriggerEditorWindow = null;
 
-            if (_standaloneIconManagerWindow != null)
-            {
-                try { _standaloneIconManagerWindow.Close(); } catch { }
-                _standaloneIconManagerWindow = null;
-            }
-            if (_standaloneOptimizerWindow != null)
-            {
-                try { _standaloneOptimizerWindow.Close(); } catch { }
-                _standaloneOptimizerWindow = null;
-            }
-            if (_standaloneMapMediaWindow != null)
-            {
-                try { _standaloneMapMediaWindow.Close(); } catch { }
-                _standaloneMapMediaWindow = null;
-            }
-            if (_standaloneImportsWindow != null)
-            {
-                try { _standaloneImportsWindow.Close(); } catch { }
-                _standaloneImportsWindow = null;
-            }
-            if (_standaloneGlobalSearchWindow != null)
-            {
-                try { _standaloneGlobalSearchWindow.Close(); } catch { }
-                _standaloneGlobalSearchWindow = null;
-            }
+            SafeCloseChildWindow(_standaloneIconManagerWindow, nameof(_standaloneIconManagerWindow));
+            _standaloneIconManagerWindow = null;
+
+            SafeCloseChildWindow(_standaloneOptimizerWindow, nameof(_standaloneOptimizerWindow));
+            _standaloneOptimizerWindow = null;
+
+            SafeCloseChildWindow(_standaloneMapMediaWindow, nameof(_standaloneMapMediaWindow));
+            _standaloneMapMediaWindow = null;
+
+            SafeCloseChildWindow(_standaloneImportsWindow, nameof(_standaloneImportsWindow));
+            _standaloneImportsWindow = null;
+
+            SafeCloseChildWindow(_standaloneGlobalSearchWindow, nameof(_standaloneGlobalSearchWindow));
+            _standaloneGlobalSearchWindow = null;
+
             if (_embeddedTriggerEditorWindow != null)
             {
-                try { _embeddedTriggerEditorWindow.ShutdownEmbedded(); _embeddedTriggerEditorWindow.Close(); } catch { }
+                try { _embeddedTriggerEditorWindow.ShutdownEmbedded(); _embeddedTriggerEditorWindow.Close(); }
+                catch (Exception ex) { AppLogger.Warn("MainWindow.OnClosing", "Error shutting down embedded TriggerEditorWindow.", ex); }
                 _embeddedTriggerEditorWindow = null;
                 _embeddedTriggerEditorContent = null;
             }
-            if (_embeddedIconManagerWindow != null)
-            {
-                try { _embeddedIconManagerWindow.Close(); } catch { }
-                _embeddedIconManagerWindow = null;
-                _embeddedIconManagerContent = null;
-            }
-            if (_embeddedOptimizerWindow != null)
-            {
-                try { _embeddedOptimizerWindow.Close(); } catch { }
-                _embeddedOptimizerWindow = null;
-                _embeddedOptimizerContent = null;
-            }
-            if (_embeddedMapMediaWindow != null)
-            {
-                try { _embeddedMapMediaWindow.Close(); } catch { }
-                _embeddedMapMediaWindow = null;
-                _embeddedMapMediaContent = null;
-            }
+            SafeCloseChildWindow(_embeddedIconManagerWindow, nameof(_embeddedIconManagerWindow));
+            _embeddedIconManagerWindow = null;
+            _embeddedIconManagerContent = null;
+
+            SafeCloseChildWindow(_embeddedOptimizerWindow, nameof(_embeddedOptimizerWindow));
+            _embeddedOptimizerWindow = null;
+            _embeddedOptimizerContent = null;
+
+            SafeCloseChildWindow(_embeddedMapMediaWindow, nameof(_embeddedMapMediaWindow));
+            _embeddedMapMediaWindow = null;
+            _embeddedMapMediaContent = null;
         }
-        catch { }
+        catch (Exception ex)
+        {
+            AppLogger.Warn("MainWindow.OnClosing", "Error cleaning up child windows on exit.", ex);
+        }
     }
 
     private async void BtnCloseMap_Click(object sender, RoutedEventArgs e)
@@ -2475,7 +2509,10 @@ endlibrary
             TxtStatusBarLeft.Text = string.Empty;
             TxtStatusBarRight.Text = string.Empty;
         }
-        catch { }
+        catch (Exception ex)
+        {
+            AppLogger.Warn("MainWindow.CloseCurrentMap", "Error resetting UI state while closing map.", ex);
+        }
     }
 
     private async Task<bool> PromptSaveIfModifiedAsync(string actionContext)

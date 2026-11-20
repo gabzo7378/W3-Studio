@@ -59,8 +59,24 @@ public static class MapShadowAndMinimapService
             new[] { "Idrt", "Idtr", "Idki", "Ibkb", "Irbk", "Isnw" }, new[] { "CIdi", "CIsn" })
     };
 
+    private static readonly HashSet<string> NonShadowedBlockerRawcodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "YTpb", "YTpc", "YTfb", "YTfc", "YTab", "YTac", "YTlb", "YTlc"
+    };
+
+    private static bool IsDisabledShadowValue(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return true;
+        var trimmed = value.Trim();
+        return trimmed == "_" || trimmed == "0" || trimmed.Equals("none", StringComparison.OrdinalIgnoreCase);
+    }
+
     /// <summary>
-    /// Computes war3map.shd (4x4 subcells per tile) from terrain slopes, cliffs, and placed buildings/trees.
+    /// Computes war3map.shd (4x4 subcells per tile) from terrain slopes, cliffs, and static shadow-casting doodads/trees.
+    /// Buildings (PlacedUnits, including Gold Mines) are intentionally NOT baked into war3map.shd: Warcraft III renders
+    /// building shadows dynamically via each building's 'ushb' (buildingShadow) texture so destroyed/collapsed buildings
+    /// never leave permanent black stains or oversized circles on the ground.
     /// </summary>
     public static byte[] GenerateShadowMapShd(
         MapProject project,
@@ -134,11 +150,13 @@ public static class MapShadowAndMinimapService
             }
         }
 
-        // 2. Soft oval shadows cast towards North-East (+32, +32) by buildings & trees/destructables
+        // 2. Proportional shadows cast towards North-East (+20, +20) by static shadow-casting doodads & living trees/destructibles.
+        // Note: PlacedUnits buildings (Gold Mines, Town Halls, Towers, etc.) are NOT baked into war3map.shd —
+        // WC3 renders them dynamically with their 'buildingShadow' (ushb) BLP textures (e.g. BuildingShadowLarge.blp).
         void StampShadowEllipse(float ox, float oy, float radiusWorld)
         {
-            float cx = ox + 36f;
-            float cy = oy + 36f;
+            float cx = ox + 20f;
+            float cy = oy + 20f;
             int minSx = Math.Max(0, (int)MathF.Floor((cx - t.OffsetX - radiusWorld) / 32f));
             int maxSx = Math.Min(shdW - 1, (int)MathF.Ceiling((cx - t.OffsetX + radiusWorld) / 32f));
             int minSy = Math.Max(0, (int)MathF.Floor((cy - t.OffsetY - radiusWorld) / 32f));
@@ -161,29 +179,43 @@ public static class MapShadowAndMinimapService
 
         foreach (var d in project.PlacedDoodads)
         {
-            if (d.Life == 0)
+            if (d.Life == 0 || string.IsNullOrWhiteSpace(d.Rawcode))
                 continue;
-            if (d.IsTree || d.IsDestructible)
-                StampShadowEllipse(d.X, d.Y, Math.Clamp(52f * d.Scale, 32f, 110f));
-        }
-
-        foreach (var u in project.PlacedUnits)
-        {
-            bool isBldg = u.IsBuilding || PathingService.IsUnitBuilding(u.Rawcode, project, baseData);
-            if (!isBldg || u.IsStartLocation)
+            if (NonShadowedBlockerRawcodes.Contains(d.Rawcode))
                 continue;
 
-            float radius = Math.Clamp(115f * u.Scale, 75f, 210f);
-            if (baseData != null && blpService != null)
+            float scale = Math.Clamp(d.Scale <= 0f ? 1f : d.Scale, 0.25f, 3.0f);
+            string shadowField = string.Empty;
+            float occH = 0f;
+
+            if (baseData != null)
             {
-                var pathTex = PathingService.ResolveObjectField(u.Rawcode, false, project, baseData, "upat", "pathTex");
-                var grid = PathingService.GetPathTexture(pathTex, project, blpService);
-                if (grid != null)
-                {
-                    radius = Math.Clamp(Math.Max(grid.Width, grid.Height) * 16f * Math.Max(0.7f, u.Scale) * 0.92f, 52f, 224f);
-                }
+                shadowField = PathingService.ResolveObjectField(d.Rawcode, true, project, baseData, d.IsDestructible ? "bshd" : "dshd", "shadow");
+                if (string.IsNullOrWhiteSpace(shadowField))
+                    shadowField = PathingService.ResolveObjectField(d.Rawcode, true, project, baseData, d.IsDestructible ? "dshd" : "bshd", "shadow");
+
+                if (IsDisabledShadowValue(shadowField))
+                    continue;
+
+                var occStr = PathingService.ResolveObjectField(d.Rawcode, true, project, baseData, "boch", "occH");
+                float.TryParse(occStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out occH);
             }
-            StampShadowEllipse(u.X, u.Y, radius);
+            else if (!d.IsTree && !d.IsDestructible)
+            {
+                continue;
+            }
+
+            float radius;
+            if (occH > 0f)
+                radius = Math.Clamp(occH * 0.20f * scale, 24f, 70f);
+            else if (d.IsTree)
+                radius = Math.Clamp(44f * scale, 24f, 68f);
+            else if (d.IsDestructible)
+                radius = Math.Clamp(30f * scale, 18f, 46f);
+            else
+                radius = Math.Clamp(34f * scale, 20f, 56f);
+
+            StampShadowEllipse(d.X, d.Y, radius);
         }
 
         return shadows;

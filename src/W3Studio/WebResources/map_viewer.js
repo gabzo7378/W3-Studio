@@ -94,6 +94,7 @@
     showUnits: true,
     showDoodads: true,
     showRegions: false,
+    showCameras: false,
     showGrid: false,
     showPathing: false,
     showBounds: false,
@@ -104,11 +105,25 @@
   const regionState = {
     regions: [],
     selectedNumber: null,
-    dragMode: null, // 'move' | 'nw' | 'ne' | 'sw' | 'se' | 'create'
+    dragMode: null, // 'move' | 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'create'
     dragStartWx: 0,
     dragStartWy: 0,
     origRect: null,
     createDraft: null
+  };
+
+  const cameraPreviewState = {
+    cameras: [],
+    selectedIndex: -1,
+    dragIndex: -1,
+    dragOrigTarget: null,
+    dragMoved: false
+  };
+
+  const hudCursorState = {
+    wx: null,
+    wy: null,
+    wz: null
   };
 
   function applyLayerVisibility() {
@@ -531,22 +546,44 @@
       }
 
       if (isSelected && !isDraft) {
+        let minX = Math.min(reg.left, reg.right), maxX = Math.max(reg.left, reg.right);
+        let minY = Math.min(reg.bottom, reg.top), maxY = Math.max(reg.bottom, reg.top);
+        let midX = (minX + maxX) * 0.5, midY = (minY + maxY) * 0.5;
         let handles = [
-          [Math.min(reg.left, reg.right), Math.max(reg.bottom, reg.top)],
-          [Math.max(reg.left, reg.right), Math.max(reg.bottom, reg.top)],
-          [Math.min(reg.left, reg.right), Math.min(reg.bottom, reg.top)],
-          [Math.max(reg.left, reg.right), Math.min(reg.bottom, reg.top)]
+          [minX, maxY, true],
+          [midX, maxY, false],
+          [maxX, maxY, true],
+          [maxX, midY, false],
+          [maxX, minY, true],
+          [midX, minY, false],
+          [minX, minY, true],
+          [minX, midY, false]
         ];
         for (let h of handles) {
           let hz = (hasHeight ? viewer.map.heightAt(h[0], h[1]) : 0) + 12;
           let hp = projectWorld(h[0], h[1], hz, vp);
           if (!hp) continue;
-          overlayCtx.fillStyle = '#FFFFFF';
+          let sz = h[2] ? 4.5 : 3.5;
+          overlayCtx.fillStyle = h[2] ? '#FFFFFF' : '#FFE44D';
           overlayCtx.strokeStyle = '#111111';
           overlayCtx.lineWidth = 1.5;
-          overlayCtx.fillRect(hp[0] - 4, hp[1] - 4, 8, 8);
-          overlayCtx.strokeRect(hp[0] - 4, hp[1] - 4, 8, 8);
+          overlayCtx.fillRect(hp[0] - sz, hp[1] - sz, sz * 2, sz * 2);
+          overlayCtx.strokeRect(hp[0] - sz, hp[1] - sz, sz * 2, sz * 2);
         }
+      }
+
+      if ((isDraft || (isSelected && regionState.dragMode)) && labelPt) {
+        let rw = Math.round(Math.abs(reg.right - reg.left));
+        let rh = Math.round(Math.abs(reg.top - reg.bottom));
+        let dimTxt = `${rw} × ${rh}`;
+        overlayCtx.font = '600 10.5px Segoe UI, sans-serif';
+        let dw = overlayCtx.measureText(dimTxt).width + 10;
+        overlayCtx.fillStyle = 'rgba(14, 18, 24, 0.86)';
+        overlayCtx.fillRect(labelPt[0] - dw * 0.5, labelPt[1] + 11, dw, 16);
+        overlayCtx.fillStyle = '#7CEEFF';
+        overlayCtx.textAlign = 'center';
+        overlayCtx.textBaseline = 'middle';
+        overlayCtx.fillText(dimTxt, labelPt[0], labelPt[1] + 19);
       }
       overlayCtx.restore();
     };
@@ -567,15 +604,20 @@
     if (selected) {
       let minX = Math.min(selected.left, selected.right), maxX = Math.max(selected.left, selected.right);
       let minY = Math.min(selected.bottom, selected.top), maxY = Math.max(selected.bottom, selected.top);
-      let corners = [
+      let midX = (minX + maxX) * 0.5, midY = (minY + maxY) * 0.5;
+      let handles = [
         ['nw', minX, maxY],
         ['ne', maxX, maxY],
         ['sw', minX, minY],
-        ['se', maxX, minY]
+        ['se', maxX, minY],
+        ['n', midX, maxY],
+        ['s', midX, minY],
+        ['w', minX, midY],
+        ['e', maxX, midY]
       ];
-      for (let c of corners) {
-        if (Math.hypot(wx - c[1], wy - c[2]) <= tol) {
-          return { region: selected, mode: c[0] };
+      for (let h of handles) {
+        if (Math.hypot(wx - h[1], wy - h[2]) <= tol) {
+          return { region: selected, mode: h[0] };
         }
       }
     }
@@ -594,6 +636,198 @@
       }
     }
     return best ? { region: best, mode: 'move' } : null;
+  }
+
+  function computeCameraEyeAndBasis(cam, hasHeight) {
+    let tx = cam.targetX || 0;
+    let ty = cam.targetY || 0;
+    let gz = hasHeight ? viewer.map.heightAt(tx, ty) : 0;
+    let tz = gz + (cam.zOffset || 0);
+    let dist = Math.max(100, Math.min(20000, cam.distance || 1650));
+    let rot = typeof cam.rotation === 'number' ? cam.rotation : 90;
+    let theta = ((rot - 90) * Math.PI) / 180;
+    let aoa = typeof cam.angleOfAttack === 'number' ? cam.angleOfAttack : 304;
+    if (aoa < 180) aoa += 360;
+    let phi = Math.min(Math.max(0.08, ((aoa - 270) * Math.PI) / 180), Math.PI / 2 - 0.04);
+
+    let ex = tx + dist * Math.sin(phi) * Math.sin(theta);
+    let ey = ty - dist * Math.sin(phi) * Math.cos(theta);
+    let ez = tz + dist * Math.cos(phi);
+
+    // Forward, right, up basis vectors for frustum cone
+    let fx = tx - ex, fy = ty - ey, fz = tz - ez;
+    let fl = Math.hypot(fx, fy, fz) || 1;
+    fx /= fl; fy /= fl; fz /= fl;
+    // right = normalize(forward x [0,0,1])
+    let rx = fy, ry = -fx, rz = 0;
+    let rl = Math.hypot(rx, ry, rz) || 1;
+    rx /= rl; ry /= rl;
+    // up = right x forward
+    let ux = ry * fz - rz * fy;
+    let uy = rz * fx - rx * fz;
+    let uz = rx * fy - ry * fx;
+
+    return {
+      eye: [ex, ey, ez],
+      target: [tx, ty, tz],
+      fwd: [fx, fy, fz],
+      right: [rx, ry, rz],
+      up: [ux, uy, uz],
+      dist,
+      fovDeg: cam.fieldOfView > 10 ? cam.fieldOfView : 70
+    };
+  }
+
+  function drawCamerasOverlay(vp, hasHeight) {
+    let showAll = layerState.showCameras || editorState.mode === 'camera';
+    if (!showAll || !cameraPreviewState.cameras || cameraPreviewState.cameras.length === 0) return;
+
+    overlayCtx.save();
+    for (let i = 0; i < cameraPreviewState.cameras.length; i++) {
+      let cam = cameraPreviewState.cameras[i];
+      let isSel = i === cameraPreviewState.selectedIndex;
+      let info = computeCameraEyeAndBasis(cam, hasHeight);
+
+      let coneLen = Math.min(Math.max(260, info.dist * 0.42), 900);
+      let halfV = Math.tan(((info.fovDeg * 0.5) * Math.PI) / 180) * coneLen * 0.55;
+      let halfH = halfV * 1.45;
+      let bcx = info.eye[0] + info.fwd[0] * coneLen;
+      let bcy = info.eye[1] + info.fwd[1] * coneLen;
+      let bcz = info.eye[2] + info.fwd[2] * coneLen;
+
+      let corners3d = [
+        [bcx - info.right[0] * halfH + info.up[0] * halfV, bcy - info.right[1] * halfH + info.up[1] * halfV, bcz - info.right[2] * halfH + info.up[2] * halfV],
+        [bcx + info.right[0] * halfH + info.up[0] * halfV, bcy + info.right[1] * halfH + info.up[1] * halfV, bcz + info.right[2] * halfH + info.up[2] * halfV],
+        [bcx + info.right[0] * halfH - info.up[0] * halfV, bcy + info.right[1] * halfH - info.up[1] * halfV, bcz + info.right[2] * halfH - info.up[2] * halfV],
+        [bcx - info.right[0] * halfH - info.up[0] * halfV, bcy - info.right[1] * halfH - info.up[1] * halfV, bcz - info.right[2] * halfH - info.up[2] * halfV]
+      ];
+
+      let pEye = projectWorld(info.eye[0], info.eye[1], info.eye[2], vp);
+      let pTarget = projectWorld(info.target[0], info.target[1], info.target[2] + 10, vp);
+      let pCorners = corners3d.map(c => projectWorld(c[0], c[1], c[2], vp));
+
+      let strokeColor = isSel ? '#FFE44D' : '#58D5FF';
+      let fillColor = isSel ? 'rgba(255, 228, 77, 0.14)' : 'rgba(88, 213, 255, 0.10)';
+
+      // Sightline from eye to target
+      if (pEye && pTarget) {
+        overlayCtx.strokeStyle = isSel ? 'rgba(255, 228, 77, 0.72)' : 'rgba(88, 213, 255, 0.45)';
+        overlayCtx.lineWidth = isSel ? 1.8 : 1.2;
+        overlayCtx.setLineDash([5, 4]);
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(pEye[0], pEye[1]);
+        overlayCtx.lineTo(pTarget[0], pTarget[1]);
+        overlayCtx.stroke();
+        overlayCtx.setLineDash([]);
+      }
+
+      // Frustum pyramid wireframe & subtle fill
+      if (pEye && pCorners.every(Boolean)) {
+        overlayCtx.fillStyle = fillColor;
+        overlayCtx.strokeStyle = strokeColor;
+        overlayCtx.lineWidth = isSel ? 2.0 : 1.3;
+
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(pCorners[0][0], pCorners[0][1]);
+        for (let k = 1; k < 4; k++) overlayCtx.lineTo(pCorners[k][0], pCorners[k][1]);
+        overlayCtx.closePath();
+        overlayCtx.fill();
+        overlayCtx.stroke();
+
+        overlayCtx.beginPath();
+        for (let k = 0; k < 4; k++) {
+          overlayCtx.moveTo(pEye[0], pEye[1]);
+          overlayCtx.lineTo(pCorners[k][0], pCorners[k][1]);
+        }
+        overlayCtx.stroke();
+
+        // Eye marker
+        overlayCtx.fillStyle = strokeColor;
+        overlayCtx.beginPath();
+        overlayCtx.arc(pEye[0], pEye[1], isSel ? 5.5 : 4, 0, Math.PI * 2);
+        overlayCtx.fill();
+        overlayCtx.strokeStyle = '#111111';
+        overlayCtx.lineWidth = 1.2;
+        overlayCtx.stroke();
+      }
+
+      // Target crosshair & label
+      if (pTarget) {
+        overlayCtx.strokeStyle = strokeColor;
+        overlayCtx.lineWidth = isSel ? 2.2 : 1.5;
+        let s = isSel ? 8 : 6;
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(pTarget[0] - s, pTarget[1]);
+        overlayCtx.lineTo(pTarget[0] + s, pTarget[1]);
+        overlayCtx.moveTo(pTarget[0], pTarget[1] - s);
+        overlayCtx.lineTo(pTarget[0], pTarget[1] + s);
+        overlayCtx.stroke();
+
+        let label = cam.name || `Camera ${i + 1}`;
+        overlayCtx.font = 'bold 11px Segoe UI, sans-serif';
+        let tw = overlayCtx.measureText(label).width + 10;
+        let lx = (pEye ? pEye[0] : pTarget[0]);
+        let ly = (pEye ? pEye[1] - 16 : pTarget[1] - 16);
+        overlayCtx.fillStyle = 'rgba(14, 18, 24, 0.82)';
+        overlayCtx.fillRect(lx - tw * 0.5, ly - 8, tw, 16);
+        overlayCtx.fillStyle = strokeColor;
+        overlayCtx.textAlign = 'center';
+        overlayCtx.textBaseline = 'middle';
+        overlayCtx.fillText(label, lx, ly);
+      }
+    }
+    overlayCtx.restore();
+  }
+
+  function findCameraHit(clientX, clientY) {
+    if (!viewer || !viewer.map || !viewer.map.worldScene || !viewer.map.worldScene.camera) return -1;
+    let showAll = layerState.showCameras || editorState.mode === 'camera';
+    if (!showAll || !cameraPreviewState.cameras || cameraPreviewState.cameras.length === 0) return -1;
+    let vp = viewer.map.worldScene.camera.viewProjectionMatrix;
+    let hasHeight = typeof viewer.map.heightAt === 'function';
+    let rect = canvas.getBoundingClientRect();
+    let sx = clientX - rect.left;
+    let sy = clientY - rect.top;
+
+    let bestIdx = -1;
+    let bestDist = 20;
+    for (let i = 0; i < cameraPreviewState.cameras.length; i++) {
+      let info = computeCameraEyeAndBasis(cameraPreviewState.cameras[i], hasHeight);
+      let pTarget = projectWorld(info.target[0], info.target[1], info.target[2] + 10, vp);
+      let pEye = projectWorld(info.eye[0], info.eye[1], info.eye[2], vp);
+      if (pTarget) {
+        let d = Math.hypot(sx - pTarget[0], sy - pTarget[1]);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      }
+      if (pEye) {
+        let d = Math.hypot(sx - pEye[0], sy - pEye[1]);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      }
+    }
+    return bestIdx;
+  }
+
+  function hitTestSelectedFacingHandle(clientX, clientY) {
+    if (!viewer || !viewer.map || !viewer.map.worldScene || !viewer.map.worldScene.camera) return false;
+    if (editorState.mode !== 'select' || !editorState.selectedEntities || editorState.selectedEntities.length === 0) return false;
+    let first = editorState.selectedEntities[0];
+    let live = typeof viewer.map.getEntityTransform === 'function'
+      ? viewer.map.getEntityTransform(first.kind, first.creationNumber)
+      : first;
+    if (!live) return false;
+    let vp = viewer.map.worldScene.camera.viewProjectionMatrix;
+    let hasHeight = typeof viewer.map.heightAt === 'function';
+    let rad = Math.max(52, 68 * (live.scale || 1));
+    let ang = typeof live.angle === 'number' ? live.angle : 0;
+    let tx = live.x + Math.cos(ang) * (rad * 1.45);
+    let ty = live.y + Math.sin(ang) * (rad * 1.45);
+    let tz = (hasHeight ? viewer.map.heightAt(tx, ty) : (live.z || 0)) + 10;
+    let tip = projectWorld(tx, ty, tz, vp);
+    if (!tip) return false;
+    let rect = canvas.getBoundingClientRect();
+    let sx = clientX - rect.left;
+    let sy = clientY - rect.top;
+    return Math.hypot(sx - tip[0], sy - tip[1]) <= 14;
   }
 
   const weatherParticles = [];
@@ -879,6 +1113,7 @@
       drawBoundsOverlay(vp, hasHeight);
     }
     drawRegionsOverlay(vp, hasHeight);
+    drawCamerasOverlay(vp, hasHeight);
     drawWeatherOverlay(dt);
 
     // 0b. Placement / Dragging WC3 32x32 Pathing Grid Footprint
@@ -904,6 +1139,30 @@
       drawWorldRing(ent.x, ent.y, ent.z || 0, rad, ringColor, si === 0 ? 2.5 : 1.8, ent.angle, vp);
     }
 
+    // 1a. Live Rotation Degree Badge when dragging facing handle or Ctrl+Drag rotating
+    if (editorState.rotateDrag && editorState.rotateDrag.items.length > 0) {
+      let anchor = editorState.rotateDrag.items[0];
+      let deg = Math.round((((anchor.angle * 180) / Math.PI) % 360 + 360) % 360);
+      let az = (hasHeight ? viewer.map.heightAt(anchor.x, anchor.y) : 0) + 42;
+      let sp = projectWorld(anchor.x, anchor.y, az, vp);
+      if (sp) {
+        let txt = `${deg}°`;
+        overlayCtx.save();
+        overlayCtx.font = 'bold 12px Segoe UI, sans-serif';
+        let tw = overlayCtx.measureText(txt).width + 14;
+        overlayCtx.fillStyle = 'rgba(14, 18, 24, 0.88)';
+        overlayCtx.fillRect(sp[0] - tw * 0.5, sp[1] - 11, tw, 22);
+        overlayCtx.strokeStyle = '#FFE044';
+        overlayCtx.lineWidth = 1.4;
+        overlayCtx.strokeRect(sp[0] - tw * 0.5, sp[1] - 11, tw, 22);
+        overlayCtx.fillStyle = '#FFE044';
+        overlayCtx.textAlign = 'center';
+        overlayCtx.textBaseline = 'middle';
+        overlayCtx.fillText(txt, sp[0], sp[1]);
+        overlayCtx.restore();
+      }
+    }
+
     // 1b. Marquee Selection Box (Shift+Drag)
     if (editorState.marquee) {
       let mx = Math.min(editorState.marquee.startX, editorState.marquee.currX);
@@ -921,7 +1180,7 @@
       }
     }
 
-    // 2. Placement ghost circle
+    // 2. Placement ghost circle + live angle/scale/variation badge
     if ((editorState.mode === 'place_unit' || editorState.mode === 'place_doodad') &&
         editorState.hoverWx !== null && editorState.hoverWy !== null) {
       let hz = hasHeight ? viewer.map.heightAt(editorState.hoverWx, editorState.hoverWy) : 0;
@@ -931,6 +1190,43 @@
         ? '#FF3B3B'
         : '#00FFE5';
       drawWorldRing(editorState.hoverWx, editorState.hoverWy, hz, 64 * pScale, ghostColor, 2, pAngle, vp);
+    }
+
+    // 2b. Compact Bottom-Left 3D World Coordinates & Transform HUD
+    if (hudCursorState.wx !== null && hudCursorState.wy !== null && overlayCanvas.height > 80) {
+      let parts = [`X: ${Math.round(hudCursorState.wx)}  Y: ${Math.round(hudCursorState.wy)}  Z: ${Math.round(hudCursorState.wz || 0)}`];
+      if ((editorState.mode === 'place_unit' || editorState.mode === 'place_doodad') && editorState.placeSpec) {
+        let p = editorState.placeSpec;
+        let deg = Math.round((((p.angle || 0) * 180 / Math.PI) % 360 + 360) % 360);
+        let sc = (p.scale || 1).toFixed(2);
+        let vInfo = p.kind === 'doodad' ? `  Var:${p.variation || 0}` : '';
+        parts.push(`[${p.rawcode}] ${deg}°  Esc:${sc}x${vInfo}  (R:Rotar  +/-:Escala${p.kind === 'doodad' ? '  V:Var' : ''})`);
+      } else if (editorState.selectedEntities && editorState.selectedEntities.length > 0) {
+        let first = editorState.selectedEntities[0];
+        let live = typeof viewer.map.getEntityTransform === 'function'
+          ? viewer.map.getEntityTransform(first.kind, first.creationNumber)
+          : first;
+        let deg = Math.round(((((live ? live.angle : first.angle) || 0) * 180 / Math.PI) % 360 + 360) % 360);
+        let sc = ((live ? live.scale : first.scale) || 1).toFixed(2);
+        let cnt = editorState.selectedEntities.length > 1 ? `${editorState.selectedEntities.length} sel. | ` : '';
+        parts.push(`${cnt}${deg}°  Esc:${sc}x  (R/Flecha:Rotar  +/-:Escala  Ctrl+RePág/AvPág:Z${first.kind === 'doodad' ? '  V:Var' : ''})`);
+      }
+      let hudStr = parts.join('   |   ');
+      overlayCtx.save();
+      overlayCtx.font = '500 11px Segoe UI, sans-serif';
+      let tw = overlayCtx.measureText(hudStr).width + 16;
+      let bx = 10;
+      let by = overlayCanvas.height - 28;
+      overlayCtx.fillStyle = 'rgba(14, 18, 26, 0.78)';
+      overlayCtx.fillRect(bx, by, tw, 20);
+      overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+      overlayCtx.lineWidth = 1;
+      overlayCtx.strokeRect(bx, by, tw, 20);
+      overlayCtx.fillStyle = '#E6EDF3';
+      overlayCtx.textAlign = 'left';
+      overlayCtx.textBaseline = 'middle';
+      overlayCtx.fillText(hudStr, bx + 8, by + 10);
+      overlayCtx.restore();
     }
 
     // 3. Terrain / Pathing Brush (circle / square / diamond) + Affected Vertices + Cursor HUD
@@ -1209,6 +1505,71 @@
     }
   }
 
+  function syncPlacementGhostNow() {
+    if (!viewer || !viewer.map || typeof viewer.map.updatePlacementGhost !== 'function') return;
+    if ((editorState.mode === 'place_unit' || editorState.mode === 'place_doodad') &&
+        editorState.placeSpec && editorState.hoverWx !== null && editorState.hoverWy !== null) {
+      let hz = typeof viewer.map.heightAt === 'function' ? viewer.map.heightAt(editorState.hoverWx, editorState.hoverWy) : 0;
+      let valid = !editorState.placementEval || editorState.placementEval.valid !== false;
+      viewer.map.updatePlacementGhost(
+        editorState.placeSpec,
+        editorState.hoverWx,
+        editorState.hoverWy,
+        hz,
+        editorState.placeSpec.angle ?? (270 * Math.PI) / 180,
+        editorState.placeSpec.scale ?? 1,
+        valid,
+        editorState.ignorePathing
+      );
+    } else if (typeof viewer.map.clearPlacementGhost === 'function') {
+      viewer.map.clearPlacementGhost();
+    }
+  }
+
+  function rollNextPlacementSpec() {
+    let p = editorState.placeSpec;
+    if (!p) return;
+    if (!p.isBuilding && p.randomAngle) {
+      p.angle = Math.random() * Math.PI * 2;
+    }
+    if (p.kind === 'doodad' && p.randomScale) {
+      let lo = Math.max(0.1, Math.min(p.minScale || 0.85, p.maxScale || 1.15));
+      let hi = Math.max(lo, Math.max(p.minScale || 0.85, p.maxScale || 1.15));
+      p.scale = +(lo + Math.random() * (hi - lo)).toFixed(2);
+    }
+    if (p.kind === 'doodad' && p.randomVariation) {
+      let nv = (viewer && viewer.map && typeof viewer.map.getDoodadVariationCount === 'function')
+        ? viewer.map.getDoodadVariationCount(p.rawcode)
+        : (p.numVariations || 1);
+      p.variation = nv > 1 ? Math.floor(Math.random() * nv) : 0;
+    }
+    syncPlacementGhostNow();
+  }
+
+  function beginRotateDragForSelection() {
+    if (!viewer || !viewer.map || editorState.selectedEntities.length === 0) return false;
+    let items = [];
+    for (let se of editorState.selectedEntities) {
+      let live = typeof viewer.map.getEntityTransform === 'function'
+        ? viewer.map.getEntityTransform(se.kind, se.creationNumber)
+        : se;
+      if (!live) continue;
+      items.push({
+        kind: se.kind,
+        creationNumber: se.creationNumber,
+        x: live.x,
+        y: live.y,
+        origAngle: live.angle || 0,
+        angle: live.angle || 0
+      });
+    }
+    if (items.length > 0) {
+      editorState.rotateDrag = { items };
+      return true;
+    }
+    return false;
+  }
+
   // Mouse camera interactions + Terrain Brush + Unit/Doodad Editing
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -1299,8 +1660,25 @@
           player: editorState.placeSpec.player ?? 0,
           variation: editorState.placeSpec.variation ?? 0
         });
+        rollNextPlacementSpec();
       }
       return;
+    }
+
+    // Camera Select / Drag Target in Camera Mode or when Show Cameras is active
+    if ((editorState.mode === 'camera' || layerState.showCameras) && !e.ctrlKey && !e.altKey) {
+      let camHit = findCameraHit(e.clientX, e.clientY);
+      if (camHit >= 0) {
+        cameraPreviewState.selectedIndex = camHit;
+        cameraPreviewState.dragIndex = camHit;
+        cameraPreviewState.dragOrigTarget = {
+          x: cameraPreviewState.cameras[camHit].targetX,
+          y: cameraPreviewState.cameras[camHit].targetY
+        };
+        cameraPreviewState.dragMoved = false;
+        postMsg({ type: 'camera_selected', index: camHit });
+        return;
+      }
     }
 
     // Region Create Mode (click-drag on terrain)
@@ -1348,6 +1726,11 @@
       }
     }
 
+    // Direct Drag on Facing Arrow Knob (no Ctrl required) to rotate selected entity smoothly
+    if (!e.ctrlKey && !e.altKey && !e.shiftKey && hitTestSelectedFacingHandle(e.clientX, e.clientY)) {
+      if (beginRotateDragForSelection()) return;
+    }
+
     // Ctrl + Left-Click: Interactive Rotate facing cursor for selected or picked entities
     if (e.ctrlKey && !e.altKey && editorState.mode === 'select' && viewer && viewer.map) {
       let picked = null;
@@ -1359,27 +1742,7 @@
         setSelectedEntitiesList([picked]);
         postSelectionSync();
       }
-      if (editorState.selectedEntities.length > 0) {
-        let items = [];
-        for (let se of editorState.selectedEntities) {
-          let live = typeof viewer.map.getEntityTransform === 'function'
-            ? viewer.map.getEntityTransform(se.kind, se.creationNumber)
-            : se;
-          if (!live) continue;
-          items.push({
-            kind: se.kind,
-            creationNumber: se.creationNumber,
-            x: live.x,
-            y: live.y,
-            origAngle: live.angle || 0,
-            angle: live.angle || 0
-          });
-        }
-        if (items.length > 0) {
-          editorState.rotateDrag = { items };
-          return;
-        }
-      }
+      if (beginRotateDragForSelection()) return;
     }
 
     // Select / Shift+Click Toggle / Drag Move Mode (Units / Doodads)
@@ -1488,8 +1851,20 @@
         Math.hypot(e.clientX - cameraState.rightDownX, e.clientY - cameraState.rightDownY) < 5) {
       editorState.mode = 'select';
       editorState.placeSpec = null;
+      if (viewer && viewer.map && typeof viewer.map.clearPlacementGhost === 'function') viewer.map.clearPlacementGhost();
       canvas.style.cursor = 'default';
       postMsg({ type: 'placement_cancelled' });
+    }
+
+    if (e.button === 0 && cameraPreviewState.dragIndex >= 0) {
+      let idx = cameraPreviewState.dragIndex;
+      let cam = cameraPreviewState.cameras[idx];
+      if (cam && cameraPreviewState.dragMoved) {
+        postMsg({ type: 'camera_moved', index: idx, targetX: cam.targetX, targetY: cam.targetY });
+      }
+      cameraPreviewState.dragIndex = -1;
+      cameraPreviewState.dragOrigTarget = null;
+      cameraPreviewState.dragMoved = false;
     }
 
     if (e.button === 0 && editorState.marquee) {
@@ -1610,12 +1985,124 @@
     brushState.hoverWy = null;
     editorState.hoverWx = null;
     editorState.hoverWy = null;
+    hudCursorState.wx = null;
+    hudCursorState.wy = null;
+    hudCursorState.wz = null;
+    if (viewer && viewer.map && typeof viewer.map.clearPlacementGhost === 'function') {
+      viewer.map.clearPlacementGhost();
+    }
   });
 
+  function rotateActiveSelectionOrGhost(deltaDeg) {
+    let stepRad = deltaDeg * (Math.PI / 180);
+    if ((editorState.mode === 'place_unit' || editorState.mode === 'place_doodad') && editorState.placeSpec) {
+      editorState.placeSpec.angle = (editorState.placeSpec.angle || 0) + stepRad;
+      syncPlacementGhostNow();
+      return true;
+    }
+    if (editorState.mode === 'select' && editorState.selectedEntities.length > 0 && viewer && viewer.map) {
+      let changed = [];
+      for (let se of editorState.selectedEntities) {
+        let live = typeof viewer.map.getEntityTransform === 'function'
+          ? viewer.map.getEntityTransform(se.kind, se.creationNumber)
+          : se;
+        let nextAngle = ((live ? live.angle : se.angle) || 0) + stepRad;
+        se.angle = nextAngle;
+        applyLiveEntityTransform(se.kind, se.creationNumber, { angle: nextAngle });
+        changed.push({ kind: se.kind, creationNumber: se.creationNumber, angle: nextAngle });
+      }
+      if (changed.length > 0) postMsg({ type: 'entities_rotated', entities: changed });
+      return true;
+    }
+    return false;
+  }
+
+  function scaleActiveSelectionOrGhost(factor) {
+    if ((editorState.mode === 'place_unit' || editorState.mode === 'place_doodad') && editorState.placeSpec) {
+      let nextScale = Math.max(0.1, Math.min(20, +(Math.max(0.1, editorState.placeSpec.scale || 1) * factor).toFixed(2)));
+      editorState.placeSpec.scale = nextScale;
+      syncPlacementGhostNow();
+      return true;
+    }
+    if (editorState.mode === 'select' && editorState.selectedEntities.length > 0 && viewer && viewer.map) {
+      let changed = [];
+      for (let se of editorState.selectedEntities) {
+        let live = typeof viewer.map.getEntityTransform === 'function'
+          ? viewer.map.getEntityTransform(se.kind, se.creationNumber)
+          : se;
+        let curScale = (live ? live.scale : se.scale) || 1;
+        let nextScale = Math.max(0.1, Math.min(20, +(curScale * factor).toFixed(2)));
+        se.scale = nextScale;
+        applyLiveEntityTransform(se.kind, se.creationNumber, { scale: nextScale });
+        changed.push({ kind: se.kind, creationNumber: se.creationNumber, scale: nextScale });
+      }
+      if (changed.length > 0) postMsg({ type: 'entities_scaled', entities: changed });
+      return true;
+    }
+    return false;
+  }
+
+  function cycleDoodadVariation() {
+    if (editorState.mode === 'place_doodad' && editorState.placeSpec) {
+      let nv = (viewer && viewer.map && typeof viewer.map.getDoodadVariationCount === 'function')
+        ? viewer.map.getDoodadVariationCount(editorState.placeSpec.rawcode)
+        : (editorState.placeSpec.numVariations || 1);
+      editorState.placeSpec.variation = nv > 1 ? (((editorState.placeSpec.variation || 0) + 1) % nv) : 0;
+      syncPlacementGhostNow();
+      return true;
+    }
+    if (editorState.mode === 'select' && editorState.selectedEntities.length > 0 && viewer && viewer.map) {
+      let changed = [];
+      for (let se of editorState.selectedEntities) {
+        if (se.kind !== 'doodad') continue;
+        let live = typeof viewer.map.getEntityTransform === 'function'
+          ? viewer.map.getEntityTransform('doodad', se.creationNumber)
+          : se;
+        let nv = typeof viewer.map.getDoodadVariationCount === 'function'
+          ? viewer.map.getDoodadVariationCount((live && live.id) || se.id)
+          : 1;
+        let nextVar = nv > 1 ? ((((live ? live.variation : se.variation) || 0) + 1) % nv) : 0;
+        se.variation = nextVar;
+        applyLiveEntityTransform('doodad', se.creationNumber, { variation: nextVar });
+        changed.push({ creationNumber: se.creationNumber, variation: nextVar });
+      }
+      if (changed.length > 0) postMsg({ type: 'doodads_variation_changed', doodads: changed });
+      return true;
+    }
+    return false;
+  }
+
+  function nudgeSelectedDoodadsHeight(deltaZ) {
+    if (editorState.mode !== 'select' || !viewer || !viewer.map || editorState.selectedEntities.length === 0) return false;
+    let moved = [];
+    for (let se of editorState.selectedEntities) {
+      if (se.kind !== 'doodad') continue;
+      let live = typeof viewer.map.getEntityTransform === 'function'
+        ? viewer.map.getEntityTransform('doodad', se.creationNumber)
+        : se;
+      let curX = live ? live.x : se.x;
+      let curY = live ? live.y : se.y;
+      let curZ = (live ? live.z : se.z) || 0;
+      let nextZ = Math.max(-2048, Math.min(4096, curZ + deltaZ));
+      se.z = nextZ;
+      applyLiveEntityTransform('doodad', se.creationNumber, { x: curX, y: curY, z: nextZ });
+      moved.push({ kind: 'doodad', creationNumber: se.creationNumber, x: curX, y: curY, z: nextZ });
+    }
+    if (moved.length === 1) {
+      let m = moved[0];
+      postMsg({ type: 'entity_moved', kind: m.kind, creationNumber: m.creationNumber, x: m.x, y: m.y, z: m.z });
+      return true;
+    } else if (moved.length > 1) {
+      postMsg({ type: 'entities_moved', entities: moved });
+      return true;
+    }
+    return false;
+  }
+
   window.addEventListener('keydown', (e) => {
+    let lowerKey = (e.key || '').toLowerCase();
     if ((e.ctrlKey || e.metaKey) && editorState.mode === 'select') {
-      let lower = (e.key || '').toLowerCase();
-      if (lower === 'c' || lower === 'x' || lower === 'v' || lower === 'd') {
+      if (lowerKey === 'c' || lowerKey === 'x' || lowerKey === 'v' || lowerKey === 'd') {
         e.preventDefault();
         let wx = null, wy = null;
         if (editorState.lastClientX !== null && editorState.lastClientY !== null) {
@@ -1624,11 +2111,17 @@
         }
         postMsg({
           type: 'entity_clipboard_request',
-          action: lower === 'c' ? 'copy' : (lower === 'x' ? 'cut' : (lower === 'v' ? 'paste' : 'duplicate')),
+          action: lowerKey === 'c' ? 'copy' : (lowerKey === 'x' ? 'cut' : (lowerKey === 'v' ? 'paste' : 'duplicate')),
           wx,
           wy
         });
         return;
+      }
+      if (e.key === 'PageUp' || e.key === 'PageDown') {
+        if (nudgeSelectedDoodadsHeight(e.key === 'PageUp' ? 16 : -16)) {
+          e.preventDefault();
+          return;
+        }
       }
     }
 
@@ -1639,23 +2132,14 @@
         kind: editorState.selectedEntity.kind,
         creationNumber: editorState.selectedEntity.creationNumber
       });
-    } else if ((e.key === '[' || e.key === ']')) {
-      let stepRad = (e.key === '[' ? -15 : 15) * (Math.PI / 180);
-      if ((editorState.mode === 'place_unit' || editorState.mode === 'place_doodad') && editorState.placeSpec) {
-        editorState.placeSpec.angle = ((editorState.placeSpec.angle || 0) + stepRad);
-      } else if (editorState.mode === 'select' && editorState.selectedEntities.length > 0 && viewer && viewer.map) {
-        let changed = [];
-        for (let se of editorState.selectedEntities) {
-          let live = typeof viewer.map.getEntityTransform === 'function'
-            ? viewer.map.getEntityTransform(se.kind, se.creationNumber)
-            : se;
-          let nextAngle = ((live ? live.angle : se.angle) || 0) + stepRad;
-          se.angle = nextAngle;
-          applyLiveEntityTransform(se.kind, se.creationNumber, { angle: nextAngle });
-          changed.push({ kind: se.kind, creationNumber: se.creationNumber, angle: nextAngle });
-        }
-        if (changed.length > 0) postMsg({ type: 'entities_rotated', entities: changed });
-      }
+    } else if (e.key === '[' || e.key === ']' || (!e.ctrlKey && !e.altKey && lowerKey === 'r')) {
+      let delta = (e.key === '[' || (lowerKey === 'r' && e.shiftKey)) ? -15 : 15;
+      if (rotateActiveSelectionOrGhost(delta)) e.preventDefault();
+    } else if (!e.ctrlKey && !e.altKey && (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '_')) {
+      let factor = (e.key === '+' || e.key === '=') ? 1.1 : 0.9;
+      if (scaleActiveSelectionOrGhost(factor)) e.preventDefault();
+    } else if (!e.ctrlKey && !e.altKey && lowerKey === 'v') {
+      if (cycleDoodadVariation()) e.preventDefault();
     } else if (e.key === 'Delete' && editorState.selectedEntities.length > 0 && editorState.mode === 'select') {
       if (editorState.selectedEntities.length === 1) {
         postMsg({
@@ -1680,6 +2164,7 @@
       editorState.placeSpec = null;
       regionState.dragMode = null;
       regionState.createDraft = null;
+      if (viewer && viewer.map && typeof viewer.map.clearPlacementGhost === 'function') viewer.map.clearPlacementGhost();
       canvas.style.cursor = 'default';
       postMsg({ type: 'placement_cancelled' });
     }
@@ -1712,6 +2197,22 @@
       }
       return;
     }
+    if (cameraPreviewState.dragIndex >= 0 && !cameraState.isRotating && !cameraState.isPanning) {
+      let hit = raycastTerrain(e.clientX, e.clientY);
+      if (hit) {
+        let cam = cameraPreviewState.cameras[cameraPreviewState.dragIndex];
+        if (cam) {
+          cam.targetX = hit[0];
+          cam.targetY = hit[1];
+          cameraPreviewState.dragMoved = true;
+          hudCursorState.wx = hit[0];
+          hudCursorState.wy = hit[1];
+          hudCursorState.wz = hit[2];
+        }
+      }
+      return;
+    }
+
     if (regionState.dragMode && !cameraState.isRotating && !cameraState.isPanning) {
       let hit = raycastTerrain(e.clientX, e.clientY);
       if (hit) {
@@ -1751,6 +2252,9 @@
       if (hit) {
         brushState.hoverWx = hit[0];
         brushState.hoverWy = hit[1];
+        hudCursorState.wx = hit[0];
+        hudCursorState.wy = hit[1];
+        hudCursorState.wz = hit[2];
         if (cameraState.isPainting) {
           sendBrushDab(hit[0], hit[1], false);
         }
@@ -1771,11 +2275,18 @@
           editorState.placementEval = evalRes;
           editorState.hoverWx = evalRes.x;
           editorState.hoverWy = evalRes.y;
+          hudCursorState.wx = evalRes.x;
+          hudCursorState.wy = evalRes.y;
+          hudCursorState.wz = evalRes.z;
         } else {
           editorState.placementEval = null;
           editorState.hoverWx = hit[0];
           editorState.hoverWy = hit[1];
+          hudCursorState.wx = hit[0];
+          hudCursorState.wy = hit[1];
+          hudCursorState.wz = hit[2];
         }
+        syncPlacementGhostNow();
       }
     } else if (editorState.isDraggingEntity && editorState.groupDrag && editorState.groupDrag.items.length > 0) {
       if (Math.hypot(e.clientX - cameraState.downX, e.clientY - cameraState.downY) >= 4) {
@@ -1819,7 +2330,20 @@
       return;
     }
 
-    if (!cameraState.isRotating && !cameraState.isPanning) return;
+    if (!cameraState.isRotating && !cameraState.isPanning) {
+      let hit = raycastTerrain(e.clientX, e.clientY);
+      if (hit) {
+        hudCursorState.wx = hit[0];
+        hudCursorState.wy = hit[1];
+        hudCursorState.wz = hit[2];
+      }
+      if (editorState.mode === 'select' && hitTestSelectedFacingHandle(e.clientX, e.clientY)) {
+        canvas.style.cursor = 'grab';
+      } else if (editorState.mode === 'select') {
+        canvas.style.cursor = 'default';
+      }
+      return;
+    }
 
     let dx = e.clientX - cameraState.lastX;
     let dy = e.clientY - cameraState.lastY;
@@ -1855,6 +2379,12 @@
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     let delta = e.deltaY > 0 ? 1 : -1;
+    if (e.shiftKey && rotateActiveSelectionOrGhost(delta > 0 ? -15 : 15)) {
+      return;
+    }
+    if (e.altKey && scaleActiveSelectionOrGhost(delta > 0 ? 0.92 : 1.08)) {
+      return;
+    }
     cameraState.distance = Math.max(300, Math.min(18000, cameraState.distance * (1 + delta * 0.12)));
     updateCamera();
   });
@@ -1982,12 +2512,18 @@
         editorState.placeSpec = data.placeSpec || null;
         editorState.placementEval = null;
         brushState.active = editorState.mode === 'terrain';
-        canvas.style.cursor = (editorState.mode === 'select') ? 'default' : 'crosshair';
+        canvas.style.cursor = (editorState.mode === 'select' || editorState.mode === 'camera') ? 'default' : 'crosshair';
         if (editorState.mode !== 'place_unit' && editorState.mode !== 'place_doodad') {
           editorState.hoverWx = null;
           editorState.hoverWy = null;
-        } else if (editorState.placeSpec && viewer && viewer.map && typeof viewer.map.getEntityPathingSpec === 'function') {
-          viewer.map.getEntityPathingSpec(editorState.placeSpec.kind, editorState.placeSpec.rawcode);
+          if (viewer && viewer.map && typeof viewer.map.clearPlacementGhost === 'function') {
+            viewer.map.clearPlacementGhost();
+          }
+        } else if (editorState.placeSpec) {
+          if (viewer && viewer.map && typeof viewer.map.getEntityPathingSpec === 'function') {
+            viewer.map.getEntityPathingSpec(editorState.placeSpec.kind, editorState.placeSpec.rawcode);
+          }
+          rollNextPlacementSpec();
         }
       } else if (data.action === 'set_pathing_options') {
         editorState.ignorePathing = !!data.ignorePathing;
@@ -2050,6 +2586,7 @@
         if (typeof data.showUnits === 'boolean') layerState.showUnits = data.showUnits;
         if (typeof data.showDoodads === 'boolean') layerState.showDoodads = data.showDoodads;
         if (typeof data.showRegions === 'boolean') layerState.showRegions = data.showRegions;
+        if (typeof data.showCameras === 'boolean') layerState.showCameras = data.showCameras;
         if (typeof data.showGrid === 'boolean') layerState.showGrid = data.showGrid;
         if (typeof data.showPathing === 'boolean') layerState.showPathing = data.showPathing;
         if (typeof data.showBounds === 'boolean') layerState.showBounds = data.showBounds;
@@ -2058,6 +2595,27 @@
         applyLayerVisibility();
       } else if (data.action === 'set_regions' && Array.isArray(data.regions)) {
         regionState.regions = data.regions;
+      } else if (data.action === 'set_cameras' && Array.isArray(data.cameras)) {
+        cameraPreviewState.cameras = data.cameras;
+        if (cameraPreviewState.selectedIndex >= cameraPreviewState.cameras.length) {
+          cameraPreviewState.selectedIndex = -1;
+        }
+      } else if (data.action === 'select_camera') {
+        cameraPreviewState.selectedIndex = typeof data.index === 'number' ? data.index : -1;
+        if (data.focus && cameraPreviewState.selectedIndex >= 0 && cameraPreviewState.selectedIndex < cameraPreviewState.cameras.length) {
+          let c = cameraPreviewState.cameras[cameraPreviewState.selectedIndex];
+          let hz = (viewer && viewer.map && typeof viewer.map.heightAt === 'function')
+            ? viewer.map.heightAt(c.targetX, c.targetY)
+            : 0;
+          cameraState.target = [c.targetX, c.targetY, hz + (c.zOffset || 0)];
+          cameraState.distance = Math.max(300, Math.min(18000, c.distance || 1650));
+          let rot = typeof c.rotation === 'number' ? c.rotation : 90;
+          cameraState.horizontalAngle = ((rot - 90) * Math.PI) / 180;
+          let aoa = typeof c.angleOfAttack === 'number' ? c.angleOfAttack : 304;
+          if (aoa < 180) aoa += 360;
+          cameraState.verticalAngle = Math.min(Math.max(0.08, ((aoa - 270) * Math.PI) / 180), Math.PI / 2 - 0.04);
+          updateCamera();
+        }
       } else if (data.action === 'select_region') {
         regionState.selectedNumber = typeof data.creationNumber === 'number' && data.creationNumber >= 0
           ? data.creationNumber
@@ -2191,12 +2749,31 @@
     visuals: viewer && viewer.map ? viewer.map._w3sVisuals : null
   });
 
-  // Render loop
+  // Render loop (pause GPU work while window/tab is hidden or covered by Object Editor to avoid dual-WebGL DWM contention)
+  let renderRafId = 0;
+  let hostRenderPaused = false;
   function step(nowMs) {
-    requestAnimationFrame(step);
+    renderRafId = 0;
+    if (document.hidden || hostRenderPaused) return;
+    renderRafId = requestAnimationFrame(step);
     viewer.updateAndRender();
     drawViewportOverlays(nowMs);
   }
-  requestAnimationFrame(step);
+  function ensureRenderLoop() {
+    if (!document.hidden && !hostRenderPaused && !renderRafId) {
+      renderRafId = requestAnimationFrame(step);
+    }
+  }
+  if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.addEventListener('message', (ev) => {
+      if (ev.data && ev.data.action === 'set_render_paused') {
+        hostRenderPaused = !!ev.data.paused;
+        ensureRenderLoop();
+      }
+    });
+  }
+  document.addEventListener('visibilitychange', ensureRenderLoop);
+  window.addEventListener('focus', ensureRenderLoop);
+  ensureRenderLoop();
 
 })();

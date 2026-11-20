@@ -43,27 +43,65 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <Grid Grid.Row="0" Margin="0,0,0,6">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="175"/>
-                            <ColumnDefinition Width="6"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Row="0" Margin="0,0,0,6">
+                        <DockPanel Margin="0,0,0,5">
+                            <Button DockPanel.Dock="Right"
+                                    Content="✕"
+                                    Width="26"
+                                    Height="23"
+                                    Margin="5,0,0,0"
+                                    Padding="0"
+                                    Style="{StaticResource Win10ClassicButton}"
+                                    ToolTip="Limpiar búsqueda y filtros"
+                                    Click="BtnClearFilters_Click"/>
+                            <TextBox x:Name="TxtSearch"
+                                     Style="{StaticResource Win10TextBox}"
+                                     ToolTip="Buscar por archivo, ruta o nombre de unidad/habilidad (ej: Paladin, HolyBolt, Sword...)"
+                                     TextChanged="Filter_Changed"/>
+                        </DockPanel>
 
-                        <ComboBox Grid.Column="0" x:Name="CmbCategory" SelectedIndex="0" SelectionChanged="Filter_Changed">
-                            <ComboBoxItem Content="Todos los Iconos" Tag="ALL"/>
-                            <ComboBoxItem Content="Importados del Mapa" Tag="IMPORTED"/>
-                            <ComboBoxItem Content="Activos (BTN)" Tag="BTN"/>
-                            <ComboBoxItem Content="Pasivos (PASBTN)" Tag="PAS"/>
-                            <ComboBoxItem Content="Deshabilitados (DISBTN)" Tag="DIS"/>
-                        </ComboBox>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.2*"/>
+                                <ColumnDefinition Width="5"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="5"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
 
-                        <TextBox Grid.Column="2"
-                                 x:Name="TxtSearch"
-                                 Style="{StaticResource Win10TextBox}"
-                                 ToolTip="Buscar por nombre o ruta (ej: HolyBolt, Sword, Hero...)"
-                                 TextChanged="Filter_Changed"/>
-                    </Grid>
+                            <ComboBox Grid.Column="0" x:Name="CmbCategory" SelectedIndex="0" FontSize="11" SelectionChanged="Filter_Changed" ToolTip="Filtrar por tipo de icono">
+                                <ComboBoxItem Content="Activos / Pasivos (sin DIS)" Tag="NoDis"/>
+                                <ComboBoxItem Content="Solo Activos (BTN)" Tag="Btn"/>
+                                <ComboBoxItem Content="Solo Pasivos (PAS)" Tag="Pas"/>
+                                <ComboBoxItem Content="Solo Autocast (ATC)" Tag="Atc"/>
+                                <ComboBoxItem Content="Solo Deshabilitados (DIS)" Tag="Dis"/>
+                                <ComboBoxItem Content="InfoCard / UI" Tag="Ui"/>
+                                <ComboBoxItem Content="Importados del Mapa" Tag="Imported"/>
+                                <ComboBoxItem Content="Todos (incluyendo DIS)" Tag="All"/>
+                            </ComboBox>
+
+                            <ComboBox Grid.Column="2" x:Name="CmbRace" SelectedIndex="0" FontSize="11" SelectionChanged="Filter_Changed" ToolTip="Filtrar por raza">
+                                <ComboBoxItem Content="Todas las razas" Tag="All"/>
+                                <ComboBoxItem Content="Humanos" Tag="Human"/>
+                                <ComboBoxItem Content="Orcos" Tag="Orc"/>
+                                <ComboBoxItem Content="Muertos Vivientes" Tag="Undead"/>
+                                <ComboBoxItem Content="Elfos Nocturnos" Tag="NightElf"/>
+                                <ComboBoxItem Content="Neutrales / Creeps" Tag="Neutral"/>
+                                <ComboBoxItem Content="Otros / Sin raza" Tag="Other"/>
+                            </ComboBox>
+
+                            <ComboBox Grid.Column="4" x:Name="CmbUsage" SelectedIndex="0" FontSize="11" SelectionChanged="Filter_Changed" ToolTip="Filtrar por categoría">
+                                <ComboBoxItem Content="Todas categorías" Tag="All"/>
+                                <ComboBoxItem Content="Héroes" Tag="Heroes"/>
+                                <ComboBoxItem Content="Unidades" Tag="Units"/>
+                                <ComboBoxItem Content="Edificios" Tag="Buildings"/>
+                                <ComboBoxItem Content="Habilidades / Buffs" Tag="Abilities"/>
+                                <ComboBoxItem Content="Objetos (Items)" Tag="Items"/>
+                                <ComboBoxItem Content="Mejoras (Upgrades)" Tag="Upgrades"/>
+                                <ComboBoxItem Content="Otros / UI" Tag="Other"/>
+                            </ComboBox>
+                        </Grid>
+                    </StackPanel>
 
                     <ListBox Grid.Row="1"
                              x:Name="LstIcons"
@@ -79,9 +117,7 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <DockPanel Margin="2,3">
-                                    <Border DockPanel.Dock="Left" Width="36" Height="36" Background="#000000" BorderBrush="#606060" BorderThickness="1" Margin="0,0,8,0">
-                                        <Image Source="{Binding PreviewBitmap}" Width="34" Height="34" Stretch="Fill"/>
-                                    </Border>
+                                    <Image DockPanel.Dock="Left" Source="{Binding PreviewBitmap}" Width="36" Height="36" Stretch="Fill" Margin="0,0,8,0" RenderOptions.BitmapScalingMode="HighQuality"/>
                                     <Border DockPanel.Dock="Right" Background="{Binding BadgeBg}" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="3" Padding="5,1" VerticalAlignment="Center" Margin="6,0,0,0">
                                         <TextBlock Text="{Binding SourceBadge}" FontSize="10" FontWeight="SemiBold" Foreground="{Binding BadgeFg}"/>
                                     </Border>
@@ -117,15 +153,15 @@
 
                             <StackPanel Grid.Column="0" HorizontalAlignment="Center">
                                 <TextBlock Text="ICONO (64x64)" Foreground="#FFCC00" FontSize="10.5" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,5"/>
-                                <Border BorderBrush="#8A7034" BorderThickness="1.5" Background="#000000" Width="98" Height="98">
-                                    <Image x:Name="ImgPreviewMain" Width="96" Height="96" Stretch="Fill"/>
+                                <Border Background="#000000" Width="96" Height="96">
+                                    <Image x:Name="ImgPreviewMain" Width="96" Height="96" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                                 </Border>
                             </StackPanel>
 
                             <StackPanel Grid.Column="2" HorizontalAlignment="Center">
                                 <TextBlock Text="DISBTN" Foreground="#CCCCCC" FontSize="10.5" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,5"/>
-                                <Border BorderBrush="#555555" BorderThickness="1.5" Background="#000000" Width="98" Height="98">
-                                    <Image x:Name="ImgPreviewDis" Width="96" Height="96" Stretch="Fill"/>
+                                <Border Background="#000000" Width="96" Height="96">
+                                    <Image x:Name="ImgPreviewDis" Width="96" Height="96" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                                 </Border>
                             </StackPanel>
                         </Grid>

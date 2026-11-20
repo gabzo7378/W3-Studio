@@ -20,23 +20,37 @@ public partial class IconPickerWindow : Window
         private readonly MapProject? _project;
         private BitmapSource? _preview;
 
-        public IconItemVm(BlpIconService blpService, MapProject? project)
+        public IconItemVm(IconCatalogEntry entry, BlpIconService blpService, MapProject? project)
         {
+            Entry = entry;
             _blpService = blpService;
             _project = project;
         }
 
-        public string MpqPath { get; set; } = string.Empty;
-        public string FileName { get; set; } = string.Empty;
-        public bool IsImported { get; set; }
+        public IconCatalogEntry Entry { get; }
+        public string MpqPath => Entry.MpqPath;
+        public string FileName => Entry.FileName;
+        public bool IsImported => Entry.IsImported;
 
-        public string SourceBadge => IsImported ? "Mapa" : "WC3";
-        public Brush BadgeBg => IsImported
-            ? new SolidColorBrush(Color.FromRgb(0xDD, 0xF4, 0xDF))
-            : new SolidColorBrush(Color.FromRgb(0xEB, 0xF1, 0xFA));
-        public Brush BadgeFg => IsImported
-            ? new SolidColorBrush(Color.FromRgb(0x1B, 0x6B, 0x26))
-            : new SolidColorBrush(Color.FromRgb(0x1E, 0x4E, 0x8C));
+        public string SourceBadge => Entry.StyleBadge;
+        public Brush BadgeBg => Entry.StyleBadge switch
+        {
+            "Mapa" => new SolidColorBrush(Color.FromRgb(0xDD, 0xF4, 0xDF)),
+            "DIS" => new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xEC)),
+            "PAS" => new SolidColorBrush(Color.FromRgb(0xF3, 0xE8, 0xFF)),
+            "ATC" => new SolidColorBrush(Color.FromRgb(0xFF, 0xF3, 0xD6)),
+            "UI" => new SolidColorBrush(Color.FromRgb(0xE0, 0xF2, 0xFE)),
+            _ => new SolidColorBrush(Color.FromRgb(0xEB, 0xF1, 0xFA))
+        };
+        public Brush BadgeFg => Entry.StyleBadge switch
+        {
+            "Mapa" => new SolidColorBrush(Color.FromRgb(0x1B, 0x6B, 0x26)),
+            "DIS" => new SolidColorBrush(Color.FromRgb(0x52, 0x56, 0x60)),
+            "PAS" => new SolidColorBrush(Color.FromRgb(0x6B, 0x21, 0xA8)),
+            "ATC" => new SolidColorBrush(Color.FromRgb(0x92, 0x56, 0x00)),
+            "UI" => new SolidColorBrush(Color.FromRgb(0x03, 0x69, 0xA1)),
+            _ => new SolidColorBrush(Color.FromRgb(0x1E, 0x4E, 0x8C))
+        };
 
         public BitmapSource PreviewBitmap => _preview ??= _blpService.GetIcon(MpqPath, _project);
     }
@@ -44,8 +58,10 @@ public partial class IconPickerWindow : Window
     private readonly BlpIconService _blpService;
     private readonly MapProject? _project;
     private readonly Action<string?>? _onOpenIconManager;
-    private readonly List<IconItemVm> _allIcons = new();
+    private readonly List<IconCatalogEntry> _allEntries;
+    private readonly Dictionary<string, IconItemVm> _vmByPath;
     private bool _suppressTextChanged;
+    private bool _suppressFilterEvents;
 
     public string SelectedIconPath { get; private set; } = string.Empty;
 
@@ -54,7 +70,8 @@ public partial class IconPickerWindow : Window
         MapProject? project,
         string? currentPath,
         string fieldLabel,
-        Action<string?>? onOpenIconManager = null)
+        Action<string?>? onOpenIconManager = null,
+        WarcraftBaseDataService? baseDataService = null)
     {
         InitializeComponent();
         _blpService = blpService;
@@ -71,30 +88,36 @@ public partial class IconPickerWindow : Window
             StringComparer.OrdinalIgnoreCase);
 
         var paths = _blpService.GetAvailableIconPaths(project);
-        foreach (var p in paths)
-        {
-            _allIcons.Add(new IconItemVm(_blpService, _project)
-            {
-                MpqPath = p,
-                FileName = Path.GetFileName(p),
-                IsImported = importedSet.Contains(p)
-            });
-        }
+        _allEntries = IconCatalogFilterHelper.BuildCatalog(paths, importedSet, baseDataService);
+        _vmByPath = _allEntries.ToDictionary(
+            e => e.MpqPath,
+            e => new IconItemVm(e, _blpService, _project),
+            StringComparer.OrdinalIgnoreCase);
 
         _suppressTextChanged = true;
         TxtSelectedPath.Text = currentPath ?? string.Empty;
         _suppressTextChanged = false;
 
+        // If the current icon is a DIS icon, switch initial filter to All so it is visible
+        if (!string.IsNullOrWhiteSpace(currentPath) &&
+            (Path.GetFileName(currentPath).StartsWith("DIS", StringComparison.OrdinalIgnoreCase) ||
+             currentPath.Contains(@"\CommandButtonsDisabled\", StringComparison.OrdinalIgnoreCase)))
+        {
+            _suppressFilterEvents = true;
+            CmbCategory.SelectedIndex = 7;
+            _suppressFilterEvents = false;
+        }
+
         ApplyFilter();
 
         if (!string.IsNullOrWhiteSpace(currentPath))
         {
-            var existing = _allIcons.FirstOrDefault(i => i.MpqPath.Equals(currentPath, StringComparison.OrdinalIgnoreCase))
-                           ?? _allIcons.FirstOrDefault(i => i.FileName.Equals(Path.GetFileName(currentPath), StringComparison.OrdinalIgnoreCase));
-            if (existing != null)
+            var existingEntry = _allEntries.FirstOrDefault(i => i.MpqPath.Equals(currentPath, StringComparison.OrdinalIgnoreCase))
+                                ?? _allEntries.FirstOrDefault(i => i.FileName.Equals(Path.GetFileName(currentPath), StringComparison.OrdinalIgnoreCase));
+            if (existingEntry != null && _vmByPath.TryGetValue(existingEntry.MpqPath, out var existingVm))
             {
-                LstIcons.SelectedItem = existing;
-                LstIcons.ScrollIntoView(existing);
+                LstIcons.SelectedItem = existingVm;
+                LstIcons.ScrollIntoView(existingVm);
             }
             UpdatePreviewAndVerification(currentPath);
         }
@@ -105,34 +128,40 @@ public partial class IconPickerWindow : Window
         if (LstIcons == null || CmbCategory == null || TxtSearch == null)
             return;
 
-        var tag = (CmbCategory.SelectedItem as ComboBoxItem)?.Tag as string ?? "ALL";
+        var style = Enum.TryParse<IconStyleFilter>((CmbCategory.SelectedItem as ComboBoxItem)?.Tag as string, out var s)
+            ? s
+            : IconStyleFilter.NoDis;
+        var race = Enum.TryParse<IconRaceFilter>((CmbRace?.SelectedItem as ComboBoxItem)?.Tag as string, out var r)
+            ? r
+            : IconRaceFilter.All;
+        var usage = Enum.TryParse<IconUsageFilter>((CmbUsage?.SelectedItem as ComboBoxItem)?.Tag as string, out var u)
+            ? u
+            : IconUsageFilter.All;
         var q = TxtSearch.Text.Trim();
 
-        IEnumerable<IconItemVm> query = _allIcons;
-        query = tag switch
-        {
-            "IMPORTED" => query.Where(i => i.IsImported),
-            "BTN" => query.Where(i => i.FileName.StartsWith("BTN", StringComparison.OrdinalIgnoreCase) || i.FileName.StartsWith("ATC", StringComparison.OrdinalIgnoreCase)),
-            "PAS" => query.Where(i => i.FileName.StartsWith("PASBTN", StringComparison.OrdinalIgnoreCase)),
-            "DIS" => query.Where(i => i.FileName.StartsWith("DIS", StringComparison.OrdinalIgnoreCase)),
-            _ => query
-        };
+        var matched = IconCatalogFilterHelper.Filter(_allEntries, style, race, usage, q);
+        var result = matched
+            .Select(e => _vmByPath.TryGetValue(e.MpqPath, out var vm) ? vm : new IconItemVm(e, _blpService, _project))
+            .ToList();
 
-        if (!string.IsNullOrEmpty(q))
-        {
-            query = query.Where(i =>
-                i.FileName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                i.MpqPath.Contains(q, StringComparison.OrdinalIgnoreCase));
-        }
-
-        var result = query.ToList();
         LstIcons.ItemsSource = result;
-        TxtCount.Text = $"{result.Count:N0} de {_allIcons.Count:N0} iconos";
+        TxtCount.Text = $"{result.Count:N0} de {_allEntries.Count:N0} iconos";
     }
 
     private void Filter_Changed(object sender, EventArgs e)
     {
-        if (!IsLoaded) return;
+        if (!IsLoaded || _suppressFilterEvents) return;
+        ApplyFilter();
+    }
+
+    private void BtnClearFilters_Click(object sender, RoutedEventArgs e)
+    {
+        _suppressFilterEvents = true;
+        TxtSearch.Text = string.Empty;
+        CmbCategory.SelectedIndex = 0;
+        if (CmbRace != null) CmbRace.SelectedIndex = 0;
+        if (CmbUsage != null) CmbUsage.SelectedIndex = 0;
+        _suppressFilterEvents = false;
         ApplyFilter();
     }
 

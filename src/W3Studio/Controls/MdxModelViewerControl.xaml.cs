@@ -57,11 +57,7 @@ public partial class MdxModelViewerControl : UserControl
         {
             if (WvModel.CoreWebView2 == null)
             {
-                var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                var webViewEnvDir = Path.Combine(appData, "W3Studio", "WebView2Profile");
-                Directory.CreateDirectory(webViewEnvDir);
-
-                var env = await CoreWebView2Environment.CreateAsync(null, webViewEnvDir);
+                var env = await WpfGraphicsRecoveryService.GetSharedWebView2EnvironmentAsync();
                 await WvModel.EnsureCoreWebView2Async(env);
             }
 
@@ -213,8 +209,9 @@ public partial class MdxModelViewerControl : UserControl
                 AnimationChanged?.Invoke(idx);
             }
         }
-        catch
+        catch (Exception ex)
         {
+            AppLogger.Warn("MdxModelViewer.OnWebMessageReceived", "Malformed or unhandled WebView2 message.", ex);
         }
     }
 

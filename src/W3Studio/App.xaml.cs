@@ -29,8 +29,17 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        base.OnStartup(e);
         var settings = WorkspaceSettings.Load();
+        // Ensure Hardware D3D mode is active when hosting WebView2 HwndHosts (SoftwareOnly GDI conflicts with DirectComposition on scroll)
+        if (settings.UseSafeWpfSoftwareRendering)
+        {
+            settings.UseSafeWpfSoftwareRendering = false;
+            settings.Save();
+        }
+        WpfGraphicsRecoveryService.ApplyRenderMode(false);
+        WpfGraphicsRecoveryService.InstallGlobalWindowRecovery();
+
+        base.OnStartup(e);
         ThemeService.Initialize(settings);
     }
 }

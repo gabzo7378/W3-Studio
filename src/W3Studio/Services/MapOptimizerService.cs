@@ -117,7 +117,10 @@ public static class MapOptimizerService
                 existingCount++;
                 CategorizeSize(name, sz, breakdown);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                AppLogger.Warn("MapOptimizerService.AnalyzeMap", $"Failed to inspect '{name}'.", ex);
+            }
         }
         breakdown.FileCount = existingCount;
 
@@ -213,7 +216,10 @@ public static class MapOptimizerService
                         s.CopyTo(ms);
                         fileMap[name] = ms.ToArray();
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        AppLogger.Warn("MapOptimizerService.OptimizeMapFile", $"Could not extract '{name}' from source MPQ.", ex);
+                    }
                 }
             }
 
@@ -386,25 +392,24 @@ public static class MapOptimizerService
                 mpqFiles.Add(mpqFile);
             }
 
-            using (var outFs = new FileStream(outputMapPath, FileMode.Create, FileAccess.ReadWrite, FileShare.None))
+            var createOpts = new MpqArchiveCreateOptions
+            {
+                ListFileCreateMode = options.RemoveListfileAndAttributes ? MpqFileCreateMode.None : MpqFileCreateMode.Overwrite,
+                AttributesCreateMode = MpqFileCreateMode.None,
+                BlockSize = options.MpqBlockSize
+            };
+
+            ushort hashSize = 256;
+            while (hashSize < mpqFiles.Count * 2 && hashSize < 32768)
+                hashSize <<= 1;
+            createOpts.HashTableSize = hashSize;
+
+            AtomicFileHelper.WriteAtomically(outputMapPath, outFs =>
             {
                 if (hm3wHeader != null)
                     outFs.Write(hm3wHeader, 0, hm3wHeader.Length);
-
-                var createOpts = new MpqArchiveCreateOptions
-                {
-                    ListFileCreateMode = options.RemoveListfileAndAttributes ? MpqFileCreateMode.None : MpqFileCreateMode.Overwrite,
-                    AttributesCreateMode = MpqFileCreateMode.None,
-                    BlockSize = options.MpqBlockSize
-                };
-
-                ushort hashSize = 256;
-                while (hashSize < mpqFiles.Count * 2 && hashSize < 32768)
-                    hashSize <<= 1;
-                createOpts.HashTableSize = hashSize;
-
                 using var created = MpqArchive.Create(outFs, mpqFiles, createOpts, leaveOpen: true);
-            }
+            }, createBackup: false);
 
             if (options.RemoveListfileAndAttributes)
                 result.LogLines.Add("✓ Protección WE aplicada: (listfile) y (attributes) omitidos del MPQ.");
@@ -574,7 +579,10 @@ public static class MapOptimizerService
                         set.Add(m.Value);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                AppLogger.Warn("MapOptimizerService.LoadBlizzardReservedIdentifiers", $"Could not read reserved identifiers from '{file}'.", ex);
+            }
         }
 
         return set;
@@ -785,7 +793,8 @@ public static class MapOptimizerService
         }
         finally
         {
-            try { if (File.Exists(tempFile)) File.Delete(tempFile); } catch { }
+            try { if (File.Exists(tempFile)) File.Delete(tempFile); }
+            catch (Exception ex) { AppLogger.Warn("MapOptimizerService.RunPjass", $"Failed to delete temp file '{tempFile}'.", ex); }
         }
     }
 
@@ -802,7 +811,10 @@ public static class MapOptimizerService
                     return buf;
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            AppLogger.Warn("MapOptimizerService.ReadHm3wHeader", $"Could not read HM3W header from '{path}'.", ex);
+        }
         return null;
     }
 
@@ -846,7 +858,10 @@ public static class MapOptimizerService
                         names.Add(trimmed);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                AppLogger.Warn("MapOptimizerService.DiscoverArchiveFileNames", "Could not read (listfile) from MPQ.", ex);
+            }
         }
 
         return names.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();

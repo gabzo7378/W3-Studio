@@ -16,16 +16,58 @@ public partial class IconManagerWindow : Window
 {
     private sealed class IconListItem
     {
-        public string MpqPath { get; set; } = string.Empty;
-        public string DisplayName { get; set; } = string.Empty;
+        private readonly BlpIconService _blpService;
+        private readonly MapProject? _project;
+        private System.Windows.Media.Imaging.BitmapSource? _preview;
+
+        public IconListItem(IconCatalogEntry entry, BlpIconService blpService, MapProject? project)
+        {
+            Entry = entry;
+            _blpService = blpService;
+            _project = project;
+        }
+
+        public IconCatalogEntry Entry { get; }
+        public string MpqPath => Entry.MpqPath;
+        public string DisplayName => Entry.FileName;
+        public string StyleBadge => Entry.StyleBadge;
+        public string Subtitle => !string.IsNullOrWhiteSpace(Entry.SearchableMetadata)
+            ? Entry.SearchableMetadata
+            : Entry.MpqPath;
+
+        public Brush BadgeBg => Entry.StyleBadge switch
+        {
+            "Mapa" => new SolidColorBrush(Color.FromRgb(0xDD, 0xF4, 0xDF)),
+            "DIS" => new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xEC)),
+            "PAS" => new SolidColorBrush(Color.FromRgb(0xF3, 0xE8, 0xFF)),
+            "ATC" => new SolidColorBrush(Color.FromRgb(0xFF, 0xF3, 0xD6)),
+            "UI" => new SolidColorBrush(Color.FromRgb(0xE0, 0xF2, 0xFE)),
+            _ => new SolidColorBrush(Color.FromRgb(0xEB, 0xF1, 0xFA))
+        };
+
+        public Brush BadgeFg => Entry.StyleBadge switch
+        {
+            "Mapa" => new SolidColorBrush(Color.FromRgb(0x1B, 0x6B, 0x26)),
+            "DIS" => new SolidColorBrush(Color.FromRgb(0x52, 0x56, 0x60)),
+            "PAS" => new SolidColorBrush(Color.FromRgb(0x6B, 0x21, 0xA8)),
+            "ATC" => new SolidColorBrush(Color.FromRgb(0x92, 0x56, 0x00)),
+            "UI" => new SolidColorBrush(Color.FromRgb(0x03, 0x69, 0xA1)),
+            _ => new SolidColorBrush(Color.FromRgb(0x1E, 0x4E, 0x8C))
+        };
+
+        public System.Windows.Media.Imaging.BitmapSource PreviewBitmap => _preview ??= _blpService.GetIcon(MpqPath, _project);
     }
 
     private readonly BlpIconService _blpService;
+    private readonly WarcraftBaseDataService? _baseDataService;
     private MapProject? _project;
     private readonly Action<string>? _onSavedToImports;
 
-    private List<IconListItem> _allIcons = new();
+    private List<IconCatalogEntry> _allCatalogEntries = new();
+    private Dictionary<string, IconListItem> _itemVmByPath = new(StringComparer.OrdinalIgnoreCase);
     private byte[]? _sourcePixels;
+    private byte[]? _nativeDisPixels;
+    private bool _sourceIsWc3FramedIcon;
     private int _sourceWidth;
     private int _sourceHeight;
     private string _sourceLabel = "Sin imagen";
@@ -34,17 +76,21 @@ public partial class IconManagerWindow : Window
     private byte[]? _composedDis64;
     private bool _suppressUiEvents;
 
-    public IconManagerWindow(BlpIconService blpService, MapProject? project, Action<string>? onSavedToImports = null)
+    public IconManagerWindow(
+        BlpIconService blpService,
+        MapProject? project,
+        Action<string>? onSavedToImports = null,
+        WarcraftBaseDataService? baseDataService = null)
     {
         _suppressUiEvents = true;
         InitializeComponent();
         _blpService = blpService;
+        _baseDataService = baseDataService;
         _project = project;
         _onSavedToImports = onSavedToImports;
         _suppressUiEvents = false;
 
         SetProject(project);
-        LoadWc3IconCatalog();
         UpdateTargetPathsText();
     }
 
@@ -74,15 +120,30 @@ public partial class IconManagerWindow : Window
         _sourcePixels = pixels;
         _sourceWidth = w;
         _sourceHeight = h;
-        _sourceLabel = $"MPQ: {mpqPath}";
+        _sourceLabel = $"MPQ (tal cual en el juego): {mpqPath}";
+
+        var fileName = Path.GetFileName(mpqPath.Replace('/', '\\'));
+        var disName = fileName.StartsWith("DIS", StringComparison.OrdinalIgnoreCase) ? fileName : "DIS" + fileName;
+        var disPath = @"ReplaceableTextures\CommandButtonsDisabled\" + disName;
+        _nativeDisPixels = null;
+        if (_blpService.FindRawFileBytes(disPath, _project) != null)
+        {
+            var disBmp = _blpService.GetIcon(disPath, _project);
+            var dp = IconProcessorService.ExtractBgraPixels(disBmp, out int dw, out int dh);
+            if (dp != null && dw == IconProcessorService.IconSize && dh == IconProcessorService.IconSize)
+                _nativeDisPixels = dp;
+        }
 
         var baseName = Path.GetFileNameWithoutExtension(mpqPath);
+        _sourceIsWc3FramedIcon = baseName.StartsWith("BTN", StringComparison.OrdinalIgnoreCase) ||
+                                 baseName.StartsWith("PASBTN", StringComparison.OrdinalIgnoreCase) ||
+                                 baseName.StartsWith("ATC", StringComparison.OrdinalIgnoreCase);
+
         _suppressUiEvents = true;
         TxtOutputName.Text = StripKnownPrefix(baseName);
-        // Si es icono base de WC3 con prefijo BTN/PASBTN, activar recorte de borde previo por defecto para evitar doble marco
-        bool hasWc3FramePrefix = baseName.StartsWith("BTN", StringComparison.OrdinalIgnoreCase) ||
-                                   baseName.StartsWith("PASBTN", StringComparison.OrdinalIgnoreCase);
-        ChkStripOldBorder.IsChecked = hasWc3FramePrefix && !RbBorderNone.IsChecked.GetValueOrDefault();
+        // Al seleccionar un icono del juego, mostrarlo tal cual está en Warcraft III (sin agregar ni recortar bordes)
+        if (RbBorderNone != null) RbBorderNone.IsChecked = true;
+        if (ChkStripOldBorder != null) ChkStripOldBorder.IsChecked = false;
         _suppressUiEvents = false;
 
         RenderLivePreview();
@@ -90,14 +151,16 @@ public partial class IconManagerWindow : Window
 
     private void LoadWc3IconCatalog()
     {
+        var importedSet = new HashSet<string>(
+            _project?.Imports.Where(i => !i.IsDeleted).Select(i => i.MpqPath) ?? Enumerable.Empty<string>(),
+            StringComparer.OrdinalIgnoreCase);
+
         var paths = _blpService.GetAvailableIconPaths(_project);
-        _allIcons = paths
-            .Select(p => new IconListItem
-            {
-                MpqPath = p,
-                DisplayName = Path.GetFileName(p)
-            })
-            .ToList();
+        _allCatalogEntries = IconCatalogFilterHelper.BuildCatalog(paths, importedSet, _baseDataService);
+        _itemVmByPath = _allCatalogEntries.ToDictionary(
+            e => e.MpqPath,
+            e => new IconListItem(e, _blpService, _project),
+            StringComparer.OrdinalIgnoreCase);
 
         ApplyIconListFilter();
     }
@@ -106,21 +169,42 @@ public partial class IconManagerWindow : Window
     {
         if (LstWc3Icons == null) return;
         var q = TxtSearchIcons?.Text?.Trim() ?? string.Empty;
-        IEnumerable<IconListItem> list = _allIcons;
-        if (!string.IsNullOrEmpty(q))
-        {
-            list = list.Where(i =>
-                i.DisplayName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                i.MpqPath.Contains(q, StringComparison.OrdinalIgnoreCase));
-        }
+        var style = Enum.TryParse<IconStyleFilter>((CmbIconStyle?.SelectedItem as ComboBoxItem)?.Tag as string, out var s)
+            ? s
+            : IconStyleFilter.NoDis;
+        var race = Enum.TryParse<IconRaceFilter>((CmbIconRace?.SelectedItem as ComboBoxItem)?.Tag as string, out var r)
+            ? r
+            : IconRaceFilter.All;
+        var usage = Enum.TryParse<IconUsageFilter>((CmbIconUsage?.SelectedItem as ComboBoxItem)?.Tag as string, out var u)
+            ? u
+            : IconUsageFilter.All;
 
-        var filtered = list.Take(1200).ToList();
-        LstWc3Icons.ItemsSource = filtered;
+        var matched = IconCatalogFilterHelper.Filter(_allCatalogEntries, style, race, usage, q);
+        var viewItems = matched
+            .Select(e => _itemVmByPath.TryGetValue(e.MpqPath, out var vm) ? vm : new IconListItem(e, _blpService, _project))
+            .ToList();
+
+        LstWc3Icons.ItemsSource = viewItems;
         if (TxtIconsCount != null)
-            TxtIconsCount.Text = $"Mostrando {filtered.Count} de {_allIcons.Count} iconos";
+            TxtIconsCount.Text = $"Mostrando {viewItems.Count:N0} de {_allCatalogEntries.Count:N0} iconos";
     }
 
-    private void TxtSearchIcons_TextChanged(object sender, TextChangedEventArgs e) => ApplyIconListFilter();
+    private void IconFilter_Changed(object sender, EventArgs e)
+    {
+        if (_suppressUiEvents) return;
+        ApplyIconListFilter();
+    }
+
+    private void BtnClearIconFilters_Click(object sender, RoutedEventArgs e)
+    {
+        _suppressUiEvents = true;
+        if (TxtSearchIcons != null) TxtSearchIcons.Text = string.Empty;
+        if (CmbIconStyle != null) CmbIconStyle.SelectedIndex = 0;
+        if (CmbIconRace != null) CmbIconRace.SelectedIndex = 0;
+        if (CmbIconUsage != null) CmbIconUsage.SelectedIndex = 0;
+        _suppressUiEvents = false;
+        ApplyIconListFilter();
+    }
 
     private void LstWc3Icons_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -157,12 +241,15 @@ public partial class IconManagerWindow : Window
             }
 
             _sourcePixels = pixels;
+            _nativeDisPixels = null;
+            _sourceIsWc3FramedIcon = false;
             _sourceWidth = w;
             _sourceHeight = h;
             _sourceLabel = $"Archivo externo: {Path.GetFileName(filePath)} ({w}x{h} -> 64x64)";
 
             _suppressUiEvents = true;
             TxtOutputName.Text = StripKnownPrefix(Path.GetFileNameWithoutExtension(filePath));
+            if (RbBorderBtn != null) RbBorderBtn.IsChecked = true;
             ChkStripOldBorder.IsChecked = false;
             _suppressUiEvents = false;
 
@@ -195,6 +282,14 @@ public partial class IconManagerWindow : Window
     private void BorderPreset_Changed(object sender, RoutedEventArgs e)
     {
         if (_suppressUiEvents) return;
+        // Si el usuario cambia de "Original (Juego)" a un nuevo marco (BTN/PAS/ATC/UPG/INF) sobre un icono de WC3,
+        // activamos automáticamente el recorte del borde viejo para no duplicar marcos; si vuelve a Original, lo quitamos.
+        if (_sourceIsWc3FramedIcon && ChkStripOldBorder != null)
+        {
+            _suppressUiEvents = true;
+            ChkStripOldBorder.IsChecked = GetSelectedBorderStyle() != IconBorderStyle.None;
+            _suppressUiEvents = false;
+        }
         UpdateTargetPathsText();
         RenderLivePreview();
     }
@@ -328,14 +423,39 @@ public partial class IconManagerWindow : Window
         };
     }
 
+    private static bool IsUnmodifiedOriginal(IconEditOptions opts) =>
+        opts.BorderStyle == IconBorderStyle.None &&
+        !opts.UseColorFrame &&
+        opts.ZoomPercent == 100 &&
+        opts.CropMargin == 0 &&
+        opts.Brightness == 0 &&
+        opts.Contrast == 0 &&
+        !opts.FlipHorizontal &&
+        !opts.UseTint;
+
     private void RenderLivePreview()
     {
         if (_sourcePixels == null)
             return;
 
         var opts = BuildEditOptions();
-        _composedMain64 = IconProcessorService.ComposeIcon64(_sourcePixels, _sourceWidth, _sourceHeight, opts);
-        _composedDis64 = IconProcessorService.CreateDisabledVariant64(_composedMain64, opts.BorderStyle);
+        bool isExactOriginal = IsUnmodifiedOriginal(opts) &&
+                               _sourceWidth == IconProcessorService.IconSize &&
+                               _sourceHeight == IconProcessorService.IconSize &&
+                               _sourcePixels.Length == IconProcessorService.IconSize * IconProcessorService.IconSize * 4;
+
+        if (isExactOriginal)
+        {
+            _composedMain64 = (byte[])_sourcePixels.Clone();
+            _composedDis64 = _nativeDisPixels != null
+                ? (byte[])_nativeDisPixels.Clone()
+                : IconProcessorService.CreateDisabledVariant64(_composedMain64, opts.BorderStyle);
+        }
+        else
+        {
+            _composedMain64 = IconProcessorService.ComposeIcon64(_sourcePixels, _sourceWidth, _sourceHeight, opts);
+            _composedDis64 = IconProcessorService.CreateDisabledVariant64(_composedMain64, opts.BorderStyle);
+        }
 
         var mainBmp = IconProcessorService.PixelsToBitmapSource(_composedMain64);
         var disBmp = IconProcessorService.PixelsToBitmapSource(_composedDis64);
@@ -393,7 +513,11 @@ public partial class IconManagerWindow : Window
         var (mainPath, disPath, mainFile, disFile) = ComputeTargetMpqPaths();
         var style = GetSelectedBorderStyle();
         if (TxtMainPreviewTitle != null)
-            TxtMainPreviewTitle.Text = $"PRINCIPAL ({style.ToString().ToUpperInvariant()})";
+        {
+            TxtMainPreviewTitle.Text = style == IconBorderStyle.None
+                ? "ICONO PRINCIPAL (TAL CUAL EN EL JUEGO)"
+                : $"PRINCIPAL ({style.ToString().ToUpperInvariant()})";
+        }
         if (TxtDisPreviewTitle != null)
             TxtDisPreviewTitle.Text = $"DESHABILITADO ({Path.GetFileNameWithoutExtension(disFile)})";
 
@@ -428,7 +552,10 @@ public partial class IconManagerWindow : Window
                 return true;
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            AppLogger.Warn("IconManagerWindow.TryParseHexColor", $"Invalid color string '{hex}'.", ex);
+        }
         return false;
     }
 

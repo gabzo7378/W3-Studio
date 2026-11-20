@@ -33,6 +33,8 @@ public partial class WorldMap3DViewportControl : UserControl
     public event Action<string, int, float, float, float>? EntityMoved;
     public event Action<IReadOnlyList<ViewportEntityMoveItem>>? EntitiesMoved;
     public event Action<IReadOnlyList<ViewportEntityRotateItem>>? EntitiesRotated;
+    public event Action<IReadOnlyList<ViewportEntityScaleItem>>? EntitiesScaled;
+    public event Action<IReadOnlyList<ViewportDoodadVariationItem>>? DoodadsVariationChanged;
     public event Action<string, string, float, float, float, float, float, int, int>? EntityPlaceRequested;
     public event Action<string, int>? EntityDeleteRequested;
     public event Action<IReadOnlyList<ViewportEntityKey>>? EntitiesDeleteRequested;
@@ -41,6 +43,8 @@ public partial class WorldMap3DViewportControl : UserControl
     public event Action<int, float, float, float, float>? RegionUpdated;
     public event Action<float, float, float, float>? RegionCreateRequested;
     public event Action<int>? RegionDeleteRequested;
+    public event Action<int>? CameraSelected;
+    public event Action<int, float, float>? CameraTargetMoved;
     public event Action? PlacementCancelled;
     private TaskCompletionSource<W3MapCamera?>? _captureCameraTcs;
 
@@ -75,11 +79,7 @@ public partial class WorldMap3DViewportControl : UserControl
         {
             if (WvMap.CoreWebView2 == null)
             {
-                var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                var webViewEnvDir = Path.Combine(appData, "W3Studio", "WebView2MapProfile");
-                Directory.CreateDirectory(webViewEnvDir);
-
-                var env = await CoreWebView2Environment.CreateAsync(null, webViewEnvDir);
+                var env = await WpfGraphicsRecoveryService.GetSharedWebView2EnvironmentAsync();
                 await WvMap.EnsureCoreWebView2Async(env);
             }
 
@@ -138,8 +138,9 @@ public partial class WorldMap3DViewportControl : UserControl
                             "Content-Type: application/octet-stream\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS");
                         return;
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        AppLogger.Warn("WorldMap3DViewport", $"Failed serving current map payload '{_project.FilePath}'.", ex);
                     }
                 }
 
@@ -435,6 +436,41 @@ public partial class WorldMap3DViewportControl : UserControl
                 }
                 if (items.Count > 0) EntitiesRotated?.Invoke(items);
             }
+            else if (msgType == "entities_scaled" && root.TryGetProperty("entities", out var scArr) && scArr.ValueKind == JsonValueKind.Array)
+            {
+                var items = new List<ViewportEntityScaleItem>();
+                foreach (var item in scArr.EnumerateArray())
+                {
+                    items.Add(new ViewportEntityScaleItem(
+                        item.GetProperty("kind").GetString() ?? "unit",
+                        item.GetProperty("creationNumber").GetInt32(),
+                        (float)item.GetProperty("scale").GetDouble()));
+                }
+                if (items.Count > 0) EntitiesScaled?.Invoke(items);
+            }
+            else if (msgType == "doodads_variation_changed" && root.TryGetProperty("doodads", out var varArr) && varArr.ValueKind == JsonValueKind.Array)
+            {
+                var items = new List<ViewportDoodadVariationItem>();
+                foreach (var item in varArr.EnumerateArray())
+                {
+                    items.Add(new ViewportDoodadVariationItem(
+                        item.GetProperty("creationNumber").GetInt32(),
+                        item.GetProperty("variation").GetInt32()));
+                }
+                if (items.Count > 0) DoodadsVariationChanged?.Invoke(items);
+            }
+            else if (msgType == "camera_selected")
+            {
+                int idx = root.TryGetProperty("index", out var idxProp) ? idxProp.GetInt32() : -1;
+                CameraSelected?.Invoke(idx);
+            }
+            else if (msgType == "camera_moved")
+            {
+                int idx = root.GetProperty("index").GetInt32();
+                float tx = (float)root.GetProperty("targetX").GetDouble();
+                float ty = (float)root.GetProperty("targetY").GetDouble();
+                CameraTargetMoved?.Invoke(idx, tx, ty);
+            }
             else if (msgType == "entities_delete_request" && root.TryGetProperty("entities", out var delArr) && delArr.ValueKind == JsonValueKind.Array)
             {
                 var keys = new List<ViewportEntityKey>();
@@ -458,8 +494,9 @@ public partial class WorldMap3DViewportControl : UserControl
                 PlacementCancelled?.Invoke();
             }
         }
-        catch
+        catch (Exception ex)
         {
+            AppLogger.Warn("WorldMap3DViewport.OnWebMessageReceived", "Malformed or unhandled WebView2 message.", ex);
         }
     }
 
@@ -524,6 +561,13 @@ public partial class WorldMap3DViewportControl : UserControl
     {
         if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
         var json = JsonSerializer.Serialize(new { action = "reset_camera" });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
+    public void SetRenderPaused(bool paused)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
+        var json = JsonSerializer.Serialize(new { action = "set_render_paused", paused });
         WvMap.CoreWebView2.PostWebMessageAsJson(json);
     }
 
@@ -687,7 +731,8 @@ public partial class WorldMap3DViewportControl : UserControl
         bool showPathing = false,
         bool showBounds = false,
         bool showWeather = true,
-        string? weatherOverride = null)
+        string? weatherOverride = null,
+        bool showCameras = false)
     {
         if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
         var json = JsonSerializer.Serialize(new
@@ -696,12 +741,42 @@ public partial class WorldMap3DViewportControl : UserControl
             showUnits,
             showDoodads,
             showRegions,
+            showCameras,
             showGrid,
             showPathing,
             showBounds,
             showWeather,
             weatherOverride
         });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
+    public void SyncCameras(System.Collections.Generic.IEnumerable<W3MapCamera> cameras)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
+        var dto = new System.Collections.Generic.List<object>();
+        foreach (var c in cameras)
+        {
+            dto.Add(new
+            {
+                name = c.Name,
+                targetX = c.TargetX,
+                targetY = c.TargetY,
+                zOffset = c.ZOffset,
+                rotation = c.Rotation,
+                angleOfAttack = c.AngleOfAttack,
+                distance = c.Distance,
+                fieldOfView = c.FieldOfView
+            });
+        }
+        var json = JsonSerializer.Serialize(new { action = "set_cameras", cameras = dto });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
+    public void SelectCamera(int index, bool focus = false)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
+        var json = JsonSerializer.Serialize(new { action = "select_camera", index, focus });
         WvMap.CoreWebView2.PostWebMessageAsJson(json);
     }
 
@@ -773,3 +848,5 @@ public partial class WorldMap3DViewportControl : UserControl
 public sealed record ViewportEntityKey(string Kind, int CreationNumber);
 public sealed record ViewportEntityMoveItem(string Kind, int CreationNumber, float X, float Y, float Z);
 public sealed record ViewportEntityRotateItem(string Kind, int CreationNumber, float AngleRadians);
+public sealed record ViewportEntityScaleItem(string Kind, int CreationNumber, float Scale);
+public sealed record ViewportDoodadVariationItem(int CreationNumber, int Variation);

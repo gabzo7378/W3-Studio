@@ -439,7 +439,7 @@ public class WarcraftBaseDataService
         Reg(W3ObjectCategory.Units, "ualp", "Art", "Puntos de Anclaje Requeridos", "Required Attachment Link Names", ObjectDataType.String, "Attachmentlinkprops");
         Reg(W3ObjectCategory.Units, "ubpr", "Art", "Nombres de Huesos Requeridos", "Required Bone Names", ObjectDataType.String, "Boneprops");
         Reg(W3ObjectCategory.Units, "uscb", "Art", "Escalar Proyectiles con la Unidad", "Scale Projectiles", ObjectDataType.Int, "scaleBull", boolChoices);
-        Reg(W3ObjectCategory.Units, "ushu", "Art", "Imagen de Sombra de Unidad", "Shadow Image (Unit)", ObjectDataType.String, " unitShadow");
+        Reg(W3ObjectCategory.Units, "ushu", "Art", "Imagen de Sombra de Unidad", "Shadow Image (Unit)", ObjectDataType.String, "unitShadow");
         Reg(W3ObjectCategory.Units, "ushx", "Art", "Sombra - Centro X", "Shadow Image - Center X", ObjectDataType.Real, "shadowX", minReal: -1000.0, maxReal: 1000.0);
         Reg(W3ObjectCategory.Units, "ushy", "Art", "Sombra - Centro Y", "Shadow Image - Center Y", ObjectDataType.Real, "shadowY", minReal: -1000.0, maxReal: 1000.0);
         Reg(W3ObjectCategory.Units, "ushh", "Art", "Sombra - Alto", "Shadow Image - Height", ObjectDataType.Real, "shadowH", minReal: 0.0, maxReal: 2000.0);
@@ -1113,7 +1113,8 @@ public class WarcraftBaseDataService
         {
             foreach (var arch in archives)
             {
-                try { arch.Dispose(); } catch { }
+                try { arch.Dispose(); }
+                catch (Exception ex) { AppLogger.Warn("WarcraftBaseDataService.LoadFromWarcraft3", "Error disposing base MPQ archive.", ex); }
             }
         }
     }
@@ -1655,8 +1656,9 @@ public class WarcraftBaseDataService
                     using var reader = new StreamReader(stream, Encoding.UTF8, true);
                     return reader.ReadToEnd();
                 }
-                catch
+                catch (Exception ex)
                 {
+                    AppLogger.Warn("WarcraftBaseDataService.ReadTextFromArchives", $"Could not read '{virtualPath}'.", ex);
                 }
             }
         }
@@ -1677,8 +1679,9 @@ public class WarcraftBaseDataService
                     using var reader = new StreamReader(stream, Encoding.UTF8, true);
                     sb.AppendLine(reader.ReadToEnd());
                 }
-                catch
+                catch (Exception ex)
                 {
+                    AppLogger.Warn("WarcraftBaseDataService.ReadAllTextLayersFromArchives", $"Could not read layer '{virtualPath}'.", ex);
                 }
             }
         }

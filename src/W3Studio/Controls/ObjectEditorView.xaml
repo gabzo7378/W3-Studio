@@ -263,9 +263,15 @@
 
             <GridSplitter Grid.Column="3" Width="4" HorizontalAlignment="Stretch" Background="{DynamicResource Win10Border}"/>
 
-            <!-- PANEL DERECHO: INSPECTOR, STATS Y PREVISUALIZADOR 3D -->
-            <ScrollViewer Grid.Column="4" Background="{DynamicResource Win10WindowBg}" Padding="10" VerticalScrollBarVisibility="Auto">
-                <StackPanel>
+            <!-- PANEL DERECHO: INSPECTOR Y STATS (Arriba con Scroll) + PREVISUALIZADOR 3D FIJO FUERA DEL SCROLLVIEWER (Abajo) -->
+            <Grid Grid.Column="4" Background="{DynamicResource Win10WindowBg}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <ScrollViewer Grid.Row="0" Background="{DynamicResource Win10WindowBg}" Padding="10,10,10,4" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
 
                     <!-- Grilla 4x3 de Posición de Botón (Command Card) + Datos de Icono/Hotkey -->
                     <TextBlock Text="CARTA DE COMANDO 4x3 (CLIC PARA MOVER BOTÓN X,Y)" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,5"/>
@@ -291,18 +297,49 @@
                         </Grid>
                     </Border>
 
-                    <!-- HUD DE STATS DE COMBATE Y ATRIBUTOS -->
+                    <!-- HUD DE STATS DE COMBATE Y ATRIBUTOS (ESTILO IN-GAME WARCRAFT III) -->
                     <Border x:Name="BorderUnitHudStats"
-                            Background="#080A0E"
-                            BorderBrush="#C8A858"
+                            Background="#06070A"
+                            BorderBrush="#B89844"
                             BorderThickness="1.5"
                             CornerRadius="4"
-                            Padding="8,6"
+                            Padding="9,8"
                             Margin="0,0,0,10"
                             Visibility="Visible">
                         <StackPanel>
-                            <TextBlock x:Name="TxtHudUnitName" Text="Sorceress" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12.5" HorizontalAlignment="Center" Margin="0,0,0,2"/>
-                            <TextBlock x:Name="TxtHudUnitSub" Text="Héroe (Inteligencia)" Foreground="#FFCC00" FontSize="10.5" HorizontalAlignment="Center" Margin="0,0,0,6" Visibility="Collapsed"/>
+                            <!-- BARRA DE EXPERIENCIA ESTILO WARCRAFT III (SOLO HÉROES) -->
+                            <Border x:Name="BorderHudXpBar"
+                                    Height="21"
+                                    Background="#0B070E"
+                                    BorderBrush="#C8A850"
+                                    BorderThickness="1.5"
+                                    CornerRadius="3"
+                                    Margin="0,0,0,8"
+                                    Visibility="Collapsed">
+                                <Grid ClipToBounds="True">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="52*"/>
+                                        <ColumnDefinition Width="48*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" CornerRadius="1.5,0,0,1.5">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                <GradientStop Color="#B818E8" Offset="0"/>
+                                                <GradientStop Color="#72009C" Offset="0.5"/>
+                                                <GradientStop Color="#3E0058" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                    </Border>
+                                    <TextBlock x:Name="TxtHudXpLabel"
+                                               Grid.ColumnSpan="2"
+                                               Text="Nivel 1 Archmage"
+                                               Foreground="#FFFFFF"
+                                               FontSize="11.5"
+                                               FontWeight="SemiBold"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
 
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -313,106 +350,72 @@
                                 <!-- COLUMNA IZQUIERDA: DAMAGE Y ARMOR -->
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
                                     <!-- DAMAGE -->
-                                    <DockPanel Margin="0,1,0,4">
-                                        <Border DockPanel.Dock="Left" Width="30" Height="30" BorderBrush="#8C7850" BorderThickness="1" CornerRadius="2" Margin="0,0,6,0" Background="#000000">
-                                            <Image x:Name="ImgHudAttack" Stretch="Fill"/>
+                                    <DockPanel Margin="0,1,0,8">
+                                        <Border x:Name="BorderHudAttackIcon" DockPanel.Dock="Left" Width="44" Height="44" BorderBrush="#A68B4B" BorderThickness="0" CornerRadius="2" Margin="0,0,9,0" Background="Transparent">
+                                            <Image x:Name="ImgHudAttack" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
                                         </Border>
                                         <StackPanel VerticalAlignment="Center">
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="Damage:" Foreground="#FFCC00" FontSize="11" FontWeight="Bold"/>
-                                                <TextBlock x:Name="TxtHudAttackType" Text="(Mágico)" Foreground="#A5A5A5" FontSize="10" Margin="4,1,0,0"/>
+                                                <TextBlock x:Name="TxtHudDamageTitle" Text="Damage:" Foreground="#FFCC00" FontSize="12" FontWeight="SemiBold"/>
+                                                <TextBlock x:Name="TxtHudAttackType" Text="(Héroe)" Foreground="#8E8E8E" FontSize="10.5" Margin="4,1,0,0"/>
                                             </StackPanel>
-                                            <TextBlock x:Name="TxtHudDamage" Text="10 - 12" Foreground="#FFFFFF" FontSize="12" FontWeight="SemiBold"/>
+                                            <TextBlock x:Name="TxtHudDamage" Text="21 - 27" Foreground="#FFFFFF" FontSize="12.5" FontWeight="SemiBold" Margin="4,1,0,0"/>
                                         </StackPanel>
                                     </DockPanel>
 
                                     <!-- ARMOR -->
-                                    <DockPanel Margin="0,1,0,1">
-                                        <Border DockPanel.Dock="Left" Width="30" Height="30" BorderBrush="#8C7850" BorderThickness="1" CornerRadius="2" Margin="0,0,6,0" Background="#000000">
-                                            <Image x:Name="ImgHudArmor" Stretch="Fill"/>
+                                    <DockPanel Margin="0,0,0,1">
+                                        <Border x:Name="BorderHudArmorIcon" DockPanel.Dock="Left" Width="44" Height="44" BorderBrush="#A68B4B" BorderThickness="0" CornerRadius="2" Margin="0,0,9,0" Background="Transparent">
+                                            <Image x:Name="ImgHudArmor" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
                                         </Border>
                                         <StackPanel VerticalAlignment="Center">
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="Armor:" Foreground="#FFCC00" FontSize="11" FontWeight="Bold"/>
-                                                <TextBlock x:Name="TxtHudArmorType" Text="(Ligera)" Foreground="#A5A5A5" FontSize="10" Margin="4,1,0,0"/>
+                                                <TextBlock x:Name="TxtHudArmorTitle" Text="Armor:" Foreground="#FFCC00" FontSize="12" FontWeight="SemiBold"/>
+                                                <TextBlock x:Name="TxtHudArmorType" Text="(Héroe)" Foreground="#8E8E8E" FontSize="10.5" Margin="4,1,0,0"/>
                                             </StackPanel>
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock x:Name="TxtHudArmor" Text="0" Foreground="#FFFFFF" FontSize="12" FontWeight="SemiBold"/>
-                                                <TextBlock x:Name="TxtHudArmorBonus" Text="" Foreground="#33FF33" FontSize="11" Margin="4,0,0,0" FontWeight="SemiBold"/>
+                                            <StackPanel Orientation="Horizontal" Margin="4,1,0,0">
+                                                <TextBlock x:Name="TxtHudArmor" Text="0" Foreground="#FFFFFF" FontSize="12.5" FontWeight="SemiBold"/>
+                                                <TextBlock x:Name="TxtHudArmorBonus" Text="" Foreground="#33FF33" FontSize="12" Margin="4,0,0,0" FontWeight="SemiBold"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </DockPanel>
                                 </StackPanel>
 
-                                <!-- COLUMNA DERECHA: ATRIBUTOS DE HÉROE -->
-                                <Border x:Name="BorderHeroAttributes"
-                                        Grid.Column="1"
-                                        Background="#12131A"
-                                        BorderBrush="#4A3C28"
-                                        BorderThickness="1"
-                                        CornerRadius="3"
-                                        Padding="6,4"
-                                        Margin="4,0,0,0"
-                                        Visibility="Collapsed">
-                                    <StackPanel VerticalAlignment="Center">
-                                        <DockPanel Margin="0,1,0,3">
-                                            <Image x:Name="ImgHudStr" Width="16" Height="16" Margin="0,0,4,0"/>
-                                            <TextBlock x:Name="TxtHudStrLabel" Text="Strength:" Foreground="#FFCC00" FontSize="10.5" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                            <TextBlock x:Name="TxtHudStr" Text="14" Foreground="#FFFFFF" FontSize="11" FontWeight="Bold" Margin="4,0,0,0" VerticalAlignment="Center"/>
-                                        </DockPanel>
+                                <!-- COLUMNA DERECHA: ATRIBUTOS DE HÉROE (SOLO ICONO DEL ATRIBUTO PRINCIPAL + TEXTO) -->
+                                <Grid x:Name="GridHeroAttributes"
+                                      Grid.Column="1"
+                                      Margin="10,0,2,0"
+                                      VerticalAlignment="Center"
+                                      Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
 
-                                        <DockPanel Margin="0,1,0,3">
-                                            <Image x:Name="ImgHudAgi" Width="16" Height="16" Margin="0,0,4,0"/>
-                                            <TextBlock x:Name="TxtHudAgiLabel" Text="Agility:" Foreground="#FFCC00" FontSize="10.5" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                            <TextBlock x:Name="TxtHudAgi" Text="17" Foreground="#FFFFFF" FontSize="11" FontWeight="Bold" Margin="4,0,0,0" VerticalAlignment="Center"/>
-                                        </DockPanel>
+                                    <Border x:Name="BorderHudPrimaryAttr"
+                                            Grid.Column="0"
+                                            Width="44"
+                                            Height="44"
+                                            BorderBrush="Transparent"
+                                            BorderThickness="0"
+                                            Background="Transparent"
+                                            VerticalAlignment="Center"
+                                            Margin="0,0,9,0">
+                                        <Image x:Name="ImgHudPrimaryAttr" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                    </Border>
 
-                                        <DockPanel Margin="0,1,0,1">
-                                            <Image x:Name="ImgHudInt" Width="16" Height="16" Margin="0,0,4,0"/>
-                                            <TextBlock x:Name="TxtHudIntLabel" Text="Intelligence:" Foreground="#FFCC00" FontSize="10.5" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                            <TextBlock x:Name="TxtHudInt" Text="19" Foreground="#FFFFFF" FontSize="11" FontWeight="Bold" Margin="4,0,0,0" VerticalAlignment="Center"/>
-                                        </DockPanel>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock x:Name="TxtHudStrLabel" Text="Fuerza:" Foreground="#FFCC00" FontSize="11.5" FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="TxtHudStr" Text="14" Foreground="#FFFFFF" FontSize="12" FontWeight="SemiBold" Margin="8,0,0,3"/>
+
+                                        <TextBlock x:Name="TxtHudAgiLabel" Text="Agilidad:" Foreground="#FFCC00" FontSize="11.5" FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="TxtHudAgi" Text="17" Foreground="#FFFFFF" FontSize="12" FontWeight="SemiBold" Margin="8,0,0,3"/>
+
+                                        <TextBlock x:Name="TxtHudIntLabel" Text="Inteligencia:" Foreground="#FFCC00" FontSize="11.5" FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="TxtHudInt" Text="19" Foreground="#FFFFFF" FontSize="12" FontWeight="SemiBold" Margin="8,0,0,0"/>
                                     </StackPanel>
-                                </Border>
+                                </Grid>
                             </Grid>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- INSPECTOR 3D DEL MODELO DE LA UNIDAD/HÉROE/EFECTO/DOODAD (mdx-m3-viewer WebGL) -->
-                    <Border x:Name="Border3DModelSection" Background="#161A22" BorderBrush="#3A4250" BorderThickness="1" CornerRadius="4" Padding="6" Margin="0,0,0,8">
-                        <StackPanel>
-                            <DockPanel LastChildFill="False">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Image Source="pack://application:,,,/Assets/Icons/model_3d.png" Width="14" Height="14" Margin="0,0,5,0"/>
-                                    <TextBlock Text="MODELO 3D (ANIMACIONES &amp; EQUIPO)" FontWeight="Bold" FontSize="11" Foreground="#FFCC00" VerticalAlignment="Center"/>
-                                </StackPanel>
-                                <Button x:Name="BtnToggle3DModelView"
-                                        DockPanel.Dock="Right"
-                                        Content="Ocultar Visor 3D"
-                                        Style="{StaticResource Win10ClassicButton}"
-                                        Padding="6,2"
-                                        FontSize="10.5"
-                                        Click="BtnToggle3DModelView_Click"/>
-                                <ComboBox x:Name="CmbModelEffectVariant"
-                                          DockPanel.Dock="Right"
-                                          Width="128"
-                                          Height="21"
-                                          Margin="0,0,5,0"
-                                          FontSize="10.5"
-                                          Visibility="Collapsed"
-                                          DisplayMemberPath="DisplayLabel"
-                                          SelectionChanged="CmbModelEffectVariant_SelectionChanged"/>
-                            </DockPanel>
-
-                            <Border x:Name="Border3DModelContainer"
-                                    Height="230"
-                                    Background="#0D0F13"
-                                    BorderBrush="#252A36"
-                                    BorderThickness="1"
-                                    CornerRadius="3"
-                                    Margin="0,6,0,0">
-                                <controls:MdxModelViewerControl x:Name="MdxModelViewer"/>
-                            </Border>
                         </StackPanel>
                     </Border>
 
@@ -422,16 +425,16 @@
                     <TextBlock Text="Tooltip Extendido (utub / aub1 / iutp):" FontSize="11" FontWeight="SemiBold"/>
                     <TextBox x:Name="TxtTooltipExtended"
                              Style="{StaticResource Win10TextBox}"
-                             Height="105"
+                             Height="95"
                              AcceptsReturn="True"
                              TextWrapping="Wrap"
                              VerticalScrollBarVisibility="Auto"
-                             Margin="0,2,0,10"
+                             Margin="0,2,0,8"
                              TextChanged="TxtTooltipExtended_TextChanged"/>
 
                     <!-- PREVISUALIZADOR EN VIVO ESTILO WARCRAFT III -->
                     <TextBlock Text="PREVISUALIZACIÓN" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,4"/>
-                    <Border Background="#0B0E14" BorderBrush="#C8A858" BorderThickness="2" Padding="10">
+                    <Border Background="#0B0E14" BorderBrush="#C8A858" BorderThickness="2" Padding="10" Margin="0,0,0,4">
                         <StackPanel>
                             <DockPanel Margin="0,0,0,6">
                                 <Border DockPanel.Dock="Left" Width="28" Height="28" BorderBrush="#C8A858" BorderThickness="1" Margin="0,0,8,0">
@@ -444,8 +447,54 @@
                         </StackPanel>
                     </Border>
 
-                </StackPanel>
-            </ScrollViewer>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- INSPECTOR 3D DEL MODELO FIJO FUERA DEL SCROLLVIEWER (evita bugs de HwndHost/WebView2 al hacer scroll) -->
+                <Border x:Name="Border3DModelSection"
+                        Grid.Row="1"
+                        Background="#161A22"
+                        BorderBrush="#3A4250"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="6"
+                        Margin="10,4,10,10">
+                    <StackPanel>
+                        <DockPanel LastChildFill="False">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Image Source="pack://application:,,,/Assets/Icons/model_3d.png" Width="14" Height="14" Margin="0,0,5,0"/>
+                                <TextBlock Text="MODELO 3D (ANIMACIONES &amp; EQUIPO)" FontWeight="Bold" FontSize="11" Foreground="#FFCC00" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <Button x:Name="BtnToggle3DModelView"
+                                    DockPanel.Dock="Right"
+                                    Content="Ocultar Visor 3D"
+                                    Style="{StaticResource Win10ClassicButton}"
+                                    Padding="6,2"
+                                    FontSize="10.5"
+                                    Click="BtnToggle3DModelView_Click"/>
+                            <ComboBox x:Name="CmbModelEffectVariant"
+                                      DockPanel.Dock="Right"
+                                      Width="128"
+                                      Height="21"
+                                      Margin="0,0,5,0"
+                                      FontSize="10.5"
+                                      Visibility="Collapsed"
+                                      DisplayMemberPath="DisplayLabel"
+                                      SelectionChanged="CmbModelEffectVariant_SelectionChanged"/>
+                        </DockPanel>
+
+                        <Border x:Name="Border3DModelContainer"
+                                Height="220"
+                                Background="#0D0F13"
+                                BorderBrush="#252A36"
+                                BorderThickness="1"
+                                CornerRadius="3"
+                                Margin="0,6,0,0">
+                            <controls:MdxModelViewerControl x:Name="MdxModelViewer"/>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </Grid>
         </Grid>
     </Grid>
 </UserControl>

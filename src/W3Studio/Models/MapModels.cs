@@ -1191,6 +1191,7 @@ public class MapProject : ObservableObject
     public bool HasTriggerStructureEdits { get; set; }
 
     public List<InitialEntityPathingSnapshot> InitialPathingFootprints { get; } = new();
+    public List<string> LoadWarnings { get; } = new();
 
     public bool HasUnsavedChanges =>
         HasTerrainEdits ||

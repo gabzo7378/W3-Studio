@@ -2402,32 +2402,41 @@ void main() {
   }
 
   // --- Live ShadowMap & Dynamic Shadow Decals ---
+  const BUILDING_SHADOW_DIM_CACHE = new Map();
+  const BUILDING_SHADOW_DIM_PENDING = new Set();
+
+  function isDisabledShadowStr(val) {
+    if (!val) return true;
+    const s = String(val).trim();
+    return !s || s === "_" || s === "0" || /^none$/i.test(s);
+  }
+
   function getEntityStaticShadowProfile(map, kind, rawcode, loc, scale, life) {
     if (!rawcode || rawcode === "sloc" || !loc) return null;
-    if (kind === "doodad") {
-      if (life === 0) return null;
-      const row = getRowCaseInsensitive(map.doodadsData, rawcode);
-      const isDestructible = !!(row && readSlkStr(row, "destructableid"));
-      const shTex = row ? readSlkStr(row, "shadow") : "";
-      if (!isDestructible && (!shTex || shTex === "_" || shTex === "0" || /^none$/i.test(shTex))) return null;
-      const occh = row ? readSlkNum(row, "occh") : 0;
-      const s = Math.max(0.25, scale || 1);
-      const rad = Math.max(42, (occh > 0 ? occh * 0.45 : 88) * s);
-      return { x: loc[0], y: loc[1], rx: rad, ry: rad, alpha: 185 };
+    // Units and buildings (Gold Mines, Town Halls, Towers, etc.) NEVER stamp into the static war3map.shd shadowMap:
+    // WC3 renders them dynamically via unitShadow ('ushu') and buildingShadow ('ushb') BLP decals.
+    if (kind !== "doodad") return null;
+    if (life === 0) return null;
+
+    const row = getRowCaseInsensitive(map.doodadsData, rawcode);
+    const isDestructible = !!(row && readSlkStr(row, "destructableid"));
+    const shTex = row ? readSlkStr(row, "shadow") : "";
+    // Respect 'shadow' === none / _ / 0 for BOTH doodads and destructibles (fixes Pathing/LOS Blockers & Bridges)
+    if (isDisabledShadowStr(shTex)) return null;
+
+    const occh = row ? readSlkNum(row, "occh") : 0;
+    const s = Math.max(0.25, Math.min(3.0, scale || 1));
+    let rad;
+    if (occh > 0) {
+      rad = Math.min(72, Math.max(24, occh * 0.22 * s));
+    } else if (isDestructible) {
+      rad = Math.min(48, Math.max(20, 32 * s));
+    } else {
+      const sel = (row && readSlkNum(row, "selsize")) || 48;
+      rad = Math.min(60, Math.max(22, sel * 0.52 * s));
     }
-    const spec = map.getEntityPathingSpec("unit", rawcode);
-    if (!spec.isBuilding) return null;
-    const row = getRowCaseInsensitive(map.unitsData, rawcode);
-    const shName = row ? readSlkStr(row, "buildingshadow") : "";
-    if (shName === "_" || /^none$/i.test(shName)) return null;
-    const grid = spec.pathTex ? requestPathTexture(map, spec.pathTex) : null;
-    const pw = grid ? grid.w : 4;
-    const ph = grid ? grid.h : 4;
-    const shW = row ? readSlkNum(row, "shadoww") : 0;
-    const shH = row ? readSlkNum(row, "shadowh") : 0;
-    const rx = Math.max(64, shW > 0 ? shW * 0.55 : Math.max(4, pw) * 18);
-    const ry = Math.max(64, shH > 0 ? shH * 0.55 : Math.max(4, ph) * 18);
-    return { x: loc[0], y: loc[1], rx, ry, alpha: 195 };
+    const off = 18 * Math.min(s, 1.5);
+    return { x: loc[0] + off, y: loc[1] + off, rx: rad, ry: rad, alpha: 165 };
   }
 
   function stampStaticShadowEllipse(buf, shdW, shdH, ox, oy, prof) {
@@ -2482,7 +2491,7 @@ void main() {
       }
     }
 
-    // 2. Re-stamp all living buildings & destructibles intersecting either dirty region
+    // 2. Re-stamp all living shadow-casting doodads/destructibles intersecting either dirty region
     let dirtyMinX = Infinity, dirtyMaxX = -Infinity, dirtyMinY = Infinity, dirtyMaxY = -Infinity;
     for (const p of profiles) {
       dirtyMinX = Math.min(dirtyMinX, p.x - p.rx - 48);
@@ -2491,15 +2500,6 @@ void main() {
       dirtyMaxY = Math.max(dirtyMaxY, p.y + p.ry + 48);
     }
 
-    if (Array.isArray(map.units)) {
-      for (const u of map.units) {
-        if (!u || !u.dooUnit) continue;
-        const p = getEntityStaticShadowProfile(map, "unit", u.dooUnit.id, u.dooUnit.location, u.dooUnit.scale[0] || 1, 100);
-        if (!p) continue;
-        if (p.x + p.rx < dirtyMinX || p.x - p.rx > dirtyMaxX || p.y + p.ry < dirtyMinY || p.y - p.ry > dirtyMaxY) continue;
-        stampStaticShadowEllipse(buf, shdW, shdH, ox, oy, p);
-      }
-    }
     if (Array.isArray(map.doodads)) {
       for (const d of map.doodads) {
         if (!d || !d.dooDoodad) continue;
@@ -2526,6 +2526,8 @@ void main() {
       batch.dirty = true;
     }
 
+    const overrides = (map.viewer && map.viewer._w3sObjectOverrides) || window._w3sObjectOverrides || null;
+
     if (Array.isArray(map.units)) {
       for (const u of map.units) {
         if (!u || !u.dooUnit) continue;
@@ -2533,17 +2535,56 @@ void main() {
         if (!id || id === "sloc") continue;
         const t = u.row || getRowCaseInsensitive(map.unitsData, id);
         if (!t) continue;
-        const r = readSlkStr(t, "unitshadow");
-        if (!r || r === "_" || r === "0") continue;
+        const ov = overrides && overrides[id];
+        const spec = map.getEntityPathingSpec ? map.getEntityPathingSpec("unit", id) : null;
+        const isBldg = !!(spec && spec.isBuilding);
+
         const n = (u.dooUnit.scale[0] || 1) * (readSlkNum(t, "modelScale") || 1);
         const a = (u.dooUnit.scale[1] || 1) * (readSlkNum(t, "modelScale") || 1);
-        const w = (readSlkNum(t, "shadoww") || 120) * n;
-        const h = (readSlkNum(t, "shadowh") || 120) * a;
-        const sx = readSlkNum(t, "shadowx") * n;
-        const sy = readSlkNum(t, "shadowy") * a;
-        const cx = u.dooUnit.location[0] + 0.5 * w - sx;
-        const cy = u.dooUnit.location[1] + 0.5 * h - sy;
-        proto.addShadowDecal.call(map, `ReplaceableTextures\\Shadows\\${r}.blp`, cx, cy, w, h, 0.62);
+
+        const unitSh = !isBldg && ov && ov.shadowTex ? ov.shadowTex : readSlkStr(t, "unitshadow");
+        const bldgSh = isBldg && ov && ov.shadowTex ? ov.shadowTex : readSlkStr(t, "buildingshadow");
+
+        if (!isDisabledShadowStr(unitSh)) {
+          const w = (readSlkNum(t, "shadoww") || 120) * n;
+          const h = (readSlkNum(t, "shadowh") || 120) * a;
+          const sx = readSlkNum(t, "shadowx") * n;
+          const sy = readSlkNum(t, "shadowy") * a;
+          const cx = u.dooUnit.location[0] + 0.5 * w - sx;
+          const cy = u.dooUnit.location[1] + 0.5 * h - sy;
+          proto.addShadowDecal.call(map, `ReplaceableTextures\\Shadows\\${unitSh}.blp`, cx, cy, w, h, 0.62);
+        } else if (!isDisabledShadowStr(bldgSh)) {
+          const texPath = `ReplaceableTextures\\Shadows\\${bldgSh}.blp`;
+          const key = texPath.toLowerCase();
+          let dims = BUILDING_SHADOW_DIM_CACHE.get(key);
+          if (!dims) {
+            const existingBatch = map.shadowBatches.get(texPath);
+            if (existingBatch && existingBatch.texture && existingBatch.texture.width > 0) {
+              dims = { w: existingBatch.texture.width, h: existingBatch.texture.height };
+              BUILDING_SHADOW_DIM_CACHE.set(key, dims);
+            }
+          }
+          if (dims) {
+            const w = 32 * dims.w * n;
+            const h = 32 * dims.h * a;
+            proto.addShadowDecal.call(map, texPath, u.dooUnit.location[0], u.dooUnit.location[1], w, h, 0.48);
+          } else {
+            // Render proportional fallback immediately and refresh with exact BLP dimensions once loaded
+            proto.addShadowDecal.call(map, texPath, u.dooUnit.location[0], u.dooUnit.location[1], 320 * n, 320 * a, 0.48);
+            if (!BUILDING_SHADOW_DIM_PENDING.has(key) && typeof map.load === "function") {
+              BUILDING_SHADOW_DIM_PENDING.add(key);
+              map.load(texPath).then((tex) => {
+                BUILDING_SHADOW_DIM_PENDING.delete(key);
+                if (tex && tex.width > 0 && tex.height > 0) {
+                  BUILDING_SHADOW_DIM_CACHE.set(key, { w: tex.width, h: tex.height });
+                  rebuildDynamicUnitShadowDecals(map);
+                }
+              }).catch(() => {
+                BUILDING_SHADOW_DIM_PENDING.delete(key);
+              });
+            }
+          }
+        }
       }
     }
 
@@ -2556,9 +2597,10 @@ void main() {
         const l = d.dooDoodad.scale[1] || 1;
         const isDest = !!readSlkStr(t, "destructableid");
         const u = readSlkStr(t, "shadow");
+        if (isDisabledShadowStr(u)) continue;
         if (isDest && d.dooDoodad.life === 0) {
           proto.addShadowDecal.call(map, "ReplaceableTextures\\Shadows\\Shadow.blp", d.dooDoodad.location[0] + 8 * o, d.dooDoodad.location[1] + 8 * l, 75 * o, 75 * l, 0.42);
-        } else if (u && u !== "_" && u !== "0") {
+        } else {
           proto.addShadowDecal.call(map, `ReplaceableTextures\\Shadows\\${u}.blp`, d.dooDoodad.location[0] + 18 * o, d.dooDoodad.location[1] + 18 * l, 240 * o, 240 * l, 0.46);
         }
       }
@@ -2789,9 +2831,31 @@ void main() {
       id: existing.dooDoodad.id,
       x: existing.dooDoodad.location[0],
       y: existing.dooDoodad.location[1],
+      z: existing.dooDoodad.location[2] || 0,
+      angle: existing.dooDoodad.angle || 0,
       scale: existing.dooDoodad.scale[0] || 1,
-      life: existing.dooDoodad.life
+      life: existing.dooDoodad.life,
+      variation: existing.dooDoodad.variation || 0
     } : null;
+
+    // Live variation swap: War3Map's base updateLiveDoodad does not swap MDX files when variation changes
+    if (existing && oldDoo && opts && typeof opts.variation === "number" && opts.variation !== oldDoo.variation) {
+      const nextSpec = {
+        id: oldDoo.id,
+        creationNumber,
+        x: typeof opts.x === "number" ? opts.x : oldDoo.x,
+        y: typeof opts.y === "number" ? opts.y : oldDoo.y,
+        z: typeof opts.z === "number" ? opts.z : oldDoo.z,
+        angle: typeof opts.angle === "number" ? opts.angle : oldDoo.angle,
+        scale: typeof opts.scale === "number" ? opts.scale : oldDoo.scale,
+        life: typeof opts.life === "number" ? opts.life : oldDoo.life,
+        variation: Math.max(0, opts.variation | 0),
+        modelPath: opts.modelPath || ""
+      };
+      this.removeLiveDoodad(creationNumber);
+      this.addLiveDoodad(nextSpec);
+      return;
+    }
 
     const res = origUpdateLiveDoodad ? origUpdateLiveDoodad.apply(this, arguments) : undefined;
 
@@ -2806,6 +2870,145 @@ void main() {
       this.syncLiveWpmBox(oldBox, newBox);
     }
     return res;
+  };
+
+  // =========================================================================
+  // Live 3D Placement Ghost Preview (MDX translucent preview + variation helper)
+  // =========================================================================
+  proto.getDoodadVariationCount = function (rawcode) {
+    try {
+      const row = getRowCaseInsensitive(this.doodadsData, rawcode);
+      const nv = row ? (row.number("numVar") | 0) : 1;
+      return Math.max(1, nv);
+    } catch {
+      return 1;
+    }
+  };
+
+  proto.clearPlacementGhost = function () {
+    const g = this._w3sPlacementGhost;
+    if (g) {
+      g.token++;
+      if (g.instance) {
+        try { g.instance.detach(); } catch {}
+        g.instance = null;
+      }
+      g.key = "";
+    }
+  };
+
+  proto.updatePlacementGhost = function (spec, x, y, z, angle, scale, isValid, ignorePathing) {
+    if (!spec || !spec.rawcode || !this.worldScene) {
+      this.clearPlacementGhost();
+      return;
+    }
+
+    if (!this._w3sPlacementGhost) {
+      this._w3sPlacementGhost = { key: "", instance: null, token: 0, baseScale: 1, moveHeight: 0 };
+    }
+    const g = this._w3sPlacementGhost;
+    const isDoodad = spec.kind === "doodad";
+    const variation = isDoodad ? Math.max(0, (spec.variation || 0) | 0) : 0;
+    const player = isDoodad ? 0 : (typeof spec.player === "number" ? spec.player : 0);
+    const key = `${spec.kind}|${spec.rawcode}|${variation}`;
+
+    const applyGhostTransform = (inst) => {
+      if (!inst) return;
+      const effScale = Math.max(0.05, (scale || 1) * (g.baseScale || 1));
+      const halfA = (typeof angle === "number" ? angle : (270 * Math.PI) / 180) * 0.5;
+      try {
+        inst.setLocation([x, y, (typeof z === "number" ? z : 0) + (g.moveHeight || 0)]);
+        inst.setRotation([0, 0, Math.sin(halfA), Math.cos(halfA)]);
+        inst.setScale([effScale, effScale, effScale]);
+        if (!isDoodad && typeof inst.setTeamColor === "function") {
+          inst.setTeamColor(player);
+        }
+        const ok = isValid !== false || !!ignorePathing;
+        if (typeof inst.setVertexColor === "function") {
+          inst.setVertexColor(ok ? [0.55, 1.0, 0.78, 0.62] : [1.0, 0.25, 0.25, 0.68]);
+        }
+        if (typeof inst.show === "function") inst.show();
+      } catch {}
+    };
+
+    if (g.key === key && g.instance) {
+      applyGhostTransform(g.instance);
+      return;
+    }
+
+    // Need to load a new ghost MDX
+    g.token++;
+    const myToken = g.token;
+    g.key = key;
+    if (g.instance) {
+      try { g.instance.detach(); } catch {}
+      g.instance = null;
+    }
+
+    let modelPath = spec.modelPath || "";
+    let baseScale = 1;
+    let moveHeight = 0;
+    let animProps = [];
+
+    if (isDoodad) {
+      const row = getRowCaseInsensitive(this.doodadsData, spec.rawcode);
+      if (!modelPath && row) modelPath = row.string("file") || "";
+      if (modelPath) {
+        if (modelPath.toLowerCase().endsWith(".mdl") || modelPath.toLowerCase().endsWith(".mdx")) {
+          modelPath = modelPath.slice(0, -4);
+        }
+        const numVar = (row ? row.number("numVar") : 0) || spec.numVariations || 1;
+        const baseMdx = `${modelPath}.mdx`;
+        const varMdx = numVar > 1 ? `${modelPath}${Math.min(variation, numVar - 1)}.mdx` : baseMdx;
+        const mapEntry = (this.map && (this.map.get(varMdx) || this.map.get(baseMdx))) || null;
+        modelPath = mapEntry ? mapEntry.name : varMdx;
+      }
+    } else if (spec.rawcode === "sloc") {
+      modelPath = "Objects\\StartLocation\\StartLocation.mdx";
+    } else {
+      const row = getRowCaseInsensitive(this.unitsData, spec.rawcode);
+      if (!modelPath && row) modelPath = row.string("file") || "";
+      if (row) {
+        const ms = row.number("modelScale");
+        if (ms > 0) baseScale = ms;
+        const mh = row.number("moveHeight");
+        if (mh > 0) moveHeight = mh;
+      }
+      const overrides = (this.viewer && this.viewer._w3sObjectOverrides) || window._w3sObjectOverrides || null;
+      const ov = findClientObjectOverride(overrides, spec.rawcode);
+      const ovAnim = (ov && (ov.AnimProps ?? ov.animProps)) || (row && typeof row.string === "function" ? row.string("animProps") : "");
+      if (typeof ovAnim === "string" && ovAnim.trim() && ovAnim.trim() !== "_") {
+        animProps = ovAnim.split(",").map((s) => s.trim().toLowerCase()).filter((s) => s && s !== "_");
+      }
+      if (modelPath) {
+        if (modelPath.toLowerCase().endsWith(".mdl")) modelPath = modelPath.slice(0, -4) + ".mdx";
+        else if (!modelPath.toLowerCase().endsWith(".mdx")) modelPath += ".mdx";
+        const mapEntry = this.map && this.map.get(modelPath);
+        if (mapEntry) modelPath = mapEntry.name;
+      }
+    }
+
+    g.baseScale = baseScale;
+    g.moveHeight = moveHeight;
+    if (!modelPath) return;
+
+    this.load(modelPath).then((model) => {
+      if (!model || !this._w3sPlacementGhost || this._w3sPlacementGhost.token !== myToken) return;
+      try {
+        const inst = model.addInstance();
+        inst.setScene(this.worldScene);
+        if (typeof inst.setSequenceLoopMode === "function") inst.setSequenceLoopMode(2);
+        if (model.sequences && model.sequences.length > 0) {
+          let seqIdx = animProps.length > 0 ? pickRequiredStandSequenceIndex(model.sequences, animProps) : -1;
+          if (seqIdx < 0) {
+            seqIdx = model.sequences.findIndex((s) => s && /^stand\b/i.test(s.name || ""));
+          }
+          inst.setSequence(seqIdx >= 0 ? seqIdx : 0);
+        }
+        this._w3sPlacementGhost.instance = inst;
+        applyGhostTransform(inst);
+      } catch {}
+    }).catch(() => {});
   };
 
   const origRemoveLiveDoodad = proto.removeLiveDoodad;
@@ -3014,6 +3217,9 @@ void main() {
       for (const u of this.units) {
         applyUnitAnimProps(this, u);
       }
+      if (this.unitsReady) {
+        rebuildDynamicUnitShadowDecals(this);
+      }
     }
     origUpdate.apply(this, arguments);
     if (this.anyReady && this._waterUvOffset && this._waterScrollRate) {
@@ -3022,15 +3228,18 @@ void main() {
     }
   };
 
-  // 4f. Avoid doubled static building/doodad shadows when war3map.shd is already present,
-  // clamp oversized ShadowFlyer decals, and skip sentinel invalid shadow names.
+  // 4f. Avoid doubled static doodad shadows when war3map.shd is already present,
+  // allow dynamic unit (0.62) & building (0.48) BLP shadow decals (never baked into war3map.shd),
+  // clamp oversized ShadowFlyer/custom decals, and skip sentinel invalid shadow names.
   const origAddShadowDecal = proto.addShadowDecal;
   proto.addShadowDecal = function (texPath, x, y, w, h, alpha) {
     const cleaned = normalizeAssetPath(texPath);
     if (!cleaned) return;
-    // Moving units pass alpha === 0.62; static buildings pass 0.48 and doodads pass <= 0.46.
-    // When war3map.shd exists, static building/doodad shadows are already baked cleanly on terrain.
-    if (this._mapHasShdFile && alpha <= 0.5) {
+    // Skip invalid/disabled shadow filenames like ...\Shadows\none.blp or ...\Shadows\_.blp
+    if (/(?:^|[\\/])(?:none|_|0)\.blp$/i.test(cleaned)) return;
+    // Moving units pass alpha === 0.62; buildings pass 0.48 (rendered dynamically via buildingShadow BLP);
+    // static doodads/destructibles pass <= 0.46 (already baked into war3map.shd when _mapHasShdFile is true).
+    if (this._mapHasShdFile && alpha < 0.47) {
       return;
     }
     const clampedW = Math.min(w, 512);

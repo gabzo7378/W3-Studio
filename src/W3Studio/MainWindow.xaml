@@ -244,6 +244,9 @@
                             <Border Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="5,3" Margin="0,1">
                                 <CheckBox x:Name="ChkShowBounds" Content="Camera Bounds (B)" IsChecked="False" FontSize="11.5" Checked="LayerCheckbox_Changed" Unchecked="LayerCheckbox_Changed"/>
                             </Border>
+                            <Border Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="5,3" Margin="0,1">
+                                <CheckBox x:Name="ChkShowCameras" Content="Show Cameras 3D (w3c)" IsChecked="False" FontSize="11.5" Checked="LayerCheckbox_Changed" Unchecked="LayerCheckbox_Changed"/>
+                            </Border>
                         </StackPanel>
                     </Border>
 
@@ -519,18 +522,22 @@
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="4"/>
                                                 <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="4"/>
+                                                <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <TextBox x:Name="TxtSelectedRegionName" Grid.Column="0" Style="{StaticResource Win10TextBox}" Padding="4,2" FontSize="11" ToolTip="Nombre de la región seleccionada"/>
                                             <Button Grid.Column="2" Content="✔" Width="26" Height="24" Style="{StaticResource Win10ClassicButton}" ToolTip="Renombrar región" Click="BtnRenameSelectedRegion_Click"/>
-                                            <Button Grid.Column="4" Content="🗑" Width="26" Height="24" Style="{StaticResource Win10ClassicButton}" ToolTip="Eliminar región seleccionada" Click="BtnDeleteSelectedRegion_Click"/>
+                                            <Button Grid.Column="4" Content="🎨" Width="26" Height="24" Style="{StaticResource Win10ClassicButton}" ToolTip="Cambiar color de la región en 3D" Click="BtnChangeRegionColor_Click"/>
+                                            <Button Grid.Column="6" Content="🗑" Width="26" Height="24" Style="{StaticResource Win10ClassicButton}" ToolTip="Eliminar región seleccionada" Click="BtnDeleteSelectedRegion_Click"/>
                                         </Grid>
                                     </StackPanel>
 
                                     <!-- Controles de Cámaras (war3map.w3c) -->
-                                    <UniformGrid x:Name="PnlCameraPaletteControls" Visibility="Collapsed" Columns="3" Margin="0,0,0,5">
-                                        <Button Content="📷 Capturar" Height="24" FontSize="10.5" Margin="0,0,2,0" Style="{StaticResource Win10ClassicButton}" ToolTip="Guardar vista actual de la cámara 3D como preset w3c" Click="BtnCaptureCamera_Click"/>
-                                        <Button Content="👁 Enfocar" Height="24" FontSize="10.5" Margin="1,0,1,0" Style="{StaticResource Win10ClassicButton}" ToolTip="Ir a la cámara seleccionada" Click="BtnFocusSelectedCamera_Click"/>
-                                        <Button Content="🗑 Borrar" Height="24" FontSize="10.5" Margin="2,0,0,0" Style="{StaticResource Win10ClassicButton}" ToolTip="Eliminar cámara seleccionada" Click="BtnDeleteSelectedCamera_Click"/>
+                                    <UniformGrid x:Name="PnlCameraPaletteControls" Visibility="Collapsed" Columns="2" Margin="0,0,0,5">
+                                        <Button Content="📷 Capturar" Height="24" FontSize="10.5" Margin="0,0,2,2" Style="{StaticResource Win10ClassicButton}" ToolTip="Guardar vista actual de la cámara 3D como preset w3c" Click="BtnCaptureCamera_Click"/>
+                                        <Button Content="🔄 Actualizar" Height="24" FontSize="10.5" Margin="2,0,0,2" Style="{StaticResource Win10ClassicButton}" ToolTip="Actualizar la cámara seleccionada con la vista 3D actual" Click="BtnUpdateSelectedCamera_Click"/>
+                                        <Button Content="👁 Enfocar" Height="24" FontSize="10.5" Margin="0,2,2,0" Style="{StaticResource Win10ClassicButton}" ToolTip="Ver el mapa desde la cámara seleccionada" Click="BtnFocusSelectedCamera_Click"/>
+                                        <Button Content="🗑 Borrar" Height="24" FontSize="10.5" Margin="2,2,0,0" Style="{StaticResource Win10ClassicButton}" ToolTip="Eliminar cámara seleccionada" Click="BtnDeleteSelectedCamera_Click"/>
                                     </UniformGrid>
 
                                     <!-- Modo de interacción 3D + Fuente de lista (Colocadas vs Catálogo) -->
@@ -591,6 +598,33 @@
                                                   Checked="ChkIgnorePathing_Changed" Unchecked="ChkIgnorePathing_Changed">
                                             <TextBlock Text="Ignorar Pathing (Forzar posición)"/>
                                         </CheckBox>
+
+                                        <!-- Opciones de Colocación Estilo World Editor (Rotación / Escala / Variación aleatoria) -->
+                                        <Border x:Name="PnlPlaceRandomOptions" Margin="0,4,0,0" Padding="5,3"
+                                                Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1"
+                                                CornerRadius="2">
+                                            <StackPanel>
+                                                <UniformGrid Columns="2">
+                                                    <CheckBox x:Name="ChkPlaceRandomAngle" Content="Rot. aleatoria" FontSize="10"
+                                                              ToolTip="Asigna una rotación aleatoria al colocar unidades/doodads (los edificios mantienen 270°)"
+                                                              Checked="PlacementOption_Changed" Unchecked="PlacementOption_Changed"/>
+                                                    <CheckBox x:Name="ChkPlaceRandomScale" Content="Escala aleatoria" FontSize="10" IsChecked="True"
+                                                              ToolTip="Varía aleatoriamente la escala del doodad según su rango WC3"
+                                                              Checked="PlacementOption_Changed" Unchecked="PlacementOption_Changed"/>
+                                                </UniformGrid>
+                                                <DockPanel x:Name="PnlPlaceVariationRow" Margin="0,3,0,0">
+                                                    <CheckBox x:Name="ChkPlaceRandomVariation" Content="Var. aleatoria" FontSize="10" IsChecked="True"
+                                                              VerticalAlignment="Center"
+                                                              ToolTip="Elige una variación aleatoria al colocar árboles/doodads (o usa tecla V)"
+                                                              Checked="PlacementOption_Changed" Unchecked="PlacementOption_Changed"/>
+                                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                                                        <TextBlock Text="Var:" FontSize="10" VerticalAlignment="Center" Margin="6,0,3,0" Foreground="{DynamicResource ThemeTextMuted}"/>
+                                                        <TextBox x:Name="TxtPlaceVariation" Text="0" Width="32" Height="19" FontSize="10" Padding="2,0"
+                                                                 Style="{StaticResource Win10TextBox}" TextChanged="TxtPlaceVariation_TextChanged"/>
+                                                    </StackPanel>
+                                                </DockPanel>
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
 
                                     <TextBox x:Name="TxtPaletteFilter"

@@ -119,6 +119,8 @@ public partial class MainWindow
         Map3DViewport.EntityMoved += Map3DViewport_EntityMoved;
         Map3DViewport.EntitiesMoved += Map3DViewport_EntitiesMoved;
         Map3DViewport.EntitiesRotated += Map3DViewport_EntitiesRotated;
+        Map3DViewport.EntitiesScaled += Map3DViewport_EntitiesScaled;
+        Map3DViewport.DoodadsVariationChanged += Map3DViewport_DoodadsVariationChanged;
         Map3DViewport.EntityPlaceRequested += Map3DViewport_EntityPlaceRequested;
         Map3DViewport.EntityDeleteRequested += Map3DViewport_EntityDeleteRequested;
         Map3DViewport.EntitiesDeleteRequested += Map3DViewport_EntitiesDeleteRequested;
@@ -127,6 +129,8 @@ public partial class MainWindow
         Map3DViewport.RegionUpdated += Map3DViewport_RegionUpdated;
         Map3DViewport.RegionCreateRequested += Map3DViewport_RegionCreateRequested;
         Map3DViewport.RegionDeleteRequested += Map3DViewport_RegionDeleteRequested;
+        Map3DViewport.CameraSelected += Map3DViewport_CameraSelected;
+        Map3DViewport.CameraTargetMoved += Map3DViewport_CameraTargetMoved;
         Map3DViewport.PlacementCancelled += Map3DViewport_PlacementCancelled;
     }
 
@@ -239,6 +243,18 @@ public partial class MainWindow
         Map3DViewport?.SetPathingOptions(_settings.IgnoreEntityPathing);
     }
 
+    private void PlacementOption_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressPaletteModeEvents) return;
+        Sync3DEditorMode();
+    }
+
+    private void TxtPlaceVariation_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressPaletteModeEvents) return;
+        Sync3DEditorMode();
+    }
+
     private void Sync3DPathingMetadata()
     {
         if (Map3DViewport == null)
@@ -273,6 +289,14 @@ public partial class MainWindow
             return;
         }
 
+        if (mode == 4)
+        {
+            if (_currentProject != null)
+                Map3DViewport.SyncCameras(_currentProject.Cameras);
+            Map3DViewport.SetEditorMode("camera", null);
+            return;
+        }
+
         bool isPlace = TglModePlace?.IsChecked == true &&
                        (mode == 0 || mode == 1) &&
                        _currentProject != null &&
@@ -289,6 +313,29 @@ public partial class MainWindow
             string preventPlace = cat.IsDoodadKind ? string.Empty : PathingService.ResolveObjectField(cat.Rawcode, false, _currentProject, _baseDataService, "upap", "preventPlace");
             string requirePlace = cat.IsDoodadKind ? string.Empty : PathingService.ResolveObjectField(cat.Rawcode, false, _currentProject, _baseDataService, "upar", "requirePlace");
 
+            int numVariations = 1;
+            float minScale = 0.85f;
+            float maxScale = 1.15f;
+            if (cat.IsDoodadKind)
+            {
+                string nvStr = PathingService.ResolveObjectField(cat.Rawcode, true, _currentProject, _baseDataService, cat.IsDestructible ? "bvar" : "dvar", "numVar");
+                if (int.TryParse(nvStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out int nv) && nv > 0)
+                    numVariations = nv;
+                string minStr = PathingService.ResolveObjectField(cat.Rawcode, true, _currentProject, _baseDataService, cat.IsDestructible ? "bmis" : "dmis", "minScale");
+                string maxStr = PathingService.ResolveObjectField(cat.Rawcode, true, _currentProject, _baseDataService, cat.IsDestructible ? "bmas" : "dmas", "maxScale");
+                if (float.TryParse(minStr, NumberStyles.Float, CultureInfo.InvariantCulture, out float parsedMin) && parsedMin > 0.05f)
+                    minScale = parsedMin;
+                if (float.TryParse(maxStr, NumberStyles.Float, CultureInfo.InvariantCulture, out float parsedMax) && parsedMax >= minScale)
+                    maxScale = parsedMax;
+            }
+
+            bool randomAngle = ChkPlaceRandomAngle?.IsChecked == true;
+            bool randomScale = cat.IsDoodadKind && ChkPlaceRandomScale?.IsChecked == true;
+            bool randomVariation = cat.IsDoodadKind && ChkPlaceRandomVariation?.IsChecked == true;
+            int fixedVar = 0;
+            if (TxtPlaceVariation != null && int.TryParse(TxtPlaceVariation.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int pv))
+                fixedVar = Math.Max(0, pv);
+
             Map3DViewport.SetEditorMode(jsMode, new
             {
                 kind = cat.IsDoodadKind ? "doodad" : "unit",
@@ -296,7 +343,13 @@ public partial class MainWindow
                 player = owner,
                 angle = 270.0 * Math.PI / 180.0,
                 scale = 1.0,
-                variation = 0,
+                variation = fixedVar,
+                numVariations,
+                minScale,
+                maxScale,
+                randomAngle,
+                randomScale,
+                randomVariation,
                 life = 100,
                 modelPath = cat.ModelPath,
                 isBuilding = cat.IsBuilding,
@@ -306,7 +359,7 @@ public partial class MainWindow
                 preventPlace,
                 requirePlace
             });
-            TxtStatusBarLeft.Text = $"Modo Colocar: [{cat.Rawcode}] {cat.Name} — Clic izquierdo en terreno para colocar, Esc o Clic derecho para salir.";
+            TxtStatusBarLeft.Text = $"Modo Colocar 3D: [{cat.Rawcode}] {cat.Name} — Clic izq: Colocar | R/Shift+Rueda: Rotar | +/-: Escala{(cat.IsDoodadKind ? " | V: Variación" : "")} | Esc/Clic der: Salir.";
         }
         else
         {
@@ -476,7 +529,10 @@ public partial class MainWindow
             _paletteIconLoadCts?.Cancel();
             _paletteIconLoadCts?.Dispose();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            AppLogger.Warn("MainWindow.CancelPaletteIconHydration", "Error cancelling palette icon hydration.", ex);
+        }
         _paletteIconLoadCts = null;
     }
 
@@ -681,6 +737,74 @@ public partial class MainWindow
 
         ApplyAll(true);
         string desc = records.Count == 1 ? "Rotar entidad" : $"Rotar {records.Count} entidades";
+        _undoService.Record(new DelegateUndoEdit(desc, () => ApplyAll(false), () => ApplyAll(true)));
+    }
+
+    private void Map3DViewport_EntitiesScaled(IReadOnlyList<ViewportEntityScaleItem> items)
+    {
+        if (_currentProject == null || items.Count == 0) return;
+
+        var records = new List<(object Entity, string Kind, int CreationNumber, float OldScale, float NewScale)>();
+        foreach (var it in items)
+        {
+            var ent = ResolveEntityByKey(it.Kind, it.CreationNumber);
+            float next = PlacementTransformHelper.ClampEntityScale(it.Scale);
+            if (ent is W3PlacedUnit u)
+                records.Add((u, "unit", u.CreationNumber, u.Scale, next));
+            else if (ent is W3PlacedDoodad d)
+                records.Add((d, "doodad", d.CreationNumber, d.Scale, next));
+        }
+
+        if (records.Count == 0) return;
+
+        void ApplyAll(bool useNew)
+        {
+            foreach (var r in records)
+            {
+                float sc = useNew ? r.NewScale : r.OldScale;
+                if (r.Entity is W3PlacedUnit u) u.Scale = u.ScaleY = u.ScaleZ = sc;
+                else if (r.Entity is W3PlacedDoodad d) d.Scale = d.ScaleY = d.ScaleZ = sc;
+                Map3DViewport.UpdateLiveEntity(r.Kind, r.CreationNumber, new { scale = sc });
+            }
+            RefreshEntityAfterEdit(records[0].Entity);
+        }
+
+        ApplyAll(true);
+        string desc = records.Count == 1 ? "Escalar entidad" : $"Escalar {records.Count} entidades";
+        _undoService.Record(new DelegateUndoEdit(desc, () => ApplyAll(false), () => ApplyAll(true)));
+    }
+
+    private void Map3DViewport_DoodadsVariationChanged(IReadOnlyList<ViewportDoodadVariationItem> items)
+    {
+        if (_currentProject == null || items.Count == 0) return;
+
+        var records = new List<(W3PlacedDoodad Doodad, int OldVar, int NewVar)>();
+        foreach (var it in items)
+        {
+            var d = _currentProject.PlacedDoodads.FirstOrDefault(x => x.CreationNumber == it.CreationNumber);
+            if (d != null && d.Variation != it.Variation)
+                records.Add((d, d.Variation, Math.Max(0, it.Variation)));
+        }
+
+        if (records.Count == 0) return;
+
+        void ApplyAll(bool useNew)
+        {
+            foreach (var r in records)
+            {
+                int v = useNew ? r.NewVar : r.OldVar;
+                r.Doodad.Variation = v;
+                Map3DViewport.UpdateLiveEntity("doodad", r.Doodad.CreationNumber, new
+                {
+                    variation = v,
+                    modelPath = ResolveModelPathForRawcode(r.Doodad.Rawcode)
+                });
+            }
+            RefreshEntityAfterEdit(records[0].Doodad);
+        }
+
+        ApplyAll(true);
+        string desc = records.Count == 1 ? "Cambiar variación de doodad" : $"Cambiar variación ({records.Count} doodads)";
         _undoService.Record(new DelegateUndoEdit(desc, () => ApplyAll(false), () => ApplyAll(true)));
     }
 
@@ -1178,7 +1302,9 @@ public partial class MainWindow
             {
                 angle = d.AngleRadians,
                 scale = d.Scale,
-                life = (int)d.Life
+                life = (int)d.Life,
+                variation = d.Variation,
+                modelPath = ResolveModelPathForRawcode(d.Rawcode)
             });
             MapViewport_SelectionChanged(d);
         }
@@ -1342,11 +1468,85 @@ public partial class MainWindow
             () => { reg.Name = newName; if (TxtSelectedRegionName != null) TxtSelectedRegionName.Text = newName; Map3DViewport.SyncRegions(_currentProject.Regions); RefreshToolPaletteList(); }));
     }
 
+    private static readonly (byte R, byte G, byte B)[] RegionColorPalette =
+    {
+        (80, 190, 255),
+        (95, 225, 115),
+        (255, 195, 65),
+        (255, 105, 105),
+        (195, 115, 255),
+        (65, 230, 210),
+        (255, 145, 70),
+        (255, 130, 200)
+    };
+
+    private void BtnChangeRegionColor_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentProject == null) return;
+        var reg = _selectedRegion ?? LstToolPalette.SelectedItem as W3MapRegion;
+        if (reg == null) return;
+
+        byte oldR = reg.ColorR, oldG = reg.ColorG, oldB = reg.ColorB;
+        int curIdx = Array.FindIndex(RegionColorPalette, c => c.R == oldR && c.G == oldG && c.B == oldB);
+        var next = RegionColorPalette[(curIdx + 1) % RegionColorPalette.Length];
+
+        void ApplyColor(byte r, byte g, byte b)
+        {
+            reg.ColorR = r; reg.ColorG = g; reg.ColorB = b;
+            _currentProject.HasRegionEdits = true;
+            Map3DViewport.SyncRegions(_currentProject.Regions);
+            MapViewport.MarkViewportDirty();
+            UpdateTestButtonState();
+        }
+
+        ApplyColor(next.R, next.G, next.B);
+        _undoService.Record(new DelegateUndoEdit(
+            $"Color región {reg.Name}",
+            () => ApplyColor(oldR, oldG, oldB),
+            () => ApplyColor(next.R, next.G, next.B)));
+    }
+
     private void BtnDeleteSelectedRegion_Click(object sender, RoutedEventArgs e)
     {
         var reg = _selectedRegion ?? LstToolPalette.SelectedItem as W3MapRegion;
         if (reg != null)
             Map3DViewport_RegionDeleteRequested(reg.CreationNumber);
+    }
+
+    private void Map3DViewport_CameraSelected(int index)
+    {
+        if (_currentProject == null || index < 0 || index >= _currentProject.Cameras.Count)
+            return;
+
+        var cam = _currentProject.Cameras[index];
+        if (CmbPaletteMode.SelectedIndex == 4)
+            LstToolPalette.SelectedItem = cam;
+        TxtStatusBarLeft.Text = $"Cámara seleccionada: {cam.Name} — Target ({cam.TargetX:F0}, {cam.TargetY:F0}), Dist {cam.Distance:F0}, Rot {cam.Rotation:F0}°";
+    }
+
+    private void Map3DViewport_CameraTargetMoved(int index, float targetX, float targetY)
+    {
+        if (_currentProject == null || index < 0 || index >= _currentProject.Cameras.Count)
+            return;
+
+        var cam = _currentProject.Cameras[index];
+        float oldX = cam.TargetX, oldY = cam.TargetY;
+
+        void ApplyTarget(float tx, float ty)
+        {
+            cam.TargetX = tx;
+            cam.TargetY = ty;
+            _currentProject.HasCameraEdits = true;
+            Map3DViewport.SyncCameras(_currentProject.Cameras);
+            Map3DViewport.SelectCamera(index, focus: false);
+            UpdateTestButtonState();
+        }
+
+        ApplyTarget(targetX, targetY);
+        _undoService.Record(new DelegateUndoEdit(
+            $"Mover cámara {cam.Name}",
+            () => ApplyTarget(oldX, oldY),
+            () => ApplyTarget(targetX, targetY)));
     }
 
     private async void BtnCaptureCamera_Click(object sender, RoutedEventArgs e)
@@ -1358,20 +1558,57 @@ public partial class MainWindow
         cam.Name = $"Camera {_currentProject.Cameras.Count + 1:D3}";
         _currentProject.Cameras.Add(cam);
         _currentProject.HasCameraEdits = true;
+        Map3DViewport.SyncCameras(_currentProject.Cameras);
+        Map3DViewport.SelectCamera(_currentProject.Cameras.Count - 1, focus: false);
         RefreshToolPaletteList();
         LstToolPalette.SelectedItem = cam;
         UpdateTestButtonState();
 
         _undoService.Record(new DelegateUndoEdit(
             $"Capturar cámara {cam.Name}",
-            () => { _currentProject.Cameras.Remove(cam); _currentProject.HasCameraEdits = true; RefreshToolPaletteList(); UpdateTestButtonState(); },
-            () => { if (!_currentProject.Cameras.Contains(cam)) _currentProject.Cameras.Add(cam); _currentProject.HasCameraEdits = true; RefreshToolPaletteList(); UpdateTestButtonState(); }));
+            () => { _currentProject.Cameras.Remove(cam); _currentProject.HasCameraEdits = true; Map3DViewport.SyncCameras(_currentProject.Cameras); RefreshToolPaletteList(); UpdateTestButtonState(); },
+            () => { if (!_currentProject.Cameras.Contains(cam)) _currentProject.Cameras.Add(cam); _currentProject.HasCameraEdits = true; Map3DViewport.SyncCameras(_currentProject.Cameras); RefreshToolPaletteList(); UpdateTestButtonState(); }));
+    }
+
+    private async void BtnUpdateSelectedCamera_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentProject == null || LstToolPalette.SelectedItem is not W3MapCamera cam)
+            return;
+
+        var captured = await Map3DViewport.CaptureCurrentCameraAsync();
+        if (captured == null) return;
+
+        float ox = cam.TargetX, oy = cam.TargetY, oz = cam.ZOffset, orot = cam.Rotation, oaoa = cam.AngleOfAttack, odist = cam.Distance;
+        float nx = captured.TargetX, ny = captured.TargetY, nz = captured.ZOffset, nrot = captured.Rotation, naoa = captured.AngleOfAttack, ndist = captured.Distance;
+        int idx = _currentProject.Cameras.IndexOf(cam);
+
+        void ApplyState(float tx, float ty, float tz, float rot, float aoa, float dist)
+        {
+            cam.TargetX = tx; cam.TargetY = ty; cam.ZOffset = tz;
+            cam.Rotation = rot; cam.AngleOfAttack = aoa; cam.Distance = dist;
+            _currentProject.HasCameraEdits = true;
+            Map3DViewport.SyncCameras(_currentProject.Cameras);
+            if (idx >= 0) Map3DViewport.SelectCamera(idx, focus: false);
+            RefreshToolPaletteList();
+            UpdateTestButtonState();
+        }
+
+        ApplyState(nx, ny, nz, nrot, naoa, ndist);
+        _undoService.Record(new DelegateUndoEdit(
+            $"Actualizar cámara {cam.Name}",
+            () => ApplyState(ox, oy, oz, orot, oaoa, odist),
+            () => ApplyState(nx, ny, nz, nrot, naoa, ndist)));
+        TxtStatusBarLeft.Text = $"Cámara '{cam.Name}' actualizada con la vista 3D actual.";
     }
 
     private void BtnFocusSelectedCamera_Click(object sender, RoutedEventArgs e)
     {
         if (LstToolPalette.SelectedItem is W3MapCamera cam)
-            Map3DViewport.FocusCameraPreset(cam);
+        {
+            int idx = _currentProject?.Cameras.IndexOf(cam) ?? -1;
+            if (idx >= 0) Map3DViewport.SelectCamera(idx, focus: true);
+            else Map3DViewport.FocusCameraPreset(cam);
+        }
     }
 
     private void BtnDeleteSelectedCamera_Click(object sender, RoutedEventArgs e)
@@ -1382,13 +1619,14 @@ public partial class MainWindow
         int idx = _currentProject.Cameras.IndexOf(cam);
         _currentProject.Cameras.Remove(cam);
         _currentProject.HasCameraEdits = true;
+        Map3DViewport.SyncCameras(_currentProject.Cameras);
         RefreshToolPaletteList();
         UpdateTestButtonState();
 
         _undoService.Record(new DelegateUndoEdit(
             $"Eliminar cámara {cam.Name}",
-            () => { _currentProject.Cameras.Insert(Math.Clamp(idx, 0, _currentProject.Cameras.Count), cam); _currentProject.HasCameraEdits = true; RefreshToolPaletteList(); UpdateTestButtonState(); },
-            () => { _currentProject.Cameras.Remove(cam); _currentProject.HasCameraEdits = true; RefreshToolPaletteList(); UpdateTestButtonState(); }));
+            () => { _currentProject.Cameras.Insert(Math.Clamp(idx, 0, _currentProject.Cameras.Count), cam); _currentProject.HasCameraEdits = true; Map3DViewport.SyncCameras(_currentProject.Cameras); RefreshToolPaletteList(); UpdateTestButtonState(); },
+            () => { _currentProject.Cameras.Remove(cam); _currentProject.HasCameraEdits = true; Map3DViewport.SyncCameras(_currentProject.Cameras); RefreshToolPaletteList(); UpdateTestButtonState(); }));
     }
 
     private void BtnDeleteSelectedEntity_Click(object sender, RoutedEventArgs e)
@@ -1487,7 +1725,7 @@ public partial class MainWindow
                 d.Scale = d.ScaleY = d.ScaleZ = scale;
                 d.Life = life;
                 d.Variation = variation;
-                Map3DViewport.UpdateLiveEntity("doodad", d.CreationNumber, new { x, y, z, angle = ang, scale, life = (int)life });
+                Map3DViewport.UpdateLiveEntity("doodad", d.CreationNumber, new { x, y, z, angle = ang, scale, life = (int)life, variation, modelPath = ResolveModelPathForRawcode(d.Rawcode) });
                 RefreshEntityAfterEdit(d);
             }
 

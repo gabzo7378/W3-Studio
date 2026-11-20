@@ -37,6 +37,7 @@ public class WorkspaceSettings
     public string AdditionalLaunchArgs { get; set; } = string.Empty;
     public bool OpenModulesInSeparateWindows { get; set; } = true;
     public bool IgnoreEntityPathing { get; set; } = false;
+    public bool UseSafeWpfSoftwareRendering { get; set; } = false;
 
     public void AddRecentMap(string filePath)
     {

@@ -13,6 +13,7 @@ namespace W3Studio.Services;
 public class BlpIconService
 {
     private readonly ConcurrentDictionary<string, BitmapSource> _iconCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, BitmapSource> _trimmedIconCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<MpqArchive> _openArchives = new();
     private readonly Dictionary<string, List<MpqArchive>> _tilesetSubArchives = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _mpqLock = new();
@@ -31,20 +32,23 @@ public class BlpIconService
             {
                 foreach (var sub in list)
                 {
-                    try { sub.Dispose(); } catch { }
+                    try { sub.Dispose(); }
+                    catch (Exception ex) { AppLogger.Warn("BlpIconService.ConfigureBaseMpqs", "Error disposing tileset sub-archive.", ex); }
                 }
             }
             _tilesetSubArchives.Clear();
 
             foreach (var old in _openArchives)
             {
-                try { old.Dispose(); } catch { }
+                try { old.Dispose(); }
+                catch (Exception ex) { AppLogger.Warn("BlpIconService.ConfigureBaseMpqs", "Error disposing base MPQ archive.", ex); }
             }
             _openArchives.Clear();
             _cachedBaseIconPaths = null;
             _cachedBaseModelPaths = null;
             _cachedListfileMaps = null;
             _iconCache.Clear();
+            _trimmedIconCache.Clear();
 
             // Search priority: War3Patch.mpq -> War3xlocal.mpq -> War3x.mpq -> War3Local.mpq -> war3.mpq
             var paths = new[]
@@ -105,6 +109,76 @@ public class BlpIconService
         return FallbackIcon;
     }
 
+    /// <summary>
+    /// Loads an icon and tightly trims transparent outer margins (e.g. WC3 64x64 infocard-*.blp icons
+    /// whose framed artwork sits in the top-left ~56x56 with 8px transparent padding on the right & bottom).
+    /// </summary>
+    public BitmapSource GetTrimmedIcon(string? iconPath, MapProject? currentProject = null)
+    {
+        if (string.IsNullOrWhiteSpace(iconPath))
+            return FallbackIcon;
+
+        var normalized = NormalizeIconPath(iconPath);
+        if (_trimmedIconCache.TryGetValue(normalized, out var cached))
+            return cached;
+
+        var src = GetIcon(iconPath, currentProject);
+        var trimmed = TrimTransparentBounds(src);
+        _trimmedIconCache[normalized] = trimmed;
+        return trimmed;
+    }
+
+    private static BitmapSource TrimTransparentBounds(BitmapSource source)
+    {
+        try
+        {
+            int w = source.PixelWidth;
+            int h = source.PixelHeight;
+            if (w <= 4 || h <= 4)
+                return source;
+
+            BitmapSource bgra = source.Format == PixelFormats.Bgra32
+                ? source
+                : new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
+
+            int stride = w * 4;
+            var pixels = new byte[h * stride];
+            bgra.CopyPixels(pixels, stride, 0);
+
+            int minX = w, minY = h, maxX = -1, maxY = -1;
+            for (int y = 0; y < h; y++)
+            {
+                int row = y * stride;
+                for (int x = 0; x < w; x++)
+                {
+                    if (pixels[row + x * 4 + 3] > 16)
+                    {
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+
+            if (maxX < minX || maxY < minY)
+                return source;
+
+            int cropW = maxX - minX + 1;
+            int cropH = maxY - minY + 1;
+            if (cropW == w && cropH == h)
+                return source;
+
+            var cropped = new CroppedBitmap(source, new Int32Rect(minX, minY, cropW, cropH));
+            cropped.Freeze();
+            return cropped;
+        }
+        catch
+        {
+            return source;
+        }
+    }
+
     public void InvalidateIcon(string? iconPath)
     {
         if (string.IsNullOrWhiteSpace(iconPath))
@@ -112,6 +186,7 @@ public class BlpIconService
 
         var normalized = NormalizeIconPath(iconPath);
         _iconCache.TryRemove(normalized, out _);
+        _trimmedIconCache.TryRemove(normalized, out _);
 
         var fileName = Path.GetFileName(normalized);
         if (!string.IsNullOrEmpty(fileName))
@@ -120,6 +195,11 @@ public class BlpIconService
             {
                 if (key.EndsWith(fileName, StringComparison.OrdinalIgnoreCase))
                     _iconCache.TryRemove(key, out _);
+            }
+            foreach (var key in _trimmedIconCache.Keys)
+            {
+                if (key.EndsWith(fileName, StringComparison.OrdinalIgnoreCase))
+                    _trimmedIconCache.TryRemove(key, out _);
             }
         }
     }
@@ -164,14 +244,16 @@ public class BlpIconService
                             if (trimmed.StartsWith(@"ReplaceableTextures\CommandButtons\", StringComparison.OrdinalIgnoreCase) ||
                                 trimmed.StartsWith(@"ReplaceableTextures\PassiveButtons\", StringComparison.OrdinalIgnoreCase) ||
                                 trimmed.StartsWith(@"ReplaceableTextures\CommandButtonsDisabled\", StringComparison.OrdinalIgnoreCase) ||
-                                trimmed.StartsWith(@"ReplaceableTextures\WorldEditArt\", StringComparison.OrdinalIgnoreCase))
+                                trimmed.StartsWith(@"ReplaceableTextures\WorldEditArt\", StringComparison.OrdinalIgnoreCase) ||
+                                trimmed.StartsWith(@"UI\Widgets\Console\Human\infocard-", StringComparison.OrdinalIgnoreCase))
                             {
                                 baseIcons.Add(trimmed);
                             }
                         }
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        AppLogger.Warn("BlpIconService.GetAvailableIconPaths", "Could not read base MPQ (listfile) for icons.", ex);
                     }
                 }
                 _cachedBaseIconPaths = new List<string>(baseIcons);
@@ -228,8 +310,9 @@ public class BlpIconService
                             }
                         }
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        AppLogger.Warn("BlpIconService.GetAvailableModelPaths", "Could not read base MPQ (listfile) for models.", ex);
                     }
                 }
                 _cachedBaseModelPaths = new List<string>(baseModels);
@@ -330,8 +413,9 @@ public class BlpIconService
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
+            AppLogger.Warn("BlpIconService.TryReadCandidatesFromArchive", "Failed reading candidate asset from MPQ archive.", ex);
         }
         return null;
     }
@@ -360,8 +444,9 @@ public class BlpIconService
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                AppLogger.Warn("BlpIconService.GetOrBuildListfileMapsLocked", "Could not index archive (listfile).", ex);
             }
             result.Add((archive, map));
         }

@@ -548,10 +548,14 @@ public class JassCompilerService
             var existingWar3 = Process.GetProcessesByName("war3");
             foreach (var p in existingWar3)
             {
-                try { p.Kill(); p.WaitForExit(1000); } catch { }
+                try { p.Kill(); p.WaitForExit(1000); }
+                catch (Exception ex) { AppLogger.Warn("JassCompilerService.LaunchMapInWarcraft3", $"Could not kill existing war3.exe (PID {p.Id}).", ex); }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            AppLogger.Warn("JassCompilerService.LaunchMapInWarcraft3", "Could not enumerate existing war3 processes.", ex);
+        }
 
         // Copy saved map into <Warcraft3Dir>\Maps\Test\WorldEditTestMap.w3x (official World Editor behavior)
         // so war3.exe -loadfile loads it reliably regardless of external folder paths or long filenames.

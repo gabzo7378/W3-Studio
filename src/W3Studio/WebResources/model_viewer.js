@@ -308,12 +308,22 @@
     window.chrome.webview.postMessage({ type: 'ready' });
   }
 
-  // Render loop
+  // Render loop (pause GPU work while panel/window is hidden to avoid background DWM/GPU contention)
+  let renderRafId = 0;
   function step() {
-    requestAnimationFrame(step);
+    renderRafId = 0;
+    if (document.hidden) return;
+    renderRafId = requestAnimationFrame(step);
     viewer.updateAndRender();
   }
-  requestAnimationFrame(step);
+  function ensureRenderLoop() {
+    if (!document.hidden && !renderRafId) {
+      renderRafId = requestAnimationFrame(step);
+    }
+  }
+  document.addEventListener('visibilitychange', ensureRenderLoop);
+  window.addEventListener('focus', ensureRenderLoop);
+  ensureRenderLoop();
 
 })();
 

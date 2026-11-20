@@ -104,6 +104,61 @@ public static class ObjectEditorHelper
         return (true, string.Empty);
     }
 
+    public const string HeroStrengthIconPath = @"UI\Widgets\Console\Human\infocard-heroattributes-str.blp";
+    public const string HeroAgilityIconPath = @"UI\Widgets\Console\Human\infocard-heroattributes-agi.blp";
+    public const string HeroIntelligenceIconPath = @"UI\Widgets\Console\Human\infocard-heroattributes-int.blp";
+
+    public static string ResolveHeroPrimaryAttributeIconPath(string? primaryAttr) =>
+        (primaryAttr ?? string.Empty).Trim().ToUpperInvariant() switch
+        {
+            "STR" => HeroStrengthIconPath,
+            "AGI" => HeroAgilityIconPath,
+            "INT" => HeroIntelligenceIconPath,
+            _ => HeroStrengthIconPath
+        };
+
+    /// <summary>
+    /// Resolves the authentic Warcraft III InfoPanel icon path and localized display label for an attack type ('ua1t'/'ua2t').
+    /// Uses 'infocard-neutral-attack-*' (clean golden-framed icon without the empty upgrade-level box at bottom-right).
+    /// </summary>
+    public static (string IconPath, string Label) ResolveAttackTypeHudInfo(string? atkType)
+    {
+        var key = (atkType ?? string.Empty).Trim().ToLowerInvariant();
+        return key switch
+        {
+            "normal" or "melee" => (@"UI\Widgets\Console\Human\infocard-neutral-attack-melee.blp", LocalizationService.L("Normal", "Normal")),
+            "pierce" or "piercing" => (@"UI\Widgets\Console\Human\infocard-neutral-attack-piercing.blp", LocalizationService.L("Perforación", "Piercing")),
+            "siege" => (@"UI\Widgets\Console\Human\infocard-neutral-attack-siege.blp", LocalizationService.L("Asedio", "Siege")),
+            "magic" => (@"UI\Widgets\Console\Human\infocard-neutral-attack-magic.blp", LocalizationService.L("Mágico", "Magic")),
+            "chaos" => (@"UI\Widgets\Console\Human\infocard-neutral-attack-chaos.blp", LocalizationService.L("Caos", "Chaos")),
+            "spells" or "spell" => (@"ReplaceableTextures\CommandButtons\BTNFireBolt.blp", LocalizationService.L("Hechizos", "Spells")),
+            "hero" => (@"UI\Widgets\Console\Human\infocard-neutral-attack-hero.blp", LocalizationService.L("Héroe", "Hero")),
+            "unknown" or "none" or "" => (@"UI\Widgets\Console\Human\infocard-neutral-attack-melee.blp", LocalizationService.L("Normal", "Normal")),
+            _ => (@"UI\Widgets\Console\Human\infocard-neutral-attack-melee.blp", key)
+        };
+    }
+
+    /// <summary>
+    /// Resolves the authentic Warcraft III InfoPanel icon path and localized display label for an armor type ('udty').
+    /// Uses 'infocard-neutral-armor-*' where available (clean golden-framed icon without the upgrade-level box).
+    /// </summary>
+    public static (string IconPath, string Label) ResolveArmorTypeHudInfo(string? defType)
+    {
+        var key = (defType ?? string.Empty).Trim().ToLowerInvariant();
+        return key switch
+        {
+            "none" or "unarmored" => (@"UI\Widgets\Console\Human\infocard-neutral-armor-unarmored.blp", LocalizationService.L("Sin armadura", "Unarmored")),
+            "small" or "light" => (@"UI\Widgets\Console\Human\infocard-neutral-armor-small.blp", LocalizationService.L("Ligera", "Light")),
+            "medium" => (@"UI\Widgets\Console\Human\infocard-neutral-armor-medium.blp", LocalizationService.L("Media", "Medium")),
+            "normal" => (@"UI\Widgets\Console\Human\infocard-neutral-armor-medium.blp", LocalizationService.L("Normal", "Normal")),
+            "heavy" or "large" => (@"UI\Widgets\Console\Human\infocard-neutral-armor-large.blp", LocalizationService.L("Pesada", "Heavy")),
+            "fort" or "fortified" => (@"UI\Widgets\Console\Human\infocard-neutral-armor-fortified.blp", LocalizationService.L("Fortificada", "Fortified")),
+            "hero" => (@"UI\Widgets\Console\Human\infocard-armor-hero.blp", LocalizationService.L("Héroe", "Hero")),
+            "divine" => (@"UI\Widgets\Console\Human\infocard-armor-divine.blp", LocalizationService.L("Divina", "Divine")),
+            _ => (@"UI\Widgets\Console\Human\infocard-neutral-armor-medium.blp", string.IsNullOrEmpty(key) ? LocalizationService.L("Media", "Medium") : key)
+        };
+    }
+
     public static List<string> ComputeAutoFillLevelValues(
         double baseValue,
         double levelFactor,

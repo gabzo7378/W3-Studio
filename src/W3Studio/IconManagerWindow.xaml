@@ -51,7 +51,7 @@
         <!-- Cuerpo Principal: [Lista MPQ WC3 | Vista Previa Central | Controles Button Manager] -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="270"/>
+                <ColumnDefinition Width="320"/>
                 <ColumnDefinition Width="8"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="8"/>
@@ -65,21 +65,100 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Text="ICONOS BASE DE WARCRAFT III / MAPA" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,5"/>
-                    <TextBox Grid.Row="1" x:Name="TxtSearchIcons" Style="{StaticResource Win10TextBox}" ToolTip="Filtrar iconos (ej: Paladin, Fire, Sword, BTN...)" Margin="0,0,0,5" TextChanged="TxtSearchIcons_TextChanged"/>
-                    <TextBlock Grid.Row="2" x:Name="TxtIconsCount" Text="Cargando lista..." FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" Margin="0,0,0,4"/>
-                    <ListBox Grid.Row="3"
+
+                    <!-- Buscador + Limpiar filtros -->
+                    <DockPanel Grid.Row="1" Margin="0,0,0,5">
+                        <Button DockPanel.Dock="Right"
+                                Content="✕"
+                                Width="24"
+                                Height="22"
+                                Margin="4,0,0,0"
+                                Padding="0"
+                                Style="{StaticResource Win10ClassicButton}"
+                                ToolTip="Limpiar búsqueda y filtros"
+                                Click="BtnClearIconFilters_Click"/>
+                        <TextBox x:Name="TxtSearchIcons"
+                                 Style="{StaticResource Win10TextBox}"
+                                 ToolTip="Buscar por archivo, ruta o nombre de unidad/habilidad (ej: Paladin, Fire, Sword...)"
+                                 TextChanged="IconFilter_Changed"/>
+                    </DockPanel>
+
+                    <!-- Filtro 1: Tipo de botón / Prefijo (BTN, PAS, DIS, UI, Mapa) -->
+                    <ComboBox Grid.Row="2" x:Name="CmbIconStyle" SelectedIndex="0" FontSize="11" Margin="0,0,0,4" SelectionChanged="IconFilter_Changed" ToolTip="Filtrar por tipo de icono (por defecto oculta duplicados DIS)">
+                        <ComboBoxItem Content="Activos / Pasivos (sin DIS)" Tag="NoDis"/>
+                        <ComboBoxItem Content="Solo Activos (BTN)" Tag="Btn"/>
+                        <ComboBoxItem Content="Solo Pasivos (PAS)" Tag="Pas"/>
+                        <ComboBoxItem Content="Solo Autocast (ATC)" Tag="Atc"/>
+                        <ComboBoxItem Content="Solo Deshabilitados (DIS)" Tag="Dis"/>
+                        <ComboBoxItem Content="InfoCard / UI" Tag="Ui"/>
+                        <ComboBoxItem Content="Importados del Mapa" Tag="Imported"/>
+                        <ComboBoxItem Content="Todos (incluyendo DIS)" Tag="All"/>
+                    </ComboBox>
+
+                    <!-- Filtros 2 y 3: Raza y Categoría -->
+                    <Grid Grid.Row="3" Margin="0,0,0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="4"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <ComboBox Grid.Column="0" x:Name="CmbIconRace" SelectedIndex="0" FontSize="10.5" SelectionChanged="IconFilter_Changed" ToolTip="Filtrar por raza">
+                            <ComboBoxItem Content="Todas las razas" Tag="All"/>
+                            <ComboBoxItem Content="Humanos" Tag="Human"/>
+                            <ComboBoxItem Content="Orcos" Tag="Orc"/>
+                            <ComboBoxItem Content="Muertos Vivientes" Tag="Undead"/>
+                            <ComboBoxItem Content="Elfos Nocturnos" Tag="NightElf"/>
+                            <ComboBoxItem Content="Neutrales / Creeps" Tag="Neutral"/>
+                            <ComboBoxItem Content="Otros / Sin raza" Tag="Other"/>
+                        </ComboBox>
+
+                        <ComboBox Grid.Column="2" x:Name="CmbIconUsage" SelectedIndex="0" FontSize="10.5" SelectionChanged="IconFilter_Changed" ToolTip="Filtrar por categoría de objeto">
+                            <ComboBoxItem Content="Todas categorías" Tag="All"/>
+                            <ComboBoxItem Content="Héroes" Tag="Heroes"/>
+                            <ComboBoxItem Content="Unidades" Tag="Units"/>
+                            <ComboBoxItem Content="Edificios" Tag="Buildings"/>
+                            <ComboBoxItem Content="Habilidades / Buffs" Tag="Abilities"/>
+                            <ComboBoxItem Content="Objetos (Items)" Tag="Items"/>
+                            <ComboBoxItem Content="Mejoras (Upgrades)" Tag="Upgrades"/>
+                            <ComboBoxItem Content="Otros / UI" Tag="Other"/>
+                        </ComboBox>
+                    </Grid>
+
+                    <TextBlock Grid.Row="4" x:Name="TxtIconsCount" Text="Cargando lista..." FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" Margin="0,0,0,4"/>
+
+                    <ListBox Grid.Row="5"
                              x:Name="LstWc3Icons"
                              Background="{DynamicResource ThemeInputBg}"
                              Foreground="{DynamicResource Win10Text}"
                              BorderBrush="{DynamicResource Win10Border}"
                              BorderThickness="1"
                              FontSize="11"
-                             DisplayMemberPath="DisplayName"
-                             SelectionChanged="LstWc3Icons_SelectionChanged"/>
+                             VirtualizingStackPanel.IsVirtualizing="True"
+                             VirtualizingStackPanel.VirtualizationMode="Recycling"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             SelectionChanged="LstWc3Icons_SelectionChanged">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="1,2">
+                                    <Image DockPanel.Dock="Left" Source="{Binding PreviewBitmap}" Width="32" Height="32" Stretch="Fill" Margin="0,0,7,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                    <Border DockPanel.Dock="Right" Background="{Binding BadgeBg}" BorderBrush="#888888" BorderThickness="0.8" CornerRadius="3" Padding="4,1" VerticalAlignment="Center" Margin="4,0,0,0">
+                                        <TextBlock Text="{Binding StyleBadge}" FontSize="9.5" FontWeight="SemiBold" Foreground="{Binding BadgeFg}"/>
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="11.5" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding Subtitle}" FontSize="9.5" Foreground="{DynamicResource ThemeTextMuted}" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
                 </Grid>
             </Border>
 
@@ -104,29 +183,29 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- Icono Principal -->
+                                <!-- Icono Principal (sin bordes WPF artificiales: se muestra tal cual en el juego) -->
                                 <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                                    <TextBlock x:Name="TxtMainPreviewTitle" Text="ICONO PRINCIPAL (BTN)" Foreground="#FFCC00" FontWeight="Bold" FontSize="11" HorizontalAlignment="Center" Margin="0,0,0,6"/>
-                                    <Border BorderBrush="#8A7034" BorderThickness="1" Background="#000000" Width="132" Height="132" Padding="1">
+                                    <TextBlock x:Name="TxtMainPreviewTitle" Text="ICONO PRINCIPAL" Foreground="#FFCC00" FontWeight="Bold" FontSize="11" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                                    <Border Background="#000000" Width="128" Height="128">
                                         <Image x:Name="ImgPreviewMainBig" Width="128" Height="128" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                                     </Border>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
                                         <TextBlock Text="1:1 (64px): " Foreground="#AAAAAA" FontSize="10.5" VerticalAlignment="Center"/>
-                                        <Border BorderBrush="#555555" BorderThickness="1" Background="#000000">
+                                        <Border Background="#000000" Width="64" Height="64">
                                             <Image x:Name="ImgPreviewMain64" Width="64" Height="64" Stretch="None"/>
                                         </Border>
                                     </StackPanel>
                                 </StackPanel>
 
-                                <!-- Icono DISBTN Automático -->
+                                <!-- Icono DISBTN -->
                                 <StackPanel Grid.Column="2" HorizontalAlignment="Center" x:Name="PnlDisbtnPreview">
                                     <TextBlock x:Name="TxtDisPreviewTitle" Text="DESHABILITADO (DISBTN)" Foreground="#CCCCCC" FontWeight="Bold" FontSize="11" HorizontalAlignment="Center" Margin="0,0,0,6"/>
-                                    <Border BorderBrush="#555555" BorderThickness="1" Background="#000000" Width="132" Height="132" Padding="1">
+                                    <Border Background="#000000" Width="128" Height="128">
                                         <Image x:Name="ImgPreviewDisBig" Width="128" Height="128" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                                     </Border>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
                                         <TextBlock Text="1:1 (64px): " Foreground="#AAAAAA" FontSize="10.5" VerticalAlignment="Center"/>
-                                        <Border BorderBrush="#444444" BorderThickness="1" Background="#000000">
+                                        <Border Background="#000000" Width="64" Height="64">
                                             <Image x:Name="ImgPreviewDis64" Width="64" Height="64" Stretch="None"/>
                                         </Border>
                                     </StackPanel>
@@ -167,15 +246,15 @@
             <!-- PANEL DERECHO: OPCIONES DE BORDE, RECUADRO DE COLOR Y AJUSTES -->
             <ScrollViewer Grid.Column="4" VerticalScrollBarVisibility="Auto" Background="{DynamicResource Win10PanelBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="10">
                 <StackPanel>
-                    <!-- 1. ESTILO DE BORDE (BTN, PAS, ATC, UPG, INF, NONE) -->
+                    <!-- 1. ESTILO DE BORDE (ORIGINAL, BTN, PAS, ATC, UPG, INF) -->
                     <TextBlock Text="1. ESTILO DE BOTÓN (BUTTON MANAGER)" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource ThemeAccentText}" Margin="0,0,0,6"/>
                     <UniformGrid Columns="3" Margin="0,0,0,6">
-                        <RadioButton x:Name="RbBorderBtn" Content="BTN (Activo)" GroupName="BorderPreset" IsChecked="True" Tag="Btn" Margin="2" Checked="BorderPreset_Changed"/>
+                        <RadioButton x:Name="RbBorderNone" Content="Original (Juego)" GroupName="BorderPreset" IsChecked="True" Tag="None" Margin="2" ToolTip="Muestra y conserva el icono tal cual está en Warcraft III sin agregar ni recortar bordes" Checked="BorderPreset_Changed"/>
+                        <RadioButton x:Name="RbBorderBtn" Content="BTN (Activo)" GroupName="BorderPreset" Tag="Btn" Margin="2" Checked="BorderPreset_Changed"/>
                         <RadioButton x:Name="RbBorderPas" Content="PAS (Pasivo)" GroupName="BorderPreset" Tag="Pas" Margin="2" Checked="BorderPreset_Changed"/>
                         <RadioButton x:Name="RbBorderAtc" Content="ATC (Autocast)" GroupName="BorderPreset" Tag="Atc" Margin="2" Checked="BorderPreset_Changed"/>
                         <RadioButton x:Name="RbBorderUpg" Content="UPG (Mejora)" GroupName="BorderPreset" Tag="Upg" Margin="2" Checked="BorderPreset_Changed"/>
                         <RadioButton x:Name="RbBorderInf" Content="INF (InfoCard)" GroupName="BorderPreset" Tag="Inf" Margin="2" Checked="BorderPreset_Changed"/>
-                        <RadioButton x:Name="RbBorderNone" Content="Sin Borde" GroupName="BorderPreset" Tag="None" Margin="2" Checked="BorderPreset_Changed"/>
                     </UniformGrid>
                     <CheckBox x:Name="ChkStripOldBorder"
                               Content="Recortar borde original (para convertir iconos BTN de WC3)"
