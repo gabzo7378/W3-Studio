@@ -57,6 +57,8 @@
     active: false,
     size: 2,
     isSquare: false,
+    shape: 'circle', // 'circle' | 'square' | 'diamond'
+    mode: 'terrain', // 'terrain' | 'pathing' | 'eyedropper'
     hoverWx: null,
     hoverWy: null,
     lastDabTime: 0,
@@ -931,26 +933,40 @@
       drawWorldRing(editorState.hoverWx, editorState.hoverWy, hz, 64 * pScale, ghostColor, 2, pAngle, vp);
     }
 
-    // 3. Terrain Brush circle / square
+    // 3. Terrain / Pathing Brush (circle / square / diamond) + Affected Vertices + Cursor HUD
     if (!brushState.active || brushState.hoverWx === null || brushState.hoverWy === null) return;
 
     let r = getBrushWorldRadius();
     let wx0 = brushState.hoverWx;
     let wy0 = brushState.hoverWy;
+    let brushShape = brushState.shape || (brushState.isSquare ? 'square' : 'circle');
+    let isPathingBrush = brushState.mode === 'pathing';
+    let isEyedropper = brushState.mode === 'eyedropper';
 
     overlayCtx.save();
-    overlayCtx.strokeStyle = cameraState.isPainting ? '#44FF66' : '#00E54C';
+    overlayCtx.strokeStyle = isEyedropper
+      ? '#FFD84D'
+      : (isPathingBrush
+        ? (cameraState.isPainting ? '#FF944D' : '#FFB03B')
+        : (cameraState.isPainting ? '#44FF66' : '#00E54C'));
     overlayCtx.lineWidth = 2;
     overlayCtx.beginPath();
 
     let pts = [];
-    if (brushState.isSquare) {
-      let corners = [
-        [wx0 - r, wy0 - r],
-        [wx0 + r, wy0 - r],
-        [wx0 + r, wy0 + r],
-        [wx0 - r, wy0 + r]
-      ];
+    if (brushShape === 'square' || brushShape === 'diamond') {
+      let corners = brushShape === 'diamond'
+        ? [
+            [wx0, wy0 - r],
+            [wx0 + r, wy0],
+            [wx0, wy0 + r],
+            [wx0 - r, wy0]
+          ]
+        : [
+            [wx0 - r, wy0 - r],
+            [wx0 + r, wy0 - r],
+            [wx0 + r, wy0 + r],
+            [wx0 - r, wy0 + r]
+          ];
       let sub = 6;
       for (let e = 0; e < 4; e++) {
         let cA = corners[e];
@@ -985,6 +1001,68 @@
     if (started) {
       overlayCtx.closePath();
       overlayCtx.stroke();
+    }
+
+    // Draw affected terrain vertex dots (or center dot if large) like HiveWE vk_brush_overlay
+    if (viewer && viewer.map && viewer.map.centerOffset && viewer.map.mapSize) {
+      let ox = viewer.map.centerOffset[0];
+      let oy = viewer.map.centerOffset[1];
+      let mapCols = viewer.map.mapSize[0];
+      let mapRows = viewer.map.mapSize[1];
+      let radiusCells = r / 128;
+      let fcx = (wx0 - ox) / 128;
+      let fcy = (wy0 - oy) / 128;
+      let step = radiusCells > 6 ? 2 : 1;
+      let minGx = Math.max(0, Math.floor(fcx - radiusCells));
+      let maxGx = Math.min(mapCols - 1, Math.ceil(fcx + radiusCells));
+      let minGy = Math.max(0, Math.floor(fcy - radiusCells));
+      let maxGy = Math.min(mapRows - 1, Math.ceil(fcy + radiusCells));
+
+      overlayCtx.fillStyle = isPathingBrush ? 'rgba(255, 176, 59, 0.72)' : 'rgba(68, 255, 130, 0.72)';
+      for (let gy = minGy; gy <= maxGy; gy += step) {
+        for (let gx = minGx; gx <= maxGx; gx += step) {
+          let dx = gx - fcx;
+          let dy = gy - fcy;
+          let d = brushShape === 'square'
+            ? Math.max(Math.abs(dx), Math.abs(dy))
+            : (brushShape === 'diamond' ? Math.abs(dx) + Math.abs(dy) : Math.hypot(dx, dy));
+          if (d > radiusCells) continue;
+          let vx = ox + gx * 128;
+          let vy = oy + gy * 128;
+          let vz = (hasHeight ? viewer.map.heightAt(vx, vy) : 0) + 8;
+          let vsp = projectWorld(vx, vy, vz, vp);
+          if (vsp) {
+            overlayCtx.fillRect(vsp[0] - 2, vsp[1] - 2, 4, 4);
+          }
+        }
+      }
+
+      // Compact terrain HUD badge near cursor
+      let cGx = Math.max(0, Math.min(mapCols - 1, Math.round(fcx)));
+      let cGy = Math.max(0, Math.min(mapRows - 1, Math.round(fcy)));
+      let corner = viewer.map.corners && viewer.map.corners[cGy] && viewer.map.corners[cGy][cGx];
+      let centerZ = hasHeight ? viewer.map.heightAt(wx0, wy0) : 0;
+      let centerSp = projectWorld(wx0, wy0, centerZ + 18, vp);
+      if (corner && centerSp) {
+        let tags = [];
+        if (corner.water) tags.push('Agua');
+        if (corner.blight) tags.push('Plaga');
+        if (corner.ramp) tags.push('Rampa');
+        if (corner.boundary) tags.push('Borde');
+        let tagStr = tags.length > 0 ? ' [' + tags.join(',') + ']' : '';
+        let hudText = `Z:${Math.round(centerZ)}  Nvl:${corner.layerHeight ?? 2}${tagStr}`;
+        overlayCtx.font = '600 11px Segoe UI, sans-serif';
+        let tw = overlayCtx.measureText(hudText).width + 12;
+        let bx = Math.round(centerSp[0] + 14);
+        let by = Math.round(centerSp[1] - 24);
+        overlayCtx.fillStyle = 'rgba(14, 18, 26, 0.80)';
+        overlayCtx.fillRect(bx, by, tw, 19);
+        overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+        overlayCtx.lineWidth = 1;
+        overlayCtx.strokeRect(bx, by, tw, 19);
+        overlayCtx.fillStyle = '#F0F6FC';
+        overlayCtx.fillText(hudText, bx + 6, by + 13);
+      }
     }
     overlayCtx.restore();
   }
@@ -1166,7 +1244,16 @@
 
     if (e.button !== 0) return;
 
-    // Terrain Paint Mode (hold Ctrl/Alt to orbit freely)
+    // Terrain Eyedropper (Alt+Click or Eyedropper mode)
+    if (brushState.active && !e.ctrlKey && (e.altKey || brushState.mode === 'eyedropper')) {
+      let hit = raycastTerrain(e.clientX, e.clientY);
+      if (hit) {
+        postMsg({ type: 'terrain_eyedropper_pick', wx: hit[0], wy: hit[1] });
+      }
+      return;
+    }
+
+    // Terrain Paint Mode (hold Ctrl to rotate/orbit freely)
     if (brushState.active && !e.ctrlKey && !e.altKey) {
       let hit = raycastTerrain(e.clientX, e.clientY);
       if (hit) {
@@ -1876,6 +1963,10 @@
         brushState.active = !!data.active;
         brushState.size = typeof data.size === 'number' ? data.size : 2;
         brushState.isSquare = !!data.isSquare;
+        brushState.shape = typeof data.shape === 'string' && data.shape
+          ? data.shape
+          : (brushState.isSquare ? 'square' : 'circle');
+        brushState.mode = typeof data.brushMode === 'string' && data.brushMode ? data.brushMode : 'terrain';
         if (brushState.active) {
           editorState.mode = 'terrain';
           editorState.placeSpec = null;
@@ -2063,6 +2154,27 @@
           brushState.reloadQueue = brushState.reloadQueue
             .then(() => viewer.map && viewer.map.reloadW3eTerrain(bytes.buffer))
             .catch((err) => console.error('Error recargando w3e:', err));
+        }
+      } else if (data.action === 'patch_wpm_subcells' && data.base64) {
+        if (viewer && viewer.map && viewer.map._w3sPathing && viewer.map._w3sPathing.cells) {
+          const wpm = viewer.map._w3sPathing;
+          const binStr = atob(data.base64);
+          const minSx = data.minSx | 0;
+          const minSy = data.minSy | 0;
+          const subW = data.subW | 0;
+          const subH = data.subH | 0;
+          for (let row = 0; row < subH; row++) {
+            const sy = minSy + row;
+            if (sy < 0 || sy >= wpm.height) continue;
+            for (let col = 0; col < subW; col++) {
+              const sx = minSx + col;
+              if (sx < 0 || sx >= wpm.width) continue;
+              const srcIdx = row * subW + col;
+              if (srcIdx < binStr.length) {
+                wpm.cells[sy * wpm.width + sx] = binStr.charCodeAt(srcIdx);
+              }
+            }
+          }
         }
       }
     });

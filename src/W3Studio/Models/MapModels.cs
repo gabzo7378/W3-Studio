@@ -426,6 +426,14 @@ public class TriggerNode : ObservableObject
             "DestroyLastCreatedEffect" => "call DestroyEffect(GetLastCreatedEffectBJ())",
             "PlaySound" => $"call PlaySoundBJ(gg_snd_{GetParam("SoundName", "Sound")})",
             "SetVariable" => $"set {GetParam("VarName", "udg_MyVar")} = {GetParam("Value", "0")}",
+            "MeleeStartingVisibility" => "call MeleeStartingVisibility()",
+            "MeleeStartingHeroLimit" => "call MeleeStartingHeroLimit()",
+            "MeleeGrantHeroItems" => "call MeleeGrantHeroItems()",
+            "MeleeStartingResources" => "call MeleeStartingResources()",
+            "MeleeClearExcessUnits" => "call MeleeClearExcessUnits()",
+            "MeleeStartingUnits" => "call MeleeStartingUnits()",
+            "MeleeStartingAI" => "call MeleeStartingAI()",
+            "MeleeInitVictoryDefeat" => "call MeleeInitVictoryDefeat()",
             "CustomScript" => $"{GetParam("Code", "// Custom Script")}",
             _ => "call DoNothing()"
         };
@@ -682,6 +690,7 @@ public class W3TerrainData
     public bool[,]? BoundaryFlags { get; set; }
     public byte[]? RawW3eBytes { get; set; }
     public byte[]? InitialWpmBytes { get; set; }
+    public Dictionary<int, byte> ManualPathingOverrides { get; } = new();
 
     public byte[]? MinimapTgaBytes { get; set; }
 
@@ -1178,6 +1187,8 @@ public class MapProject : ObservableObject
     public bool HasUnitDoodadEdits { get; set; }
     public bool HasRegionEdits { get; set; }
     public bool HasCameraEdits { get; set; }
+    public bool HasObjectEdits { get; set; }
+    public bool HasTriggerStructureEdits { get; set; }
 
     public List<InitialEntityPathingSnapshot> InitialPathingFootprints { get; } = new();
 
@@ -1189,6 +1200,8 @@ public class MapProject : ObservableObject
         HasUnitDoodadEdits ||
         HasRegionEdits ||
         HasCameraEdits ||
+        HasObjectEdits ||
+        HasTriggerStructureEdits ||
         Objects.Any(o => o.IsModified) ||
         AllTriggerNodes.Any(t => t.IsModified) ||
         Imports.Any(i => i.IsPendingWrite || i.IsDeleted);

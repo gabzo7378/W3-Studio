@@ -50,12 +50,26 @@ public partial class EditTriggerEventDialog : Window
         if (string.IsNullOrEmpty(ResultElement.FunctionName))
             return;
 
+        bool matched = false;
         foreach (ComboBoxItem item in CboEventType.Items)
         {
             if (string.Equals(item.Tag?.ToString(), ResultElement.FunctionName, StringComparison.OrdinalIgnoreCase))
             {
                 CboEventType.SelectedItem = item;
+                matched = true;
                 break;
+            }
+        }
+
+        if (!matched)
+        {
+            foreach (ComboBoxItem item in CboEventType.Items)
+            {
+                if (string.Equals(item.Tag?.ToString(), "CustomEventScript", StringComparison.OrdinalIgnoreCase))
+                {
+                    CboEventType.SelectedItem = item;
+                    break;
+                }
             }
         }
 
@@ -88,6 +102,8 @@ public partial class EditTriggerEventDialog : Window
 
         if (p.TryGetValue("Code", out var code))
             TxtCustomEventCode.Text = code;
+        else if (p.TryGetValue("RawJass", out var rawJass))
+            TxtCustomEventCode.Text = rawJass;
     }
 
     private void CboEventType_SelectionChanged(object sender, SelectionChangedEventArgs e)

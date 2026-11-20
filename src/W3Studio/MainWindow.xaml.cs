@@ -37,6 +37,8 @@ public partial class MainWindow : Window
     private readonly TerrainStrokeState _terrainStroke = new();
     private readonly EditorUndoService _undoService = new();
     private byte[]? _terrainStrokeSnapshot;
+    private Dictionary<int, byte>? _pathingStrokeSnapshot;
+    private (int MinSx, int MinSy, int MaxSx, int MaxSy)? _pathingStrokeBounds;
     private readonly List<Button> _terrainTextureButtons = new();
     private readonly JassIdeAttachment _mainCodeIde;
     private bool _suppressTerrainUiEvents;
@@ -62,6 +64,7 @@ public partial class MainWindow : Window
         Map3DViewport.SetContext(_blpIconService, null);
         Map3DViewport.TerrainBrushDabReceived += Map3DViewport_TerrainBrushDabReceived;
         Map3DViewport.TerrainBrushStrokeEnded += CommitTerrainStrokeUndo;
+        Map3DViewport.TerrainEyedropperPicked += Map3DViewport_TerrainEyedropperPicked;
         Map3DViewport.MapLoadedSuccess += () =>
         {
             SyncTerrainBrushToViewport();
@@ -77,6 +80,7 @@ public partial class MainWindow : Window
         EmbeddedObjectEditor.InitializeServices(_baseDataService, _blpIconService);
         EmbeddedObjectEditor.RequestOpenStandaloneWindow += OpenStandaloneObjectEditorWindow;
         EmbeddedObjectEditor.RequestOpenIconManager += OpenOrFocusIconManagerWindow;
+        EmbeddedObjectEditor.ObjectDataChanged += OnObjectEditorDataChanged;
 
         Loaded += MainWindow_Loaded;
         Closing += MainWindow_Closing;
@@ -380,6 +384,7 @@ public partial class MainWindow : Window
                 Owner = this
             };
             _standaloneObjectEditorWindow.RequestOpenIconManager += OpenOrFocusIconManagerWindow;
+            _standaloneObjectEditorWindow.ObjectDataChanged += OnObjectEditorDataChanged;
             _standaloneObjectEditorWindow.Closed += (_, _) => _standaloneObjectEditorWindow = null;
             _standaloneObjectEditorWindow.Show();
         }
@@ -443,6 +448,13 @@ public partial class MainWindow : Window
     private void OpenStandaloneObjectEditorWindow()
     {
         OpenOrFocusObjectEditorWindow();
+    }
+
+    private void OnObjectEditorDataChanged(W3ObjectEntry? _)
+    {
+        Sync3DPathingMetadata();
+        RefreshToolPaletteList();
+        UpdateTestButtonState();
     }
 
     private void BtnOpenIconManager_Click(object sender, RoutedEventArgs e)
@@ -884,6 +896,8 @@ public partial class MainWindow : Window
 
         LstToolPalette.Visibility = isTerrainMode ? Visibility.Collapsed : Visibility.Visible;
         PnlTerrainPalette.Visibility = isTerrainMode ? Visibility.Visible : Visibility.Collapsed;
+        if (PnlTerrainSizeShape != null)
+            PnlTerrainSizeShape.Visibility = isTerrainMode ? Visibility.Visible : Visibility.Collapsed;
         if (PnlUnitDoodadModeControls != null)
             PnlUnitDoodadModeControls.Visibility = showEntityModeControls ? Visibility.Visible : Visibility.Collapsed;
         if (PnlRegionPaletteControls != null)
@@ -900,6 +914,7 @@ public partial class MainWindow : Window
         if (isTerrainMode)
         {
             PopulateTerrainTextureSwatches();
+            PopulateTerrainCliffSelector();
             SyncTerrainBrushToViewport();
             return;
         }
@@ -1134,20 +1149,133 @@ public partial class MainWindow : Window
         SyncTerrainBrushToViewport();
     }
 
+    private void PopulateTerrainCliffSelector()
+    {
+        if (CmbTerrainCliffType == null) return;
+        _suppressTerrainUiEvents = true;
+        CmbTerrainCliffType.Items.Clear();
+        CmbTerrainCliffType.Items.Add(new ComboBoxItem { Content = "Cliff: Auto (Existente)", Tag = -1 });
+
+        if (_currentProject?.Terrain?.CliffTiles != null)
+        {
+            var cliffDefs = TerrainOperationsService.GetCliffTileCatalog(_baseDataService)
+                .GroupBy(c => c.CliffId, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First().DisplayName, StringComparer.OrdinalIgnoreCase);
+
+            for (int i = 0; i < _currentProject.Terrain.CliffTiles.Count; i++)
+            {
+                string code = _currentProject.Terrain.CliffTiles[i];
+                string name = cliffDefs.TryGetValue(code, out var n) ? n : code;
+                CmbTerrainCliffType.Items.Add(new ComboBoxItem { Content = $"[{code}] {name}", Tag = i });
+            }
+        }
+
+        int sel = 0;
+        for (int i = 0; i < CmbTerrainCliffType.Items.Count; i++)
+        {
+            if (CmbTerrainCliffType.Items[i] is ComboBoxItem cbi && cbi.Tag is int idx && idx == _terrainBrush.CliffTileIndex)
+            {
+                sel = i;
+                break;
+            }
+        }
+        CmbTerrainCliffType.SelectedIndex = sel;
+        if (sel == 0) _terrainBrush.CliffTileIndex = -1;
+        _suppressTerrainUiEvents = false;
+    }
+
+    private void CmbTerrainCliffType_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressTerrainUiEvents) return;
+        _terrainBrush.CliffTileIndex = CmbTerrainCliffType.SelectedItem is ComboBoxItem cbi && cbi.Tag is int idx ? idx : -1;
+        SyncTerrainBrushToViewport();
+    }
+
+    private void SldHeightStrength_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        _terrainBrush.HeightStrength = (float)Math.Clamp(e.NewValue, 0.25, 2.5);
+        if (TxtHeightStrengthLabel != null)
+            TxtHeightStrengthLabel.Text = $"Fuerza: {_terrainBrush.HeightStrength:0.##}x";
+    }
+
+    private void BtnBoundaryTool_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleButton clicked || clicked.Tag is not string tag) return;
+        bool isCheckedNow = clicked.IsChecked == true;
+        _suppressTerrainUiEvents = true;
+        foreach (var b in new[] { BtnBoundaryAdd, BtnBoundaryRemove })
+        {
+            if (b != null && !ReferenceEquals(b, clicked))
+                b.IsChecked = false;
+        }
+        _terrainBrush.BoundaryTool = isCheckedNow && Enum.TryParse<TerrainBoundaryTool>(tag, out var parsed)
+            ? parsed
+            : TerrainBoundaryTool.None;
+        if (isCheckedNow && BtnTerrainEyedropper != null)
+            BtnTerrainEyedropper.IsChecked = false;
+        _suppressTerrainUiEvents = false;
+        SyncTerrainBrushToViewport();
+    }
+
+    private void BtnPathingTool_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleButton clicked || clicked.Tag is not string tag) return;
+        bool isCheckedNow = clicked.IsChecked == true;
+        _suppressTerrainUiEvents = true;
+        ToggleButton?[] pathBtns = { BtnPathWalk, BtnPathBuild, BtnPathFly, BtnPathWalkBuild, BtnPathAll, BtnPathErase };
+        foreach (var b in pathBtns)
+        {
+            if (b != null && !ReferenceEquals(b, clicked))
+                b.IsChecked = false;
+        }
+        _terrainBrush.PathingTool = isCheckedNow && Enum.TryParse<TerrainPathingTool>(tag, out var parsed)
+            ? parsed
+            : TerrainPathingTool.None;
+        if (isCheckedNow)
+        {
+            if (BtnTerrainEyedropper != null) BtnTerrainEyedropper.IsChecked = false;
+            if (ChkShowPathing != null && ChkShowPathing.IsChecked != true)
+                ChkShowPathing.IsChecked = true;
+        }
+        _suppressTerrainUiEvents = false;
+        SyncTerrainBrushToViewport();
+    }
+
+    private void BtnTerrainEyedropper_Click(object sender, RoutedEventArgs e)
+    {
+        SyncTerrainBrushToViewport();
+    }
+
+    private void SldBrushSize_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_suppressTerrainUiEvents) return;
+        ApplyBrushSizeValue((int)Math.Round(e.NewValue));
+    }
+
     private void BtnBrushSize_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button clicked || clicked.Tag is not string tag || !int.TryParse(tag, out int size))
             return;
+        ApplyBrushSizeValue(size);
+    }
 
+    private void ApplyBrushSizeValue(int size)
+    {
+        size = Math.Clamp(size, 1, 16);
         _terrainBrush.BrushSize = size;
         if (TxtBrushSizeLabel != null)
             TxtBrushSizeLabel.Text = $"Size: {size}";
 
-        Button?[] allSizeBtns = { BtnSize1, BtnSize2, BtnSize3, BtnSize5, BtnSize8 };
+        _suppressTerrainUiEvents = true;
+        if (SldBrushSize != null && Math.Abs(SldBrushSize.Value - size) > 0.1)
+            SldBrushSize.Value = size;
+        _suppressTerrainUiEvents = false;
+
+        Button?[] allSizeBtns = { BtnSize1, BtnSize2, BtnSize3, BtnSize5, BtnSize8, BtnSize12 };
         foreach (var b in allSizeBtns)
         {
             if (b == null) continue;
-            bool active = b.Tag is string t && t == tag;
+            bool active = b.Tag is string t && int.TryParse(t, out int bs) && bs == size;
             b.SetResourceReference(Control.BackgroundProperty, active ? "ThemeSelectedBg" : "ThemeButtonBg");
             b.SetResourceReference(Control.ForegroundProperty, active ? "ThemeSelectedText" : "Win10Text");
             b.SetResourceReference(Control.BorderBrushProperty, active ? "Win10Accent" : "Win10Border");
@@ -1160,11 +1288,16 @@ public partial class MainWindow : Window
         if (sender is not Button clicked || clicked.Tag is not string tag)
             return;
 
-        _terrainBrush.Shape = tag == "Square" ? TerrainBrushShape.Square : TerrainBrushShape.Circle;
+        _terrainBrush.Shape = tag switch
+        {
+            "Square" => TerrainBrushShape.Square,
+            "Diamond" => TerrainBrushShape.Diamond,
+            _ => TerrainBrushShape.Circle
+        };
         if (TxtBrushShapeLabel != null)
-            TxtBrushShapeLabel.Text = $"Shape: {(_terrainBrush.Shape == TerrainBrushShape.Square ? "Square" : "Circle")}";
+            TxtBrushShapeLabel.Text = $"Shape: {_terrainBrush.Shape}";
 
-        Button?[] allShapeBtns = { BtnShapeCircle, BtnShapeSquare };
+        Button?[] allShapeBtns = { BtnShapeCircle, BtnShapeSquare, BtnShapeDiamond };
         foreach (var b in allShapeBtns)
         {
             if (b == null) continue;
@@ -1190,18 +1323,36 @@ public partial class MainWindow : Window
         if (!_terrainBrush.ApplyHeight && ChkApplyHeight != null)
             ChkApplyHeight.Content = "Apply Height: NONE";
 
-        bool hasTool =
+        bool eyedropper = BtnTerrainEyedropper?.IsChecked == true;
+        bool hasTerrainTool =
             _terrainBrush.ApplyTexture ||
             _terrainBrush.ApplyBlight ||
+            _terrainBrush.BoundaryTool != TerrainBoundaryTool.None ||
             (_terrainBrush.ApplyCliff && _terrainBrush.CliffTool != TerrainCliffTool.None) ||
             (_terrainBrush.ApplyHeight && _terrainBrush.HeightTool != TerrainHeightTool.None);
+        bool hasPathingTool = _terrainBrush.PathingTool != TerrainPathingTool.None;
 
         bool active = CmbPaletteMode.SelectedIndex == 3
             && _currentProject != null
             && (FloatingToolPalette?.Visibility == Visibility.Visible)
-            && hasTool;
+            && (hasTerrainTool || hasPathingTool || eyedropper);
 
-        Map3DViewport.SetTerrainBrush(active, _terrainBrush.BrushSize, _terrainBrush.Shape == TerrainBrushShape.Square);
+        string shapeStr = _terrainBrush.Shape switch
+        {
+            TerrainBrushShape.Square => "square",
+            TerrainBrushShape.Diamond => "diamond",
+            _ => "circle"
+        };
+        string brushModeStr = eyedropper
+            ? "eyedropper"
+            : (hasPathingTool ? "pathing" : "terrain");
+
+        Map3DViewport.SetTerrainBrush(
+            active,
+            _terrainBrush.BrushSize,
+            _terrainBrush.Shape == TerrainBrushShape.Square,
+            shapeStr,
+            brushModeStr);
     }
 
     private void DisableAllTerrainBrushTools()
@@ -1211,12 +1362,21 @@ public partial class MainWindow : Window
         if (ChkApplyBlight != null) ChkApplyBlight.IsChecked = false;
         if (ChkApplyCliff != null) { ChkApplyCliff.IsChecked = false; ChkApplyCliff.Content = "Apply Cliff: NONE"; }
         if (ChkApplyHeight != null) { ChkApplyHeight.IsChecked = false; ChkApplyHeight.Content = "Apply Height: NONE"; }
-        foreach (var b in new[] { BtnCliffDec, BtnCliffSame, BtnCliffInc, BtnCliffWater, BtnCliffRamp, BtnHeightRaise, BtnHeightLower, BtnHeightPlateau, BtnHeightNoise, BtnHeightSmooth })
+        if (BtnTerrainEyedropper != null) BtnTerrainEyedropper.IsChecked = false;
+        foreach (var b in new[]
+        {
+            BtnCliffDec, BtnCliffSame, BtnCliffInc, BtnCliffWater, BtnCliffRamp,
+            BtnHeightRaise, BtnHeightLower, BtnHeightPlateau, BtnHeightNoise, BtnHeightSmooth,
+            BtnBoundaryAdd, BtnBoundaryRemove,
+            BtnPathWalk, BtnPathBuild, BtnPathFly, BtnPathWalkBuild, BtnPathAll, BtnPathErase
+        })
         {
             if (b != null) b.IsChecked = false;
         }
         _terrainBrush.CliffTool = TerrainCliffTool.None;
         _terrainBrush.HeightTool = TerrainHeightTool.None;
+        _terrainBrush.BoundaryTool = TerrainBoundaryTool.None;
+        _terrainBrush.PathingTool = TerrainPathingTool.None;
         _suppressTerrainUiEvents = false;
         SyncTerrainBrushToViewport();
     }
@@ -1225,34 +1385,243 @@ public partial class MainWindow : Window
     {
         if (_currentProject?.Terrain?.RawW3eBytes == null) return;
 
-        if (isStrokeStart || _terrainStrokeSnapshot == null)
+        bool hasTerrainTool =
+            _terrainBrush.ApplyTexture ||
+            _terrainBrush.ApplyBlight ||
+            _terrainBrush.BoundaryTool != TerrainBoundaryTool.None ||
+            (_terrainBrush.ApplyCliff && _terrainBrush.CliffTool != TerrainCliffTool.None) ||
+            (_terrainBrush.ApplyHeight && _terrainBrush.HeightTool != TerrainHeightTool.None);
+
+        bool hasPathingTool = _terrainBrush.PathingTool != TerrainPathingTool.None;
+
+        if (hasTerrainTool && (isStrokeStart || _terrainStrokeSnapshot == null))
         {
             CommitTerrainStrokeUndo();
             _terrainStrokeSnapshot = (byte[])_currentProject.Terrain.RawW3eBytes.Clone();
         }
 
-        var dab = TerrainBrushService.ApplyDabDetailed(_currentProject, wx, wy, _terrainBrush, isStrokeStart, _terrainStroke);
-        if (!dab.Modified) return;
+        if (hasPathingTool && (isStrokeStart || _pathingStrokeSnapshot == null))
+        {
+            if (!hasTerrainTool)
+                CommitTerrainStrokeUndo();
+            _pathingStrokeSnapshot = new Dictionary<int, byte>(_currentProject.Terrain.ManualPathingOverrides);
+            _pathingStrokeBounds = null;
+        }
 
-        MapViewport.MarkViewportDirty();
-        UpdateTestButtonState();
-        await Map3DViewport.PatchW3eCornersAsync(dab);
+        if (hasTerrainTool)
+        {
+            var dab = TerrainBrushService.ApplyDabDetailed(_currentProject, wx, wy, _terrainBrush, isStrokeStart, _terrainStroke);
+            if (dab.Modified)
+            {
+                MapViewport.MarkViewportDirty();
+                UpdateTestButtonState();
+                await Map3DViewport.PatchW3eCornersAsync(dab);
+            }
+        }
+
+        if (hasPathingTool)
+        {
+            var pdab = PathingService.ApplyPathingBrushDab(_currentProject, _baseDataService, _blpIconService, wx, wy, _terrainBrush);
+            if (pdab.Modified)
+            {
+                _pathingStrokeBounds = _pathingStrokeBounds.HasValue
+                    ? (Math.Min(_pathingStrokeBounds.Value.MinSx, pdab.MinSx),
+                       Math.Min(_pathingStrokeBounds.Value.MinSy, pdab.MinSy),
+                       Math.Max(_pathingStrokeBounds.Value.MaxSx, pdab.MaxSx),
+                       Math.Max(_pathingStrokeBounds.Value.MaxSy, pdab.MaxSy))
+                    : (pdab.MinSx, pdab.MinSy, pdab.MaxSx, pdab.MaxSy);
+                MapViewport.MarkViewportDirty();
+                UpdateTestButtonState();
+                Map3DViewport.PatchWpmSubcells(pdab);
+            }
+        }
     }
 
     private void CommitTerrainStrokeUndo()
     {
-        if (_currentProject == null || _terrainStrokeSnapshot == null)
+        if (_currentProject == null)
             return;
 
-        var snapshot = _terrainStrokeSnapshot;
-        _terrainStrokeSnapshot = null;
-        var edit = TerrainStrokeUndoEdit.TryCreateFromSnapshots(
-            "Edición de Terreno",
-            _currentProject,
-            snapshot,
-            ApplyTerrainUndoPatchAsync);
-        if (edit != null)
-            _undoService.Record(edit);
+        if (_terrainStrokeSnapshot != null)
+        {
+            var snapshot = _terrainStrokeSnapshot;
+            _terrainStrokeSnapshot = null;
+            var edit = TerrainStrokeUndoEdit.TryCreateFromSnapshots(
+                "Edición de Terreno",
+                _currentProject,
+                snapshot,
+                ApplyTerrainUndoPatchAsync);
+            if (edit != null)
+                _undoService.Record(edit);
+        }
+
+        if (_pathingStrokeSnapshot != null && _pathingStrokeBounds.HasValue)
+        {
+            var beforeOverrides = _pathingStrokeSnapshot;
+            var afterOverrides = new Dictionary<int, byte>(_currentProject.Terrain.ManualPathingOverrides);
+            var bounds = _pathingStrokeBounds.Value;
+            _pathingStrokeSnapshot = null;
+            _pathingStrokeBounds = null;
+
+            _undoService.Record(new DelegateUndoEdit(
+                "Pincel de Pathing (WPM)",
+                () => RestoreManualPathingOverridesAndSync(beforeOverrides, bounds),
+                () => RestoreManualPathingOverridesAndSync(afterOverrides, bounds)));
+        }
+        else
+        {
+            _pathingStrokeSnapshot = null;
+            _pathingStrokeBounds = null;
+        }
+    }
+
+    private void RestoreManualPathingOverridesAndSync(
+        Dictionary<int, byte> targetOverrides,
+        (int MinSx, int MinSy, int MaxSx, int MaxSy) bounds)
+    {
+        if (_currentProject?.Terrain == null) return;
+        _currentProject.Terrain.ManualPathingOverrides.Clear();
+        foreach (var kvp in targetOverrides)
+            _currentProject.Terrain.ManualPathingOverrides[kvp.Key] = kvp.Value;
+
+        var wpm = PathingService.BuildUpdatedWpmBytes(_currentProject, _baseDataService, _blpIconService);
+        _currentProject.RawMpqFiles["war3map.wpm"] = wpm;
+        _currentProject.HasUnitDoodadEdits = true;
+
+        int pw = Math.Max(1, _currentProject.Terrain.GridWidth - 1) * 4;
+        int ph = Math.Max(1, _currentProject.Terrain.GridHeight - 1) * 4;
+        int minSx = Math.Clamp(bounds.MinSx, 0, pw - 1);
+        int maxSx = Math.Clamp(bounds.MaxSx, 0, pw - 1);
+        int minSy = Math.Clamp(bounds.MinSy, 0, ph - 1);
+        int maxSy = Math.Clamp(bounds.MaxSy, 0, ph - 1);
+        int subW = Math.Max(1, maxSx - minSx + 1);
+        int subH = Math.Max(1, maxSy - minSy + 1);
+        var rect = new byte[subW * subH];
+        for (int row = 0; row < subH; row++)
+            Buffer.BlockCopy(wpm, 16 + (minSy + row) * pw + minSx, rect, row * subW, subW);
+
+        Map3DViewport.PatchWpmSubcells(new PathingBrushDabResult(true, minSx, minSy, maxSx, maxSy, subW, subH, rect));
+        UpdateTestButtonState();
+    }
+
+    private void Map3DViewport_TerrainEyedropperPicked(float wx, float wy)
+    {
+        if (_currentProject == null) return;
+        var info = TerrainBrushService.InspectCorner(_currentProject, wx, wy);
+        if (info == null) return;
+
+        _suppressTerrainUiEvents = true;
+        if (info.TextureIndex >= 0 && info.TextureIndex < _currentProject.Terrain.GroundTiles.Count)
+        {
+            _terrainBrush.TextureIndex = info.TextureIndex;
+            if (ChkApplyTexture != null) ChkApplyTexture.IsChecked = true;
+            UpdateTerrainTextureSwatchHighlights();
+        }
+        if (ChkApplyBlight != null)
+            ChkApplyBlight.IsChecked = info.HasBlight;
+
+        if (CmbTerrainCliffType != null)
+        {
+            for (int i = 0; i < CmbTerrainCliffType.Items.Count; i++)
+            {
+                if (CmbTerrainCliffType.Items[i] is ComboBoxItem cbi && cbi.Tag is int idx && idx == info.CliffTileIndex)
+                {
+                    CmbTerrainCliffType.SelectedIndex = i;
+                    _terrainBrush.CliffTileIndex = idx;
+                    break;
+                }
+            }
+        }
+        if (BtnTerrainEyedropper != null && BtnTerrainEyedropper.IsChecked == true)
+            BtnTerrainEyedropper.IsChecked = false;
+        _suppressTerrainUiEvents = false;
+        SyncTerrainBrushToViewport();
+
+        string tileCode = info.TextureIndex < _currentProject.Terrain.GroundTiles.Count
+            ? _currentProject.Terrain.GroundTiles[info.TextureIndex]
+            : "?";
+        TxtStatusBarLeft.Text = $"Cuentagotas: [{tileCode}] {TerrainBrushService.GetTilesetDisplayName(tileCode)} | Z={info.WorldZ:F0} | Nivel={info.CliffLayer}" +
+                                (info.HasBlight ? " | Con Plaga" : "");
+    }
+
+    private async void BtnModifyTileset_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentProject?.Terrain?.RawW3eBytes == null)
+        {
+            MessageBox.Show(this, "Abre o crea un mapa primero para modificar su Tileset.", "Modify Tileset", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dlg = new ModifyTilesetWindow(_currentProject, _baseDataService) { Owner = this };
+        if (dlg.ShowDialog() != true || !dlg.Applied) return;
+
+        PopulateTerrainTextureSwatches();
+        PopulateTerrainCliffSelector();
+        _currentProject.RawMpqFiles["war3mapMap.blp"] = MapShadowAndMinimapService.GenerateMinimapBlp(_currentProject);
+        MapViewport.MarkViewportDirty();
+        UpdateTestButtonState();
+        if (_currentProject.Terrain.RawW3eBytes != null)
+            await Map3DViewport.ReloadW3eAsync(_currentProject.Terrain.RawW3eBytes);
+        TxtStatusBarLeft.Text = $"Tileset actualizado: '{_currentProject.Terrain.TilesetName}' ({_currentProject.Terrain.GroundTiles.Count} texturas, {_currentProject.Terrain.CliffTiles.Count} acantilados).";
+    }
+
+    private void BtnExportHeightmap_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentProject?.Terrain?.RawW3eBytes == null)
+        {
+            MessageBox.Show(this, "Abre o crea un mapa primero.", "Exportar Heightmap", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Exportar Heightmap (PNG 16-bit)",
+            Filter = "Imagen PNG (*.png)|*.png",
+            FileName = Path.GetFileNameWithoutExtension(_currentProject.FileName) + "_heightmap.png"
+        };
+        if (dlg.ShowDialog(this) != true) return;
+
+        try
+        {
+            var (minZ, maxZ) = TerrainOperationsService.ExportHeightmapPng(_currentProject, dlg.FileName);
+            TxtStatusBarLeft.Text = $"✔ Heightmap exportado a '{Path.GetFileName(dlg.FileName)}' (Z: {minZ:F0} .. {maxZ:F0}).";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"Error exportando heightmap:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void BtnImportHeightmap_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentProject?.Terrain?.RawW3eBytes == null)
+        {
+            MessageBox.Show(this, "Abre o crea un mapa primero.", "Importar Heightmap", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dlg = new ImportHeightmapWindow(_currentProject.Terrain) { Owner = this };
+        if (dlg.ShowDialog() != true) return;
+
+        try
+        {
+            CommitTerrainStrokeUndo();
+            var snapshot = (byte[])_currentProject.Terrain.RawW3eBytes.Clone();
+            int count = TerrainOperationsService.ImportHeightmapFromImage(_currentProject, dlg.SelectedImagePath, dlg.MinZ, dlg.MaxZ, dlg.SmoothPass);
+            var edit = TerrainStrokeUndoEdit.TryCreateFromSnapshots("Importar Heightmap", _currentProject, snapshot, ApplyTerrainUndoPatchAsync);
+            if (edit != null)
+                _undoService.Record(edit);
+
+            _currentProject.RawMpqFiles["war3mapMap.blp"] = MapShadowAndMinimapService.GenerateMinimapBlp(_currentProject);
+            MapViewport.MarkViewportDirty();
+            UpdateTestButtonState();
+            await Map3DViewport.ReloadW3eAsync(_currentProject.Terrain.RawW3eBytes);
+            TxtStatusBarLeft.Text = $"✔ Heightmap importado ({count} vértices actualizados, rango Z: {dlg.MinZ:F0}..{dlg.MaxZ:F0}).";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"Error importando heightmap:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private async void ApplyTerrainUndoPatchAsync(TerrainDabResult dab)
@@ -1897,21 +2266,25 @@ endlibrary
         if (GridDiagnostics.SelectedItem is not CompilerDiagnostic diag || diag.Line <= 0)
             return;
 
+        int targetLine = diag.Line;
         if (_currentProject != null)
         {
-            var rootNode = _currentProject.AllTriggerNodes.FirstOrDefault(n => n.Kind == TriggerNodeKind.RootScript);
-            if (rootNode != null && _activeTriggerNode != rootNode)
+            var (mappedNode, localLine) = JassKnowledgeService.MapScriptLineToTrigger(_currentProject, diag.Line);
+            var targetNode = mappedNode ?? _currentProject.AllTriggerNodes.FirstOrDefault(n => n.Kind == TriggerNodeKind.RootScript);
+            if (targetNode != null)
             {
-                SelectTriggerNode(rootNode);
+                if (_activeTriggerNode != targetNode)
+                    SelectTriggerNode(targetNode);
+                targetLine = mappedNode != null ? localLine : diag.Line;
             }
         }
 
         TabTriggers.IsSelected = true;
-        if (diag.Line <= CodeEditor.LineCount)
+        if (targetLine <= CodeEditor.LineCount)
         {
-            var lineObj = CodeEditor.Document.GetLineByNumber(diag.Line);
+            var lineObj = CodeEditor.Document.GetLineByNumber(targetLine);
             CodeEditor.Select(lineObj.Offset, lineObj.Length);
-            CodeEditor.ScrollToLine(diag.Line);
+            CodeEditor.ScrollToLine(targetLine);
             CodeEditor.Focus();
         }
     }
@@ -2242,7 +2615,13 @@ endlibrary
                         sbGui.AppendLine(code);
                         sbGui.AppendLine();
 
-                        sbInits.AppendLine($"    call InitTrig_{cleanName}()");
+                        if (g.IsEnabled)
+                            sbInits.AppendLine($"    call InitTrig_{cleanName}()");
+                    }
+                    else if (g.IsEnabled)
+                    {
+                        // Asegurar que InitCustomTriggers invoque el trigger aunque sus funciones ya existieran en el script
+                        JassKnowledgeService.EnsureTriggerCallAndGlobal(_currentProject, cleanName, ensureInitCall: true);
                     }
                 }
 
@@ -2288,6 +2667,7 @@ endlibrary
             {
                 _standaloneTriggerEditorWindow.UpdateDiagnostics(_diagnostics);
             }
+            _embeddedTriggerEditorWindow?.UpdateDiagnostics(_diagnostics);
 
             var hasErrors = compileRes.Diagnostics.Any(d => string.Equals(d.Severity, "Error", StringComparison.OrdinalIgnoreCase)) || !compileRes.Success;
 
@@ -2306,7 +2686,7 @@ endlibrary
                 var errorSample = string.Join("\n", compileRes.Diagnostics
                     .Where(d => string.Equals(d.Severity, "Error", StringComparison.OrdinalIgnoreCase))
                     .Take(5)
-                    .Select(d => $"• Línea {d.DisplayLine} [{d.TriggerOrFile}]: {d.Message}"));
+                    .Select(d => $"• {d.DisplayLine} [{d.TriggerOrFile}]: {d.Message}"));
 
                 MessageBox.Show(
                     this,

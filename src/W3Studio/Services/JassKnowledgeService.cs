@@ -898,24 +898,32 @@ public static class JassKnowledgeService
         }
 
         var script = project.RawMapScript ?? string.Empty;
+        var startMarker = $"// [W3S:{node.Id}]";
+        var endMarker = $"// [/W3S:{node.Id}]";
+        int sIdx = script.IndexOf(startMarker, StringComparison.Ordinal);
+        int eIdx = sIdx >= 0 ? script.IndexOf(endMarker, sIdx, StringComparison.Ordinal) : -1;
 
-        if (!string.IsNullOrEmpty(oldCode) && script.Contains(oldCode, StringComparison.Ordinal))
+        if (sIdx >= 0 && eIdx > sIdx)
         {
-            script = script.Replace(oldCode, newCode, StringComparison.Ordinal);
+            int fullEnd = eIdx + endMarker.Length;
+            script = script[..sIdx] + $"{startMarker}\n{newCode}\n{endMarker}" + script[fullEnd..];
+        }
+        else if (!string.IsNullOrEmpty(oldCode) && script.Contains(oldCode, StringComparison.Ordinal))
+        {
+            script = script.Replace(oldCode, $"{startMarker}\n{newCode}\n{endMarker}", StringComparison.Ordinal);
+        }
+        else if (!string.IsNullOrEmpty(oldCode) && TryReplaceNormalizedLineEndings(script, oldCode, $"{startMarker}\n{newCode}\n{endMarker}", out var normReplaced))
+        {
+            script = normReplaced;
+        }
+        else if (node.Kind is TriggerNodeKind.GuiTrigger or TriggerNodeKind.CustomTextTrigger &&
+                 TryReplaceExistingTriggerBlock(script, node.Name, $"{startMarker}\n{newCode}\n{endMarker}", out var blockReplaced))
+        {
+            script = blockReplaced;
         }
         else if (!string.IsNullOrWhiteSpace(newCode))
         {
-            var startMarker = $"// [W3S:{node.Id}]";
-            var endMarker = $"// [/W3S:{node.Id}]";
-            int sIdx = script.IndexOf(startMarker, StringComparison.Ordinal);
-            int eIdx = sIdx >= 0 ? script.IndexOf(endMarker, sIdx, StringComparison.Ordinal) : -1;
-
-            if (sIdx >= 0 && eIdx > sIdx)
-            {
-                int fullEnd = eIdx + endMarker.Length;
-                script = script[..sIdx] + $"{startMarker}\n{newCode}\n{endMarker}" + script[fullEnd..];
-            }
-            else if (!script.Contains(newCode, StringComparison.Ordinal))
+            if (!script.Contains(newCode, StringComparison.Ordinal))
             {
                 var block = $"\n{startMarker}\n{newCode}\n{endMarker}\n";
                 int insertPos = script.IndexOf("function InitCustomTriggers takes nothing returns nothing", StringComparison.Ordinal);
@@ -933,6 +941,327 @@ public static class JassKnowledgeService
         var root = project.AllTriggerNodes.FirstOrDefault(n => n.Kind == TriggerNodeKind.RootScript);
         if (root != null)
             root.Code = script;
+    }
+
+    private static bool TryReplaceNormalizedLineEndings(string script, string oldCode, string replacement, out string result)
+    {
+        var oldLf = oldCode.Replace("\r\n", "\n");
+        var oldCrLf = oldLf.Replace("\n", "\r\n");
+        if (script.Contains(oldLf, StringComparison.Ordinal))
+        {
+            result = script.Replace(oldLf, replacement, StringComparison.Ordinal);
+            return true;
+        }
+        if (script.Contains(oldCrLf, StringComparison.Ordinal))
+        {
+            result = script.Replace(oldCrLf, replacement, StringComparison.Ordinal);
+            return true;
+        }
+        result = script;
+        return false;
+    }
+
+    private static bool TryReplaceExistingTriggerBlock(string script, string triggerName, string replacement, out string result)
+    {
+        var clean = CleanTriggerIdentifier(triggerName);
+
+        // 1. Match existing "// Trigger: <name>" section up to next trigger / section / InitCustomTriggers / main
+        var headerMatch = Regex.Match(
+            script,
+            $@"^//[ \t]*Trigger:[ \t]*{Regex.Escape(triggerName)}[ \t]*\r?\n[\s\S]*?(?=(?:\r?\n//={{10,}})?\r?\n// Trigger:|\r?\n//\*{{10,}}|\r?\n(?://={{10,}}\r?\n)?function\s+InitCustomTriggers|\r?\n(?://={{10,}}\r?\n)?function\s+main\b|$)",
+            RegexOptions.Multiline);
+        if (headerMatch.Success)
+        {
+            result = script[..headerMatch.Index] + replacement + script[(headerMatch.Index + headerMatch.Length)..];
+            return true;
+        }
+
+        // 2. Otherwise strip existing Trig_<clean>_Conditions / Actions / InitTrig_<clean> functions and insert replacement at first function's position
+        var fnPattern = new Regex(
+            $@"(?:^//={{3,}}\r?\n)?^function\s+(?:Trig_{Regex.Escape(clean)}_(?:Conditions|Actions)|InitTrig_{Regex.Escape(clean)})\b[\s\S]*?^endfunction\r?\n?",
+            RegexOptions.Multiline);
+        var firstMatch = fnPattern.Match(script);
+        if (firstMatch.Success)
+        {
+            int insertPos = firstMatch.Index;
+            var stripped = fnPattern.Replace(script, string.Empty);
+            insertPos = Math.Clamp(insertPos, 0, stripped.Length);
+            result = stripped.Insert(insertPos, replacement + "\n");
+            return true;
+        }
+
+        result = script;
+        return false;
+    }
+
+    public static string CleanTriggerIdentifier(string? name)
+    {
+        var clean = Regex.Replace(name ?? string.Empty, @"[^A-Za-z0-9_]", "_");
+        return string.IsNullOrWhiteSpace(clean) ? "Untitled" : clean;
+    }
+
+    /// <summary>
+    /// Ensures both `trigger gg_trg_&lt;clean&gt; = null` in globals and `call InitTrig_&lt;clean&gt;()`
+    /// inside InitCustomTriggers (or main) exist in project.RawMapScript.
+    /// </summary>
+    public static void EnsureTriggerCallAndGlobal(MapProject? project, string cleanName, bool ensureInitCall = true)
+    {
+        if (project == null || string.IsNullOrWhiteSpace(cleanName))
+            return;
+
+        var script = project.RawMapScript ?? string.Empty;
+        var ggVar = $"gg_trg_{cleanName}";
+
+        if (!Regex.IsMatch(script, $@"^[ \t]*trigger\s+{Regex.Escape(ggVar)}\b", RegexOptions.Multiline))
+        {
+            var globalsMatch = Regex.Match(script, @"^\s*globals\b", RegexOptions.Multiline);
+            if (globalsMatch.Success)
+            {
+                int insertPos = globalsMatch.Index + globalsMatch.Length;
+                script = script.Insert(insertPos, $"\n    trigger {ggVar} = null");
+            }
+            else
+            {
+                script = $"globals\n    trigger {ggVar} = null\nendglobals\n\n" + script;
+            }
+        }
+
+        if (ensureInitCall)
+        {
+            var initCall = $"call InitTrig_{cleanName}()";
+            var callRegex = new Regex($@"call\s+InitTrig_{Regex.Escape(cleanName)}\s*\(\s*\)");
+            if (!callRegex.IsMatch(script))
+            {
+                var initCustomMatch = Regex.Match(
+                    script,
+                    @"function\s+InitCustomTriggers\s+takes\s+nothing\s+returns\s+nothing[^\r\n]*");
+                if (initCustomMatch.Success)
+                {
+                    int insertPos = initCustomMatch.Index + initCustomMatch.Length;
+                    script = script.Insert(insertPos, $"\n    {initCall}");
+                }
+                else
+                {
+                    var mainMatch = Regex.Match(
+                        script,
+                        @"function\s+main\s+takes\s+nothing\s+returns\s+nothing[^\r\n]*");
+                    if (mainMatch.Success)
+                    {
+                        int insertPos = mainMatch.Index + mainMatch.Length;
+                        script = script.Insert(insertPos, $"\n    {initCall}");
+                    }
+                }
+            }
+        }
+
+        project.RawMapScript = script;
+        var root = project.AllTriggerNodes.FirstOrDefault(n => n.Kind == TriggerNodeKind.RootScript);
+        if (root != null)
+            root.Code = script;
+    }
+
+    /// <summary>
+    /// Removes a deleted trigger's code block, InitTrig call, and gg_trg global declaration from project.RawMapScript.
+    /// </summary>
+    public static void RemoveTriggerFromProjectScript(MapProject? project, TriggerNode? node, string? explicitOldName = null)
+    {
+        if (project == null || node == null)
+            return;
+
+        if (node.Kind == TriggerNodeKind.Category)
+        {
+            foreach (var child in node.Children.ToList())
+                RemoveTriggerFromProjectScript(project, child);
+            return;
+        }
+
+        if (node.Kind is TriggerNodeKind.RootScript or TriggerNodeKind.MapHeader)
+            return;
+
+        var script = project.RawMapScript ?? string.Empty;
+        var cleanName = CleanTriggerIdentifier(explicitOldName ?? node.Name);
+
+        // 1. Remove [W3S:id] marker block if present
+        var startMarker = $"// [W3S:{node.Id}]";
+        var endMarker = $"// [/W3S:{node.Id}]";
+        int sIdx = script.IndexOf(startMarker, StringComparison.Ordinal);
+        int eIdx = sIdx >= 0 ? script.IndexOf(endMarker, sIdx, StringComparison.Ordinal) : -1;
+        if (sIdx >= 0 && eIdx > sIdx)
+        {
+            int removeStart = sIdx > 0 && script[sIdx - 1] == '\n' ? sIdx - 1 : sIdx;
+            int removeEnd = eIdx + endMarker.Length;
+            if (removeEnd < script.Length && script[removeEnd] == '\r') removeEnd++;
+            if (removeEnd < script.Length && script[removeEnd] == '\n') removeEnd++;
+            script = script.Remove(removeStart, removeEnd - removeStart);
+        }
+        else if (!string.IsNullOrWhiteSpace(node.Code) && script.Contains(node.Code, StringComparison.Ordinal))
+        {
+            script = script.Replace(node.Code, string.Empty, StringComparison.Ordinal);
+        }
+        else
+        {
+            // Remove individual Trig_<clean>_Conditions / Actions / InitTrig_<clean> functions if present
+            foreach (var fnName in new[] { $"Trig_{cleanName}_Conditions", $"Trig_{cleanName}_Actions", $"InitTrig_{cleanName}" })
+            {
+                script = Regex.Replace(
+                    script,
+                    $@"(?:^//={{3,}}\r?\n)?^function\s+{Regex.Escape(fnName)}\b[\s\S]*?^endfunction\r?\n?",
+                    string.Empty,
+                    RegexOptions.Multiline);
+            }
+        }
+
+        // 2. Remove call InitTrig_<clean>() from InitCustomTriggers / main
+        script = Regex.Replace(
+            script,
+            $@"^[ \t]*call\s+InitTrig_{Regex.Escape(cleanName)}\s*\(\s*\)\s*\r?\n?",
+            string.Empty,
+            RegexOptions.Multiline);
+
+        // 3. Remove `trigger gg_trg_<clean> = null` global declaration
+        script = Regex.Replace(
+            script,
+            $@"^[ \t]*trigger\s+gg_trg_{Regex.Escape(cleanName)}\s*=\s*null\s*\r?\n?",
+            string.Empty,
+            RegexOptions.Multiline);
+
+        project.RawMapScript = script;
+        project.HasTriggerStructureEdits = true;
+        var root = project.AllTriggerNodes.FirstOrDefault(n => n.Kind == TriggerNodeKind.RootScript);
+        if (root != null)
+            root.Code = script;
+    }
+
+    /// <summary>
+    /// Safely renames a trigger's generated identifiers (gg_trg_*, Trig_*_Conditions/Actions, InitTrig_*)
+    /// inside project.RawMapScript so InitCustomTriggers never holds stale references.
+    /// </summary>
+    public static void RenameTriggerInProjectScript(MapProject? project, TriggerNode? node, string oldName, string newName)
+    {
+        if (project == null || node == null)
+            return;
+
+        var oldClean = CleanTriggerIdentifier(oldName);
+        var newClean = CleanTriggerIdentifier(newName);
+        if (string.Equals(oldClean, newClean, StringComparison.Ordinal))
+            return;
+
+        var script = project.RawMapScript ?? string.Empty;
+        script = Regex.Replace(script, $@"\bgg_trg_{Regex.Escape(oldClean)}\b", $"gg_trg_{newClean}");
+        script = Regex.Replace(script, $@"\bInitTrig_{Regex.Escape(oldClean)}\b", $"InitTrig_{newClean}");
+        script = Regex.Replace(script, $@"\bTrig_{Regex.Escape(oldClean)}_(Conditions|Actions)\b", $"Trig_{newClean}_$1");
+        script = script.Replace($"// Trigger: {oldName}", $"// Trigger: {newName}", StringComparison.Ordinal);
+
+        if (!string.IsNullOrEmpty(node.Code))
+        {
+            node.Code = Regex.Replace(node.Code, $@"\bgg_trg_{Regex.Escape(oldClean)}\b", $"gg_trg_{newClean}");
+            node.Code = Regex.Replace(node.Code, $@"\bInitTrig_{Regex.Escape(oldClean)}\b", $"InitTrig_{newClean}");
+            node.Code = Regex.Replace(node.Code, $@"\bTrig_{Regex.Escape(oldClean)}_(Conditions|Actions)\b", $"Trig_{newClean}_$1");
+            node.Code = node.Code.Replace($"// Trigger: {oldName}", $"// Trigger: {newName}", StringComparison.Ordinal);
+        }
+
+        // Also update any cached RawJass/Code inside GUI elements referencing gg_trg_<oldClean>
+        void UpdateGuiElementRefs(IEnumerable<GuiTriggerElement> elements)
+        {
+            foreach (var el in elements)
+            {
+                foreach (var key in new[] { "RawJass", "Code" })
+                {
+                    if (el.Parameters.TryGetValue(key, out var val) && !string.IsNullOrEmpty(val))
+                    {
+                        var updated = Regex.Replace(val, $@"\bgg_trg_{Regex.Escape(oldClean)}\b", $"gg_trg_{newClean}");
+                        updated = Regex.Replace(updated, $@"\bInitTrig_{Regex.Escape(oldClean)}\b", $"InitTrig_{newClean}");
+                        el.Parameters[key] = updated;
+                    }
+                }
+            }
+        }
+        UpdateGuiElementRefs(node.Events);
+        UpdateGuiElementRefs(node.Conditions);
+        UpdateGuiElementRefs(node.Actions);
+
+        project.RawMapScript = script;
+        project.HasTriggerStructureEdits = true;
+        var root = project.AllTriggerNodes.FirstOrDefault(n => n.Kind == TriggerNodeKind.RootScript);
+        if (root != null)
+            root.Code = script;
+    }
+
+    /// <summary>
+    /// Maps a 1-based line number in war3map.j back to the owning TriggerNode and local 1-based line inside node.Code.
+    /// </summary>
+    public static (TriggerNode? Node, int LocalLine) MapScriptLineToTrigger(MapProject? project, int oneBasedMapJLine)
+    {
+        if (project == null || oneBasedMapJLine <= 0 || string.IsNullOrEmpty(project.RawMapScript))
+            return (null, oneBasedMapJLine);
+
+        var script = project.RawMapScript;
+        var lines = script.Split('\n');
+        int targetLine = Math.Clamp(oneBasedMapJLine, 1, lines.Length);
+
+        // Compute character offset of targetLine
+        int targetOffset = 0;
+        for (int i = 0; i < targetLine - 1; i++)
+            targetOffset += lines[i].Length + 1;
+
+        foreach (var node in project.AllTriggerNodes)
+        {
+            if (node.Kind is TriggerNodeKind.RootScript or TriggerNodeKind.Category)
+                continue;
+
+            int blockStart = -1;
+            int blockEnd = -1;
+
+            var startMarker = $"// [W3S:{node.Id}]";
+            var endMarker = $"// [/W3S:{node.Id}]";
+            int sIdx = script.IndexOf(startMarker, StringComparison.Ordinal);
+            if (sIdx >= 0)
+            {
+                int contentStart = script.IndexOf('\n', sIdx);
+                int eIdx = script.IndexOf(endMarker, sIdx, StringComparison.Ordinal);
+                if (contentStart >= 0 && eIdx > contentStart)
+                {
+                    blockStart = contentStart + 1;
+                    blockEnd = eIdx;
+                }
+            }
+
+            if (blockStart < 0 && !string.IsNullOrWhiteSpace(node.Code))
+            {
+                int idx = script.IndexOf(node.Code, StringComparison.Ordinal);
+                if (idx >= 0)
+                {
+                    blockStart = idx;
+                    blockEnd = idx + node.Code.Length;
+                }
+            }
+
+            if (blockStart >= 0 && targetOffset >= blockStart && targetOffset <= blockEnd)
+            {
+                int localLine = 1;
+                for (int c = blockStart; c < targetOffset && c < script.Length; c++)
+                {
+                    if (script[c] == '\n') localLine++;
+                }
+                return (node, localLine);
+            }
+        }
+
+        // Fallback: nearest node by StartLineInMapJ
+        var fallback = project.AllTriggerNodes
+            .Where(n => n.Kind != TriggerNodeKind.RootScript && n.Kind != TriggerNodeKind.Category && n.StartLineInMapJ > 0 && n.StartLineInMapJ <= targetLine)
+            .OrderByDescending(n => n.StartLineInMapJ)
+            .FirstOrDefault();
+
+        if (fallback != null && !string.IsNullOrEmpty(fallback.Code))
+        {
+            int local = Math.Max(1, targetLine - fallback.StartLineInMapJ + 1);
+            int maxLocal = fallback.Code.Split('\n').Length;
+            if (local <= maxLocal + 2)
+                return (fallback, Math.Min(local, maxLocal));
+        }
+
+        return (project.AllTriggerNodes.FirstOrDefault(n => n.Kind == TriggerNodeKind.RootScript), targetLine);
     }
 
     private static string ResolveDefaultGlobalInit(string type, string? initialValue)

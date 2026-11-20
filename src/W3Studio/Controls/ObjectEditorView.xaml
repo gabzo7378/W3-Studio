@@ -38,23 +38,32 @@
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="BtnNewObject" Style="{StaticResource Win10ClassicButton}" Margin="0,0,4,0" ToolTip="Crear o clonar un nuevo objeto personalizado" Click="BtnNewCustomObject_Click">
+                    <Button x:Name="BtnNewObject" Style="{StaticResource Win10ClassicButton}" Margin="0,0,4,0" ToolTip="Crear un nuevo objeto personalizado eligiendo nombre y rawcode" Click="BtnOpenNewObjectDialog_Click">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/Icons/add.png" Width="13" Height="13" Margin="0,0,4,0"/>
                             <TextBlock x:Name="TxtBtnNewObject" Text="Nuevo Objeto..." VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <Button x:Name="BtnCloneObject" Style="{StaticResource Win10ClassicButton}" Margin="0,0,4,0" ToolTip="Duplicar el objeto seleccionado con un nuevo Rawcode" Click="BtnNewCustomObject_Click">
+                    <Button x:Name="BtnCloneObject" Style="{StaticResource Win10ClassicButton}" Margin="0,0,4,0" ToolTip="Duplicar el objeto seleccionado con un nuevo Rawcode" Click="BtnCloneObject_Click">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/Icons/copy.png" Width="13" Height="13" Margin="0,0,4,0"/>
-                            <TextBlock x:Name="TxtBtnCloneObject" Text="Clonar Seleccionado" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtBtnCloneObject" Text="Clonar" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <Button x:Name="BtnResetField" Style="{StaticResource Win10ClassicButton}" Margin="0,0,8,0" ToolTip="Restaurar el campo seleccionado a su valor original del SLK" Click="BtnResetFieldToDefault_Click">
+                    <Button x:Name="BtnDeleteOrResetObject" Style="{StaticResource Win10ClassicButton}" Margin="0,0,4,0" ToolTip="Eliminar objeto personalizado o restaurar todos los campos de un objeto estándar" Click="BtnDeleteOrResetObject_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="pack://application:,,,/Assets/Icons/delete.png" Width="13" Height="13" Margin="0,0,4,0"/>
+                            <TextBlock x:Name="TxtBtnDeleteObject" Text="Eliminar / Reset" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="BtnResetField" Style="{StaticResource Win10ClassicButton}" Margin="0,0,4,0" ToolTip="Restaurar el campo seleccionado a su valor original del SLK" Click="BtnResetFieldToDefault_Click">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/Icons/reset.png" Width="13" Height="13" Margin="0,0,4,0"/>
-                            <TextBlock x:Name="TxtBtnResetField" Text="Restaurar Campo a Base" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtBtnResetField" Text="Restaurar Campo" VerticalAlignment="Center"/>
                         </StackPanel>
+                    </Button>
+                    <Button x:Name="BtnAutoFillLevels" Style="{StaticResource Win10ClassicButton}" Margin="0,0,8,0" ToolTip="Auto-rellenar todos los niveles de un campo numérico (Habilidades / Mejoras)" Click="BtnAutoFillLevels_Click">
+                        <TextBlock x:Name="TxtBtnAutoFill" Text="Auto-Fill Niveles..." VerticalAlignment="Center"/>
                     </Button>
                 </StackPanel>
             </DockPanel>

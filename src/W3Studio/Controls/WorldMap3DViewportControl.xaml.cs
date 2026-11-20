@@ -26,6 +26,7 @@ public partial class WorldMap3DViewportControl : UserControl
     public event Action<int, string>? MapLoadProgress;
     public event Action<float, float, bool>? TerrainBrushDabReceived;
     public event Action? TerrainBrushStrokeEnded;
+    public event Action<float, float>? TerrainEyedropperPicked;
     public event Action<string?, int>? EntitySelected;
     public event Action<IReadOnlyList<ViewportEntityKey>>? EntitiesSelected;
     public event Action<string, int>? EntityPropertiesRequested;
@@ -300,6 +301,13 @@ public partial class WorldMap3DViewportControl : UserControl
             {
                 TerrainBrushStrokeEnded?.Invoke();
             }
+            else if (msgType == "terrain_eyedropper_pick")
+            {
+                if (root.TryGetProperty("wx", out var wxProp) && root.TryGetProperty("wy", out var wyProp))
+                {
+                    TerrainEyedropperPicked?.Invoke((float)wxProp.GetDouble(), (float)wyProp.GetDouble());
+                }
+            }
             else if (msgType == "region_selected")
             {
                 int cnum = root.TryGetProperty("creationNumber", out var cProp) ? cProp.GetInt32() : -1;
@@ -526,7 +534,7 @@ public partial class WorldMap3DViewportControl : UserControl
         WvMap.CoreWebView2.PostWebMessageAsJson(json);
     }
 
-    public void SetTerrainBrush(bool active, int size, bool isSquare)
+    public void SetTerrainBrush(bool active, int size, bool isSquare, string? shape = null, string? brushMode = null)
     {
         if (!_isEngineReady || WvMap.CoreWebView2 == null) return;
         var json = JsonSerializer.Serialize(new
@@ -534,7 +542,26 @@ public partial class WorldMap3DViewportControl : UserControl
             action = "set_terrain_brush",
             active,
             size,
-            isSquare
+            isSquare,
+            shape = shape ?? (isSquare ? "square" : "circle"),
+            brushMode = brushMode ?? "terrain"
+        });
+        WvMap.CoreWebView2.PostWebMessageAsJson(json);
+    }
+
+    public void PatchWpmSubcells(PathingBrushDabResult dab)
+    {
+        if (!_isEngineReady || WvMap.CoreWebView2 == null || dab == null || !dab.Modified || dab.SubRectBytes.Length == 0)
+            return;
+
+        var json = JsonSerializer.Serialize(new
+        {
+            action = "patch_wpm_subcells",
+            minSx = dab.MinSx,
+            minSy = dab.MinSy,
+            subW = dab.SubWidth,
+            subH = dab.SubHeight,
+            base64 = Convert.ToBase64String(dab.SubRectBytes)
         });
         WvMap.CoreWebView2.PostWebMessageAsJson(json);
     }

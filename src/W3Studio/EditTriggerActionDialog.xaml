@@ -33,6 +33,7 @@
                 <ComboBoxItem Content="Cinemática / Texto / Juego (Game)" Tag="Game"/>
                 <ComboBoxItem Content="Sonido (Sound)" Tag="Sound"/>
                 <ComboBoxItem Content="Efecto Especial (Special Effect)" Tag="SpecialEffect"/>
+                <ComboBoxItem Content="Partida Melee (Melee Game)" Tag="MeleeGame"/>
                 <ComboBoxItem Content="Código JASS Libre (Custom Script)" Tag="CustomScript"/>
             </ComboBox>
         </StackPanel>

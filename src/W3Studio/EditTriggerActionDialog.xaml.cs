@@ -8,6 +8,7 @@ namespace W3Studio;
 
 public partial class EditTriggerActionDialog : Window
 {
+    private bool _isLoadingExisting;
     public GuiTriggerElement ResultElement { get; private set; }
 
     public EditTriggerActionDialog(GuiTriggerElement? existing = null, MapProject? project = null)
@@ -24,8 +25,10 @@ public partial class EditTriggerActionDialog : Window
             DisplayText = "Unit - Create 1 Footman for Player 1 (Red) at (Center of (Playable map area)) facing 270.00 degrees"
         };
 
+        _isLoadingExisting = true;
         PopulateActionsForCategory("Unit");
         LoadExistingData();
+        _isLoadingExisting = false;
         UpdateUiPanels();
         UpdatePreview();
     }
@@ -36,6 +39,18 @@ public partial class EditTriggerActionDialog : Window
 
         foreach (var gv in project.GlobalVariables)
             CboVarName.Items.Add(gv.JassIdentifier);
+
+        foreach (var obj in project.Objects)
+        {
+            if (obj.Category == W3ObjectCategory.Units && !string.IsNullOrWhiteSpace(obj.Rawcode))
+            {
+                CboUnitType.Items.Add(new ComboBoxItem
+                {
+                    Content = $"{obj.Name} ({obj.Rawcode}) [Mapa]",
+                    Tag = obj.Rawcode
+                });
+            }
+        }
 
         foreach (var trg in project.AllTriggerNodes)
         {
@@ -116,6 +131,16 @@ public partial class EditTriggerActionDialog : Window
                 AddActionItem("Create Special Effect at Point (Crear efecto especial)", "CreateSpecialEffect", true);
                 AddActionItem("Destroy Last Created Special Effect (Limpiar efecto)", "DestroyLastCreatedEffect");
                 break;
+            case "MeleeGame":
+                AddActionItem("Use melee time of day (Ciclo día/noche melee)", "MeleeStartingVisibility", true);
+                AddActionItem("Limit Heroes to 1 per Hero-type (Limitar Héroes a 1)", "MeleeStartingHeroLimit");
+                AddActionItem("Give Heroes a Scroll of Town Portal (Pergamino inicial)", "MeleeGrantHeroItems");
+                AddActionItem("Set starting resources (Recursos iniciales melee)", "MeleeStartingResources");
+                AddActionItem("Remove creeps/critters near start locations (Limpiar creeps)", "MeleeClearExcessUnits");
+                AddActionItem("Create starting units (Crear unidades iniciales melee)", "MeleeStartingUnits");
+                AddActionItem("Run melee AI scripts (Ejecutar scripts IA melee)", "MeleeStartingAI");
+                AddActionItem("Enforce victory/defeat conditions (Victoria/Derrota melee)", "MeleeInitVictoryDefeat");
+                break;
             case "CustomScript":
                 AddActionItem("Custom Script (Código JASS libre)", "CustomScript", true);
                 break;
@@ -132,25 +157,50 @@ public partial class EditTriggerActionDialog : Window
 
     private void LoadExistingData()
     {
-        if (!string.IsNullOrEmpty(ResultElement.Category))
+        string targetCategory = ResultElement.Category;
+        if (string.Equals(ResultElement.FunctionName, "CustomScript", StringComparison.OrdinalIgnoreCase))
+            targetCategory = "CustomScript";
+        else if (string.Equals(targetCategory, "Melee Game", StringComparison.OrdinalIgnoreCase))
+            targetCategory = "MeleeGame";
+
+        bool matchedCategory = false;
+        if (!string.IsNullOrEmpty(targetCategory))
         {
             foreach (ComboBoxItem item in CboCategory.Items)
             {
-                if (string.Equals(item.Tag?.ToString(), ResultElement.Category, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(item.Tag?.ToString(), targetCategory, StringComparison.OrdinalIgnoreCase))
                 {
                     CboCategory.SelectedItem = item;
-                    PopulateActionsForCategory(ResultElement.Category);
+                    PopulateActionsForCategory(item.Tag?.ToString() ?? "Unit");
+                    matchedCategory = true;
                     break;
                 }
             }
         }
 
+        bool matchedAction = false;
         foreach (ComboBoxItem item in CboAction.Items)
         {
             if (string.Equals(item.Tag?.ToString(), ResultElement.FunctionName, StringComparison.OrdinalIgnoreCase))
             {
                 CboAction.SelectedItem = item;
+                matchedAction = true;
                 break;
+            }
+        }
+
+        // If the loaded action isn't matched (e.g. arbitrary JASS call from an existing map),
+        // preserve it in CustomScript instead of resetting it to "Create 1 Footman".
+        if (!matchedCategory || !matchedAction)
+        {
+            foreach (ComboBoxItem item in CboCategory.Items)
+            {
+                if (string.Equals(item.Tag?.ToString(), "CustomScript", StringComparison.OrdinalIgnoreCase))
+                {
+                    CboCategory.SelectedItem = item;
+                    PopulateActionsForCategory("CustomScript");
+                    break;
+                }
             }
         }
 
@@ -218,6 +268,7 @@ public partial class EditTriggerActionDialog : Window
         if (p.TryGetValue("SoundName", out var snd)) TxtSoundName.Text = snd;
         if (p.TryGetValue("TriggerName", out var trg)) TxtTargetTrigger.Text = trg;
         if (p.TryGetValue("Code", out var code)) TxtCustomCode.Text = code;
+        else if (p.TryGetValue("RawJass", out var rawCode)) TxtCustomCode.Text = rawCode;
         if (p.TryGetValue("Order", out var ord)) TxtSingleParamValue.Text = ord;
         if (p.TryGetValue("AbilityId", out var ab)) TxtSingleParamValue.Text = ab;
         if (p.TryGetValue("ItemType", out var it)) TxtSingleParamValue.Text = it;
@@ -229,7 +280,7 @@ public partial class EditTriggerActionDialog : Window
 
     private void CboCategory_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (CboCategory == null || CboAction == null) return;
+        if (_isLoadingExisting || CboCategory == null || CboAction == null) return;
         var cat = (CboCategory.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Unit";
         PopulateActionsForCategory(cat);
         UpdateUiPanels();
@@ -238,7 +289,7 @@ public partial class EditTriggerActionDialog : Window
 
     private void CboAction_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (CboAction == null) return;
+        if (_isLoadingExisting || CboAction == null) return;
         var tag = (CboAction.SelectedItem as ComboBoxItem)?.Tag?.ToString();
         if (tag == "SetUnitFacing") TxtSingleParamValue.Text = "270.0";
         else if (tag == "IssueOrderNoTarget") TxtSingleParamValue.Text = "stop";
@@ -406,6 +457,14 @@ public partial class EditTriggerActionDialog : Window
             "CreateSpecialEffect" => $"Special Effect - Create special effect using {eff}",
             "DestroyLastCreatedEffect" => "Special Effect - Destroy (Last created special effect)",
             "PlaySound" => $"Sound - Play {TxtSoundName.Text.Trim()}",
+            "MeleeStartingVisibility" => "Partida Melee - Usar ciclo de día/noche melee (para todos los jugadores)",
+            "MeleeStartingHeroLimit" => "Partida Melee - Limitar Héroes a 1 por tipo de Héroe (para todos los jugadores)",
+            "MeleeGrantHeroItems" => "Partida Melee - Entregar pergamino de teletransporte inicial a Héroes (para todos los jugadores)",
+            "MeleeStartingResources" => "Partida Melee - Establecer recursos iniciales (para todos los jugadores)",
+            "MeleeClearExcessUnits" => "Partida Melee - Eliminar creeps y criaturas cerca de posiciones iniciales (para todos los jugadores)",
+            "MeleeStartingUnits" => "Partida Melee - Crear unidades iniciales (para todos los jugadores)",
+            "MeleeStartingAI" => "Partida Melee - Ejecutar scripts de IA melee (para jugadores de computadora)",
+            "MeleeInitVictoryDefeat" => "Partida Melee - Imponer condiciones de victoria/derrota melee (para todos los jugadores)",
             "CustomScript" => $"Custom script: {TxtCustomCode.Text.Trim()}",
             _ => "Do nothing"
         };

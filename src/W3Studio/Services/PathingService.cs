@@ -25,6 +25,19 @@ public sealed record ClientObjectPathingOverride(
     string ShadowTex,
     string AnimProps = "");
 
+public sealed record PathingBrushDabResult(
+    bool Modified,
+    int MinSx,
+    int MinSy,
+    int MaxSx,
+    int MaxSy,
+    int SubWidth,
+    int SubHeight,
+    byte[] SubRectBytes)
+{
+    public static readonly PathingBrushDabResult Empty = new(false, 0, 0, -1, -1, 0, 0, Array.Empty<byte>());
+}
+
 /// <summary>
 /// Decodes WC3 PathTextures (*.tga), computes official 32/64-unit grid snapping,
 /// determines building/unit pathability, and regenerates binary war3map.wpm (MP3W) on save.
@@ -451,6 +464,16 @@ public static class PathingService
                 StampFootprint(cells, pw, ph, t, d.X, d.Y, grid);
         }
 
+        // Apply any manual subcell pathing edits painted with the Pathing Brush
+        if (t.ManualPathingOverrides.Count > 0)
+        {
+            foreach (var kvp in t.ManualPathingOverrides)
+            {
+                if ((uint)kvp.Key < (uint)cells.Length)
+                    cells[kvp.Key] = kvp.Value;
+            }
+        }
+
         using var ms = new MemoryStream(16 + cells.Length);
         using var bw = new BinaryWriter(ms, Encoding.ASCII, leaveOpen: true);
         bw.Write(Encoding.ASCII.GetBytes("MP3W"));
@@ -465,6 +488,99 @@ public static class PathingService
     public static void SyncWpm(MapProject project, WarcraftBaseDataService baseData, BlpIconService? blpService)
     {
         project.RawMpqFiles["war3map.wpm"] = BuildUpdatedWpmBytes(project, baseData, blpService);
+    }
+
+    /// <summary>
+    /// Paints or erases manual pathing flags directly onto war3map.wpm (32x32 subcells)
+    /// and records overrides so future terrain/doodad syncs preserve manual pathing.
+    /// </summary>
+    public static PathingBrushDabResult ApplyPathingBrushDab(
+        MapProject project,
+        WarcraftBaseDataService baseData,
+        BlpIconService? blpService,
+        float worldX,
+        float worldY,
+        TerrainBrushOptions opts)
+    {
+        if (project?.Terrain == null || opts.PathingTool == TerrainPathingTool.None)
+            return PathingBrushDabResult.Empty;
+
+        var t = project.Terrain;
+        int cellsW = Math.Max(1, t.GridWidth - 1);
+        int cellsH = Math.Max(1, t.GridHeight - 1);
+        int pw = cellsW * 4;
+        int ph = cellsH * 4;
+
+        if (!project.RawMpqFiles.TryGetValue("war3map.wpm", out var wpm) ||
+            wpm.Length < 16 + pw * ph ||
+            wpm[0] != (byte)'M' || wpm[1] != (byte)'P' || wpm[2] != (byte)'3' || wpm[3] != (byte)'W' ||
+            BitConverter.ToInt32(wpm, 8) != pw || BitConverter.ToInt32(wpm, 12) != ph)
+        {
+            wpm = BuildUpdatedWpmBytes(project, baseData, blpService);
+            project.RawMpqFiles["war3map.wpm"] = wpm;
+        }
+
+        byte targetBits = opts.PathingTool switch
+        {
+            TerrainPathingTool.BlockWalk => FlagWalkBlocked,
+            TerrainPathingTool.BlockBuild => FlagBuildBlocked,
+            TerrainPathingTool.BlockFly => FlagFlyBlocked,
+            TerrainPathingTool.BlockWalkAndBuild => (byte)(FlagWalkBlocked | FlagBuildBlocked),
+            TerrainPathingTool.BlockAll => (byte)(FlagWalkBlocked | FlagFlyBlocked | FlagBuildBlocked),
+            TerrainPathingTool.Erase => (byte)(FlagWalkBlocked | FlagFlyBlocked | FlagBuildBlocked),
+            _ => 0
+        };
+        if (targetBits == 0)
+            return PathingBrushDabResult.Empty;
+
+        bool erase = opts.PathingTool == TerrainPathingTool.Erase;
+        float fcx = (worldX - t.OffsetX) / SubcellWorldSize - 0.5f;
+        float fcy = (worldY - t.OffsetY) / SubcellWorldSize - 0.5f;
+        float radiusSub = TerrainBrushService.GetBrushRadiusInCells(opts.BrushSize) * 4f;
+
+        int minSx = Math.Max(0, (int)MathF.Floor(fcx - radiusSub));
+        int maxSx = Math.Min(pw - 1, (int)MathF.Ceiling(fcx + radiusSub));
+        int minSy = Math.Max(0, (int)MathF.Floor(fcy - radiusSub));
+        int maxSy = Math.Min(ph - 1, (int)MathF.Ceiling(fcy + radiusSub));
+        if (maxSx < minSx || maxSy < minSy)
+            return PathingBrushDabResult.Empty;
+
+        bool modified = false;
+        for (int sy = minSy; sy <= maxSy; sy++)
+        {
+            for (int sx = minSx; sx <= maxSx; sx++)
+            {
+                if (TerrainBrushService.GetBrushDistance(sx - fcx, sy - fcy, opts.Shape) > radiusSub)
+                    continue;
+
+                int idx = sy * pw + sx;
+                byte oldVal = wpm[16 + idx];
+                byte newVal = erase
+                    ? (byte)(oldVal & ~targetBits)
+                    : (byte)(oldVal | targetBits);
+
+                if (newVal != oldVal)
+                {
+                    wpm[16 + idx] = newVal;
+                    t.ManualPathingOverrides[idx] = newVal;
+                    modified = true;
+                }
+            }
+        }
+
+        if (!modified)
+            return PathingBrushDabResult.Empty;
+
+        project.HasUnitDoodadEdits = true;
+        int subW = maxSx - minSx + 1;
+        int subH = maxSy - minSy + 1;
+        var rect = new byte[subW * subH];
+        for (int row = 0; row < subH; row++)
+        {
+            Buffer.BlockCopy(wpm, 16 + (minSy + row) * pw + minSx, rect, row * subW, subW);
+        }
+
+        return new PathingBrushDabResult(true, minSx, minSy, maxSx, maxSy, subW, subH, rect);
     }
 
     /// <summary>

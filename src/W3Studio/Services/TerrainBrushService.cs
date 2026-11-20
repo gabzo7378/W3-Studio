@@ -27,8 +27,39 @@ namespace W3Studio.Services
     public enum TerrainBrushShape
     {
         Circle = 0,
-        Square = 1
+        Square = 1,
+        Diamond = 2
     }
+
+    public enum TerrainBoundaryTool
+    {
+        None = 0,
+        Add = 1,
+        Remove = 2
+    }
+
+    public enum TerrainPathingTool
+    {
+        None = 0,
+        BlockWalk = 1,
+        BlockBuild = 2,
+        BlockFly = 3,
+        BlockWalkAndBuild = 4,
+        BlockAll = 5,
+        Erase = 6
+    }
+
+    public sealed record TerrainCornerInspection(
+        int GridX,
+        int GridY,
+        int TextureIndex,
+        bool HasBlight,
+        int CliffTileIndex,
+        int CliffLayer,
+        float WorldZ,
+        bool IsWater,
+        bool IsRamp,
+        bool IsBoundary);
 
     public sealed class TerrainBrushOptions
     {
@@ -42,8 +73,12 @@ namespace W3Studio.Services
 
         public bool ApplyHeight { get; set; }
         public TerrainHeightTool HeightTool { get; set; } = TerrainHeightTool.None;
+        public float HeightStrength { get; set; } = 1.0f;
 
-        public int BrushSize { get; set; } = 2; // 1, 2, 3, 5, 8
+        public TerrainBoundaryTool BoundaryTool { get; set; } = TerrainBoundaryTool.None;
+        public TerrainPathingTool PathingTool { get; set; } = TerrainPathingTool.None;
+
+        public int BrushSize { get; set; } = 2; // 1..16 (clásicos: 1, 2, 3, 5, 8, 12, 16)
         public TerrainBrushShape Shape { get; set; } = TerrainBrushShape.Circle;
     }
 
@@ -119,6 +154,7 @@ namespace W3Studio.Services
             bool anyTool =
                 opts.ApplyTexture ||
                 opts.ApplyBlight ||
+                opts.BoundaryTool != TerrainBoundaryTool.None ||
                 (opts.ApplyCliff && opts.CliffTool != TerrainCliffTool.None) ||
                 (opts.ApplyHeight && opts.HeightTool != TerrainHeightTool.None);
 
@@ -248,6 +284,16 @@ namespace W3Studio.Services
                         flags |= 0x20;
                     }
 
+                    // 1b. Apply Boundary (0x80)
+                    if (opts.BoundaryTool == TerrainBoundaryTool.Add)
+                    {
+                        flags |= 0x80;
+                    }
+                    else if (opts.BoundaryTool == TerrainBoundaryTool.Remove)
+                    {
+                        flags &= unchecked((byte)~0x80);
+                    }
+
                     // 2. Apply Cliff / Water (Ramp se procesa en pase dedicado tras estabilizar capas)
                     if (applyCliffTool && opts.CliffTool != TerrainCliffTool.Ramp)
                     {
@@ -305,7 +351,8 @@ namespace W3Studio.Services
                     {
                         float currentZ = ((gHeightRaw - 8192) / 4f) + ((layer - 2) * 128f);
                         float newZ = currentZ;
-                        const float stepAmplitude = 26f;
+                        float strength = Math.Clamp(opts.HeightStrength, 0.2f, 2.5f);
+                        float stepAmplitude = 26f * strength;
 
                         switch (opts.HeightTool)
                         {
@@ -318,12 +365,12 @@ namespace W3Studio.Services
                                 break;
 
                             case TerrainHeightTool.Plateau:
-                                newZ = currentZ + (state.AnchorWorldZ - currentZ) * Math.Clamp(0.45f + 0.55f * smoothFalloff, 0.35f, 1.0f);
+                                newZ = currentZ + (state.AnchorWorldZ - currentZ) * Math.Clamp((0.45f + 0.55f * smoothFalloff) * strength, 0.25f, 1.0f);
                                 break;
 
                             case TerrainHeightTool.Noise:
                                 float rnd = (float)(Rng.NextDouble() * 2.0 - 1.0);
-                                newZ = currentZ + rnd * 22f * Math.Max(0.3f, smoothFalloff);
+                                newZ = currentZ + rnd * (22f * strength) * Math.Max(0.3f, smoothFalloff);
                                 break;
 
                             case TerrainHeightTool.Smooth:
@@ -342,7 +389,7 @@ namespace W3Studio.Services
                                     if (count > 0)
                                     {
                                         float avgZ = sum / count;
-                                        newZ = currentZ + (avgZ - currentZ) * Math.Clamp(0.55f * smoothFalloff + 0.2f, 0.2f, 0.85f);
+                                        newZ = currentZ + (avgZ - currentZ) * Math.Clamp((0.55f * smoothFalloff + 0.2f) * strength, 0.15f, 0.92f);
                                     }
                                 }
                                 break;
@@ -472,7 +519,8 @@ namespace W3Studio.Services
                 t.WaterDepths[sx, sy] = waterDepth;
             if (t.RampFlags != null && sx < t.RampFlags.GetLength(0) && sy < t.RampFlags.GetLength(1))
                 t.RampFlags[sx, sy] = (flags & 0x10) != 0;
-            if (t.BoundaryFlags != null && sx < t.BoundaryFlags.GetLength(0) && sy < t.BoundaryFlags.GetLength(1))
+            t.BoundaryFlags ??= new bool[t.GridWidth, t.GridHeight];
+            if (sx < t.BoundaryFlags.GetLength(0) && sy < t.BoundaryFlags.GetLength(1))
                 t.BoundaryFlags[sx, sy] = (flags & 0x80) != 0 || (waterRaw & 0x4000) != 0;
             if (t.GroundHeights != null && sx < t.GroundHeights.GetLength(0) && sy < t.GroundHeights.GetLength(1))
                 t.GroundHeights[sx, sy] = realHeight;
@@ -579,11 +627,56 @@ namespace W3Studio.Services
             return result;
         }
 
-        private static float GetBrushDistance(float dx, float dy, TerrainBrushShape shape)
+        public static TerrainCornerInspection? InspectCorner(MapProject? project, float worldX, float worldY)
         {
-            return shape == TerrainBrushShape.Square
-                ? MathF.Max(MathF.Abs(dx), MathF.Abs(dy))
-                : MathF.Sqrt(dx * dx + dy * dy);
+            var t = project?.Terrain;
+            var raw = t?.RawW3eBytes;
+            if (t == null || raw == null || t.GridWidth <= 1 || t.GridHeight <= 1)
+                return null;
+
+            int headerLen = GetW3eCornerDataOffset(raw);
+            if (headerLen < 0 || raw.Length < headerLen + t.GridWidth * t.GridHeight * 7)
+                return null;
+
+            int cx = Math.Clamp((int)MathF.Round((worldX - t.OffsetX) / 128f), 0, t.GridWidth - 1);
+            int cy = Math.Clamp((int)MathF.Round((worldY - t.OffsetY) / 128f), 0, t.GridHeight - 1);
+            int off = headerLen + (cy * t.GridWidth + cx) * 7;
+
+            byte flagsAndTex = raw[off + 4];
+            byte cliffAndLayer = raw[off + 6];
+            return new TerrainCornerInspection(
+                cx,
+                cy,
+                flagsAndTex & 0x0F,
+                (flagsAndTex & 0x20) != 0,
+                (cliffAndLayer >> 4) & 0x0F,
+                cliffAndLayer & 0x0F,
+                GetCornerWorldZ(raw, off),
+                (flagsAndTex & 0x40) != 0,
+                (flagsAndTex & 0x10) != 0,
+                (flagsAndTex & 0x80) != 0);
+        }
+
+        public static float GetBrushRadiusInCells(int brushSize)
+        {
+            return brushSize switch
+            {
+                <= 1 => 0.75f,
+                2 => 1.55f,
+                3 => 2.55f,
+                <= 5 => 4.05f,
+                _ => Math.Max(5.5f, brushSize * 0.8f)
+            };
+        }
+
+        public static float GetBrushDistance(float dx, float dy, TerrainBrushShape shape)
+        {
+            return shape switch
+            {
+                TerrainBrushShape.Square => MathF.Max(MathF.Abs(dx), MathF.Abs(dy)),
+                TerrainBrushShape.Diamond => MathF.Abs(dx) + MathF.Abs(dy),
+                _ => MathF.Sqrt(dx * dx + dy * dy)
+            };
         }
 
         private static ushort ComputeWaterRawForLayer(int surfaceLayer, ushort existingWaterRaw)

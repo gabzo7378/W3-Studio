@@ -85,6 +85,8 @@
                         <Image Source="pack://application:,,,/Assets/Icons/search.png" Width="16" Height="16"/>
                     </MenuItem.Icon>
                 </MenuItem>
+                <MenuItem Header="Buscar y Reemplazar..." InputGestureText="Ctrl+H" Click="BtnFindReplace_Click"/>
+                <MenuItem Header="Ir a Definición" InputGestureText="F12" Click="BtnGoToDefinition_Click"/>
             </MenuItem>
             <MenuItem Header="_Módulos">
                 <MenuItem Header="Editor de Triggers (F4)" IsChecked="True"/>
@@ -316,7 +318,9 @@
                                         </StackPanel>
                                     </Button>
                                     <Button Content="Modificar..." Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,4,0" Click="BtnEditEvent_Click"/>
-                                    <Button Content="Borrar" Style="{DynamicResource WeToolbarIconBtn}" Click="BtnDeleteEvent_Click"/>
+                                    <Button Content="Borrar" Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,4,0" Click="BtnDeleteEvent_Click"/>
+                                    <Button Content="▲" Width="24" Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,2,0" ToolTip="Subir evento" Click="BtnMoveEventUp_Click"/>
+                                    <Button Content="▼" Width="24" Style="{DynamicResource WeToolbarIconBtn}" ToolTip="Bajar evento" Click="BtnMoveEventDown_Click"/>
                                 </StackPanel>
                             </DockPanel>
                         </Border>
@@ -326,7 +330,19 @@
                                  Foreground="{DynamicResource Win10Text}"
                                  BorderBrush="{DynamicResource Win10Border}"
                                  BorderThickness="1"
-                                 MouseDoubleClick="ListEvents_MouseDoubleClick">
+                                 MouseDoubleClick="ListEvents_MouseDoubleClick"
+                                 PreviewKeyDown="ListEvents_PreviewKeyDown">
+                            <ListBox.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Añadir Evento..." Click="BtnAddEvent_Click"/>
+                                    <MenuItem Header="Modificar Evento..." Click="BtnEditEvent_Click"/>
+                                    <Separator/>
+                                    <MenuItem Header="Subir" Click="BtnMoveEventUp_Click"/>
+                                    <MenuItem Header="Bajar" Click="BtnMoveEventDown_Click"/>
+                                    <Separator/>
+                                    <MenuItem Header="Borrar" Click="BtnDeleteEvent_Click"/>
+                                </ContextMenu>
+                            </ListBox.ContextMenu>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal" Margin="2">
@@ -359,7 +375,9 @@
                                         </StackPanel>
                                     </Button>
                                     <Button Content="Modificar..." Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,4,0" Click="BtnEditCondition_Click"/>
-                                    <Button Content="Borrar" Style="{DynamicResource WeToolbarIconBtn}" Click="BtnDeleteCondition_Click"/>
+                                    <Button Content="Borrar" Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,4,0" Click="BtnDeleteCondition_Click"/>
+                                    <Button Content="▲" Width="24" Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,2,0" ToolTip="Subir condición" Click="BtnMoveConditionUp_Click"/>
+                                    <Button Content="▼" Width="24" Style="{DynamicResource WeToolbarIconBtn}" ToolTip="Bajar condición" Click="BtnMoveConditionDown_Click"/>
                                 </StackPanel>
                             </DockPanel>
                         </Border>
@@ -369,7 +387,19 @@
                                  Foreground="{DynamicResource Win10Text}"
                                  BorderBrush="{DynamicResource Win10Border}"
                                  BorderThickness="1"
-                                 MouseDoubleClick="ListConditions_MouseDoubleClick">
+                                 MouseDoubleClick="ListConditions_MouseDoubleClick"
+                                 PreviewKeyDown="ListConditions_PreviewKeyDown">
+                            <ListBox.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Añadir Condición..." Click="BtnAddCondition_Click"/>
+                                    <MenuItem Header="Modificar Condición..." Click="BtnEditCondition_Click"/>
+                                    <Separator/>
+                                    <MenuItem Header="Subir" Click="BtnMoveConditionUp_Click"/>
+                                    <MenuItem Header="Bajar" Click="BtnMoveConditionDown_Click"/>
+                                    <Separator/>
+                                    <MenuItem Header="Borrar" Click="BtnDeleteCondition_Click"/>
+                                </ContextMenu>
+                            </ListBox.ContextMenu>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal" Margin="2">
@@ -402,6 +432,7 @@
                                         </StackPanel>
                                     </Button>
                                     <Button Content="Modificar..." Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,4,0" Click="BtnEditAction_Click"/>
+                                    <Button Content="Duplicar" Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,4,0" Click="BtnDuplicateAction_Click"/>
                                     <Button Content="Borrar" Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,4,0" Click="BtnDeleteAction_Click"/>
                                     <Button Content="▲ Subir" Style="{DynamicResource WeToolbarIconBtn}" Margin="0,0,2,0" Click="BtnMoveActionUp_Click"/>
                                     <Button Content="▼ Bajar" Style="{DynamicResource WeToolbarIconBtn}" Click="BtnMoveActionDown_Click"/>
@@ -414,7 +445,20 @@
                                  Foreground="{DynamicResource Win10Text}"
                                  BorderBrush="{DynamicResource Win10Border}"
                                  BorderThickness="1"
-                                 MouseDoubleClick="ListActions_MouseDoubleClick">
+                                 MouseDoubleClick="ListActions_MouseDoubleClick"
+                                 PreviewKeyDown="ListActions_PreviewKeyDown">
+                            <ListBox.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Añadir Acción..." Click="BtnAddAction_Click"/>
+                                    <MenuItem Header="Modificar Acción..." Click="BtnEditAction_Click"/>
+                                    <MenuItem Header="Duplicar Acción" Click="BtnDuplicateAction_Click"/>
+                                    <Separator/>
+                                    <MenuItem Header="Subir" Click="BtnMoveActionUp_Click"/>
+                                    <MenuItem Header="Bajar" Click="BtnMoveActionDown_Click"/>
+                                    <Separator/>
+                                    <MenuItem Header="Borrar" Click="BtnDeleteAction_Click"/>
+                                </ContextMenu>
+                            </ListBox.ContextMenu>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal" Margin="2">

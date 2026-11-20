@@ -1170,6 +1170,11 @@ public class MapMpqService
         string category = "Event";
         string funcName = "CustomEventScript";
         string display = jassLine;
+        var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["RawJass"] = jassLine,
+            ["Code"] = jassLine
+        };
 
         if (jassLine.Contains("TriggerRegisterTimerEventPeriodic", StringComparison.Ordinal))
         {
@@ -1177,6 +1182,7 @@ public class MapMpqService
             funcName = "PeriodicTimer";
             var m = Regex.Match(jassLine, @",\s*([0-9.]+)\s*\)");
             var sec = m.Success ? m.Groups[1].Value : "1.00";
+            parameters["Interval"] = sec;
             display = LocalizationService.L($"Tiempo - Cada {sec} segundos de juego", $"Time - Every {sec} seconds of game time");
         }
         else if (jassLine.Contains("TriggerRegisterTimerEvent", StringComparison.Ordinal))
@@ -1185,6 +1191,7 @@ public class MapMpqService
             funcName = "ElapsedTime";
             var m = Regex.Match(jassLine, @",\s*([0-9.]+)\s*,");
             var sec = m.Success ? m.Groups[1].Value : "0.00";
+            parameters["Seconds"] = sec;
             display = LocalizationService.L($"Tiempo - Tiempo transcurrido es {sec} segundos", $"Time - Elapsed game time is {sec} seconds");
         }
         else if (jassLine.Contains("EVENT_PLAYER_UNIT_DEATH", StringComparison.Ordinal))
@@ -1209,24 +1216,41 @@ public class MapMpqService
         {
             category = "Unit";
             funcName = "UnitEntersRegion";
-            display = LocalizationService.L($"Unidad - Una unidad entra en región ({ExtractLastIdentifier(jassLine)})", $"Unit - A unit enters Region ({ExtractLastIdentifier(jassLine)})");
+            var reg = ExtractLastIdentifier(jassLine);
+            parameters["RegionName"] = reg.StartsWith("gg_rct_", StringComparison.OrdinalIgnoreCase) ? reg[7..] : reg;
+            display = LocalizationService.L($"Unidad - Una unidad entra en región ({reg})", $"Unit - A unit enters Region ({reg})");
+        }
+        else if (jassLine.Contains("TriggerRegisterLeaveRectSimple", StringComparison.Ordinal))
+        {
+            category = "Unit";
+            funcName = "UnitLeavesRegion";
+            var reg = ExtractLastIdentifier(jassLine);
+            parameters["RegionName"] = reg.StartsWith("gg_rct_", StringComparison.OrdinalIgnoreCase) ? reg[7..] : reg;
+            display = LocalizationService.L($"Unidad - Una unidad sale de región ({reg})", $"Unit - A unit leaves Region ({reg})");
         }
         else if (jassLine.Contains("TriggerRegisterPlayerChatEvent", StringComparison.Ordinal))
         {
             category = "Player";
             funcName = "PlayerChat";
+            var msgMatch = Regex.Match(jassLine, "\"([^\"]*)\"");
+            if (msgMatch.Success) parameters["ChatMessage"] = msgMatch.Groups[1].Value;
+            var pidMatch = Regex.Match(jassLine, @"Player\(\s*(\d+)\s*\)");
+            if (pidMatch.Success) parameters["PlayerId"] = pidMatch.Groups[1].Value;
+            parameters["ExactMatch"] = jassLine.Contains("false", StringComparison.OrdinalIgnoreCase) ? "false" : "true";
             display = LocalizationService.L($"Jugador - Mensaje de chat ({jassLine})", $"Player - Chat message ({jassLine})");
         }
 
-        return new GuiTriggerElement
+        var ev = new GuiTriggerElement
         {
             ElementType = GuiTriggerElementType.Event,
             Category = category,
             FunctionName = funcName,
             DisplayText = display,
-            IsEnabled = true,
-            Parameters = { ["RawJass"] = jassLine, ["Code"] = jassLine }
+            IsEnabled = true
         };
+        foreach (var kv in parameters)
+            ev.Parameters[kv.Key] = kv.Value;
+        return ev;
     }
 
     private static string FormatJassConditionForGui(string expr)
@@ -1238,47 +1262,56 @@ public class MapMpqService
 
     private static GuiTriggerElement CreateGuiActionFromJassLine(string jassLine)
     {
-        string category = "Action";
+        string category = "CustomScript";
+        string funcName = "CustomScript";
         string display = jassLine;
 
         if (jassLine.Contains("MeleeStartingVisibility", StringComparison.Ordinal))
         {
-            category = "Melee Game";
+            category = "MeleeGame";
+            funcName = "MeleeStartingVisibility";
             display = LocalizationService.L("Partida Melee - Usar ciclo de día/noche melee (para todos los jugadores)", "Melee Game - Use melee time of day (for all players)");
         }
         else if (jassLine.Contains("MeleeStartingHeroLimit", StringComparison.Ordinal))
         {
-            category = "Melee Game";
+            category = "MeleeGame";
+            funcName = "MeleeStartingHeroLimit";
             display = LocalizationService.L("Partida Melee - Limitar Héroes a 1 por tipo de Héroe (para todos los jugadores)", "Melee Game - Limit Heroes to 1 per Hero-type (for all players)");
         }
         else if (jassLine.Contains("MeleeGrantHeroItems", StringComparison.Ordinal))
         {
-            category = "Melee Game";
-            display = LocalizationService.L("Partida Melee - Entregar pergamino de teletransporte inicial a Héroes (para todos los jugadores)", "Melee Game - Give heroicUnits starting items (for all players)");
+            category = "MeleeGame";
+            funcName = "MeleeGrantHeroItems";
+            display = LocalizationService.L("Partida Melee - Entregar pergamino de teletransporte inicial a Héroes (para todos los jugadores)", "Melee Game - Give starting items to Heroes (for all players)");
         }
         else if (jassLine.Contains("MeleeStartingResources", StringComparison.Ordinal))
         {
-            category = "Melee Game";
+            category = "MeleeGame";
+            funcName = "MeleeStartingResources";
             display = LocalizationService.L("Partida Melee - Establecer recursos iniciales (para todos los jugadores)", "Melee Game - Set starting resources (for all players)");
         }
         else if (jassLine.Contains("MeleeClearExcessUnits", StringComparison.Ordinal))
         {
-            category = "Melee Game";
+            category = "MeleeGame";
+            funcName = "MeleeClearExcessUnits";
             display = LocalizationService.L("Partida Melee - Eliminar creeps y criaturas cerca de posiciones iniciales (para todos los jugadores)", "Melee Game - Remove creeps and critters from used start locations (for all players)");
         }
         else if (jassLine.Contains("MeleeStartingUnits", StringComparison.Ordinal))
         {
-            category = "Melee Game";
+            category = "MeleeGame";
+            funcName = "MeleeStartingUnits";
             display = LocalizationService.L("Partida Melee - Crear unidades iniciales (para todos los jugadores)", "Melee Game - Create starting units (for all players)");
         }
         else if (jassLine.Contains("MeleeStartingAI", StringComparison.Ordinal))
         {
-            category = "Melee Game";
+            category = "MeleeGame";
+            funcName = "MeleeStartingAI";
             display = LocalizationService.L("Partida Melee - Ejecutar scripts de IA melee (para jugadores de computadora)", "Melee Game - Run melee AI scripts (for all computer players)");
         }
         else if (jassLine.Contains("MeleeInitVictoryDefeat", StringComparison.Ordinal))
         {
-            category = "Melee Game";
+            category = "MeleeGame";
+            funcName = "MeleeInitVictoryDefeat";
             display = LocalizationService.L("Partida Melee - Imponer condiciones de victoria/derrota melee (para todos los jugadores)", "Melee Game - Enforce victory/defeat conditions (for all players)");
         }
         else if (jassLine.StartsWith("call ", StringComparison.Ordinal))
@@ -1286,20 +1319,37 @@ public class MapMpqService
             var callExpr = jassLine[5..].Trim();
             var paren = callExpr.IndexOf('(');
             var fn = paren > 0 ? callExpr[..paren].Trim() : callExpr;
-            category = GuessGuiCategoryFromFunction(fn);
-            display = $"{category} - {callExpr}";
+            var guessed = GuessGuiCategoryFromFunction(fn);
+            display = $"{guessed} - {callExpr}";
         }
         else if (jassLine.StartsWith("set ", StringComparison.Ordinal))
         {
-            category = "Set Variable";
-            display = $"Set {jassLine[4..].Trim()}";
+            category = "Variable";
+            funcName = "SetVariable";
+            var assign = jassLine[4..].Trim();
+            var eqIdx = assign.IndexOf('=');
+            if (eqIdx > 0)
+            {
+                var vName = assign[..eqIdx].Trim();
+                var vVal = assign[(eqIdx + 1)..].Trim();
+                return new GuiTriggerElement
+                {
+                    ElementType = GuiTriggerElementType.Action,
+                    Category = category,
+                    FunctionName = funcName,
+                    DisplayText = $"Set {vName} = {vVal}",
+                    IsEnabled = true,
+                    Parameters = { ["VarName"] = vName, ["Value"] = vVal, ["RawJass"] = jassLine, ["Code"] = jassLine }
+                };
+            }
+            display = $"Set {assign}";
         }
 
         return new GuiTriggerElement
         {
             ElementType = GuiTriggerElementType.Action,
             Category = category,
-            FunctionName = "CustomScript",
+            FunctionName = funcName,
             DisplayText = display,
             IsEnabled = true,
             Parameters = { ["RawJass"] = jassLine, ["Code"] = jassLine }
@@ -1752,7 +1802,7 @@ public class MapMpqService
     private void SynchronizeAndSerializeUnits(MapProject project)
     {
         var entries = project.Objects.Where(o => o.Category == W3ObjectCategory.Units).ToList();
-        if (project.UnitData == null && !entries.Any(o => o.IsModified))
+        if (project.UnitData == null && !project.HasObjectEdits && !entries.Any(o => o.IsModified))
             return;
 
         project.UnitData ??= new UnitObjectData(ObjectDataFormatVersion.v2);
@@ -1767,7 +1817,7 @@ public class MapMpqService
     private void SynchronizeAndSerializeItems(MapProject project)
     {
         var entries = project.Objects.Where(o => o.Category == W3ObjectCategory.Items).ToList();
-        if (project.ItemData == null && !entries.Any(o => o.IsModified))
+        if (project.ItemData == null && !project.HasObjectEdits && !entries.Any(o => o.IsModified))
             return;
 
         project.ItemData ??= new ItemObjectData(ObjectDataFormatVersion.v2);
@@ -1782,7 +1832,7 @@ public class MapMpqService
     private void SynchronizeAndSerializeBuffs(MapProject project)
     {
         var entries = project.Objects.Where(o => o.Category == W3ObjectCategory.Buffs).ToList();
-        if (project.BuffData == null && !entries.Any(o => o.IsModified))
+        if (project.BuffData == null && !project.HasObjectEdits && !entries.Any(o => o.IsModified))
             return;
 
         project.BuffData ??= new BuffObjectData(ObjectDataFormatVersion.v2);
@@ -1797,7 +1847,7 @@ public class MapMpqService
     private void SynchronizeAndSerializeDestructables(MapProject project)
     {
         var entries = project.Objects.Where(o => o.Category == W3ObjectCategory.Destructables).ToList();
-        if (project.DestructableData == null && !entries.Any(o => o.IsModified))
+        if (project.DestructableData == null && !project.HasObjectEdits && !entries.Any(o => o.IsModified))
             return;
 
         project.DestructableData ??= new DestructableObjectData(ObjectDataFormatVersion.v2);
@@ -1814,17 +1864,16 @@ public class MapMpqService
         List<SimpleObjectModification> baseList,
         List<SimpleObjectModification> customList)
     {
+        baseList.Clear();
+        customList.Clear();
+
         foreach (var entry in entries)
         {
-            var targetList = entry.IsCustom ? customList : baseList;
-            var targetMod = targetList.FirstOrDefault(m =>
-                m.OldId == entry.OldId && (!entry.IsCustom || m.NewId == entry.NewId));
+            if (!entry.IsCustom && entry.Fields.Count == 0)
+                continue;
 
-            if (targetMod == null)
-            {
-                targetMod = new SimpleObjectModification { OldId = entry.OldId, NewId = entry.NewId };
-                targetList.Add(targetMod);
-            }
+            var targetList = entry.IsCustom ? customList : baseList;
+            var targetMod = new SimpleObjectModification { OldId = entry.OldId, NewId = entry.NewId };
 
             foreach (var f in entry.Fields)
             {
@@ -1838,13 +1887,15 @@ public class MapMpqService
                 m.Type = f.DataType;
                 m.Value = ParseFieldValue(f);
             }
+
+            targetList.Add(targetMod);
         }
     }
 
     private void SynchronizeAndSerializeAbilities(MapProject project)
     {
         var entries = project.Objects.Where(o => o.Category == W3ObjectCategory.Abilities).ToList();
-        if (project.AbilityData == null && !entries.Any(o => o.IsModified))
+        if (project.AbilityData == null && !project.HasObjectEdits && !entries.Any(o => o.IsModified))
             return;
 
         project.AbilityData ??= new AbilityObjectData(ObjectDataFormatVersion.v2);
@@ -1859,7 +1910,7 @@ public class MapMpqService
     private void SynchronizeAndSerializeUpgrades(MapProject project)
     {
         var entries = project.Objects.Where(o => o.Category == W3ObjectCategory.Upgrades).ToList();
-        if (project.UpgradeData == null && !entries.Any(o => o.IsModified))
+        if (project.UpgradeData == null && !project.HasObjectEdits && !entries.Any(o => o.IsModified))
             return;
 
         project.UpgradeData ??= new UpgradeObjectData(ObjectDataFormatVersion.v2);
@@ -1876,17 +1927,16 @@ public class MapMpqService
         List<LevelObjectModification> baseList,
         List<LevelObjectModification> customList)
     {
+        baseList.Clear();
+        customList.Clear();
+
         foreach (var entry in entries)
         {
-            var targetList = entry.IsCustom ? customList : baseList;
-            var targetMod = targetList.FirstOrDefault(m =>
-                m.OldId == entry.OldId && (!entry.IsCustom || m.NewId == entry.NewId));
+            if (!entry.IsCustom && entry.Fields.Count == 0)
+                continue;
 
-            if (targetMod == null)
-            {
-                targetMod = new LevelObjectModification { OldId = entry.OldId, NewId = entry.NewId };
-                targetList.Add(targetMod);
-            }
+            var targetList = entry.IsCustom ? customList : baseList;
+            var targetMod = new LevelObjectModification { OldId = entry.OldId, NewId = entry.NewId };
 
             foreach (var f in entry.Fields)
             {
@@ -1906,27 +1956,28 @@ public class MapMpqService
                 m.Type = f.DataType;
                 m.Value = ParseFieldValue(f);
             }
+
+            targetList.Add(targetMod);
         }
     }
 
     private void SynchronizeAndSerializeDoodads(MapProject project)
     {
         var entries = project.Objects.Where(o => o.Category == W3ObjectCategory.Doodads).ToList();
-        if (project.DoodadData == null && !entries.Any(o => o.IsModified))
+        if (project.DoodadData == null && !project.HasObjectEdits && !entries.Any(o => o.IsModified))
             return;
 
         project.DoodadData ??= new DoodadObjectData(ObjectDataFormatVersion.v2);
+        project.DoodadData.BaseDoodads.Clear();
+        project.DoodadData.NewDoodads.Clear();
+
         foreach (var entry in entries)
         {
-            var targetList = entry.IsCustom ? project.DoodadData.NewDoodads : project.DoodadData.BaseDoodads;
-            var targetMod = targetList.FirstOrDefault(m =>
-                m.OldId == entry.OldId && (!entry.IsCustom || m.NewId == entry.NewId));
+            if (!entry.IsCustom && entry.Fields.Count == 0)
+                continue;
 
-            if (targetMod == null)
-            {
-                targetMod = new VariationObjectModification { OldId = entry.OldId, NewId = entry.NewId };
-                targetList.Add(targetMod);
-            }
+            var targetList = entry.IsCustom ? project.DoodadData.NewDoodads : project.DoodadData.BaseDoodads;
+            var targetMod = new VariationObjectModification { OldId = entry.OldId, NewId = entry.NewId };
 
             foreach (var f in entry.Fields)
             {
@@ -1946,6 +1997,8 @@ public class MapMpqService
                 m.Type = f.DataType;
                 m.Value = ParseFieldValue(f);
             }
+
+            targetList.Add(targetMod);
         }
 
         using var ms = new MemoryStream();
@@ -2052,6 +2105,13 @@ public class MapMpqService
         onProgress?.Invoke(65, "Serializando objetos personalizados (Object Editor)...");
         SynchronizeAndSerializeAllObjects(project);
 
+        if (project.HasTriggerStructureEdits ||
+            project.AllTriggerNodes.Any(t => t.IsModified && t.Kind != TriggerNodeKind.RootScript))
+        {
+            onProgress?.Invoke(70, "Sincronizando war3map.wtg y war3map.wct...");
+            WriteWtgAndWctFromProject(project);
+        }
+
         onProgress?.Invoke(75, "Actualizando archivos importados (war3map.imp)...");
         foreach (var imp in project.Imports)
         {
@@ -2133,11 +2193,165 @@ public class MapMpqService
         project.HasUnitDoodadEdits = false;
         project.HasRegionEdits = false;
         project.HasCameraEdits = false;
+        project.HasObjectEdits = false;
+        project.HasTriggerStructureEdits = false;
         foreach (var obj in project.Objects)
         {
             obj.IsModified = false;
             foreach (var f in obj.Fields)
                 f.IsModified = false;
+        }
+    }
+
+    /// <summary>
+    /// Serializes categories, global variables (udg_*), and triggers into WC3 TFT 1.27b
+    /// binary war3map.wtg (v7) and war3map.wct (v1) files so edits persist cleanly across reopens and WE.
+    /// </summary>
+    public static void WriteWtgAndWctFromProject(MapProject project)
+    {
+        static void WriteCString(BinaryWriter bw, string? value)
+        {
+            var bytes = Encoding.UTF8.GetBytes(value ?? string.Empty);
+            bw.Write(bytes);
+            bw.Write((byte)0);
+        }
+
+        var categories = new List<(int Id, string Name, TriggerNode? Node)>();
+        var catIdByNode = new Dictionary<TriggerNode, int>();
+        int nextCatId = 0;
+
+        foreach (var top in project.TriggerTree)
+        {
+            if (top.Kind == TriggerNodeKind.Category)
+            {
+                int id = top.CategoryId > 0 ? top.CategoryId : nextCatId++;
+                if (id >= nextCatId) nextCatId = id + 1;
+                categories.Add((id, string.IsNullOrWhiteSpace(top.Name) ? $"Category {id}" : top.Name, top));
+                catIdByNode[top] = id;
+            }
+        }
+
+        if (categories.Count == 0)
+        {
+            categories.Add((0, "Initialization", null));
+        }
+
+        int defaultCatId = categories[0].Id;
+        var orderedTriggers = new List<(TriggerNode Node, int CategoryId)>();
+        var seen = new HashSet<TriggerNode>();
+
+        foreach (var cat in categories)
+        {
+            if (cat.Node == null) continue;
+            foreach (var child in cat.Node.Children)
+            {
+                if (child.Kind is TriggerNodeKind.GuiTrigger or TriggerNodeKind.CustomTextTrigger or TriggerNodeKind.LibraryOrScope)
+                {
+                    if (seen.Add(child))
+                        orderedTriggers.Add((child, cat.Id));
+                }
+            }
+        }
+
+        foreach (var node in project.AllTriggerNodes)
+        {
+            if (node.Kind is TriggerNodeKind.GuiTrigger or TriggerNodeKind.CustomTextTrigger or TriggerNodeKind.LibraryOrScope)
+            {
+                if (seen.Add(node))
+                    orderedTriggers.Add((node, defaultCatId));
+            }
+        }
+
+        // 1. Write war3map.wtg (v7)
+        using (var msWtg = new MemoryStream())
+        using (var bw = new BinaryWriter(msWtg, Encoding.UTF8, leaveOpen: true))
+        {
+            bw.Write(Encoding.ASCII.GetBytes("WTG!"));
+            bw.Write(7); // TFT 1.27b format version
+
+            bw.Write(categories.Count);
+            foreach (var cat in categories)
+            {
+                bw.Write(cat.Id);
+                WriteCString(bw, cat.Name);
+                bw.Write(0); // isComment = false
+            }
+
+            bw.Write(2); // unknown constant
+            bw.Write(project.GlobalVariables.Count);
+            foreach (var gv in project.GlobalVariables)
+            {
+                WriteCString(bw, gv.Name);
+                WriteCString(bw, string.IsNullOrWhiteSpace(gv.Type) ? "integer" : gv.Type);
+                bw.Write(1); // unknown = 1
+                bw.Write(gv.IsArray ? 1 : 0);
+                bw.Write(Math.Max(1, gv.ArraySize));
+                bool hasInit = !string.IsNullOrWhiteSpace(gv.InitialValue);
+                bw.Write(hasInit ? 1 : 0);
+                WriteCString(bw, hasInit ? gv.InitialValue : string.Empty);
+            }
+
+            bw.Write(orderedTriggers.Count);
+            foreach (var (trg, catId) in orderedTriggers)
+            {
+                WriteCString(bw, string.IsNullOrWhiteSpace(trg.Name) ? "Untitled" : trg.Name);
+                WriteCString(bw, trg.Comment ?? string.Empty);
+                bw.Write(0); // isComment = false
+                bw.Write(trg.IsEnabled ? 1 : 0);
+                bw.Write(1); // isCustomText = true (exact code stored in paired war3map.wct)
+                bw.Write(trg.IsInitiallyOn ? 0 : 1); // isInitiallyOff
+                bool runOnInit = trg.Events.Any(e =>
+                    e.IsEnabled && e.FunctionName.Equals("MapInitialization", StringComparison.OrdinalIgnoreCase));
+                bw.Write(runOnInit ? 1 : 0);
+                bw.Write(catId);
+                bw.Write(0); // ECA count = 0 for custom text triggers
+            }
+
+            bw.Flush();
+            project.RawMpqFiles["war3map.wtg"] = msWtg.ToArray();
+        }
+
+        // 2. Write war3map.wct (v1)
+        var headerNode = project.AllTriggerNodes.FirstOrDefault(n => n.Kind == TriggerNodeKind.MapHeader);
+        string headerCode = headerNode?.Code ?? string.Empty;
+
+        using (var msWct = new MemoryStream())
+        using (var bw = new BinaryWriter(msWct, Encoding.UTF8, leaveOpen: true))
+        {
+            bw.Write(1); // TFT 1.27b WCT version
+            WriteCString(bw, string.Empty); // map header comment
+
+            if (string.IsNullOrEmpty(headerCode))
+            {
+                bw.Write(0);
+            }
+            else
+            {
+                var hBytes = Encoding.UTF8.GetBytes(headerCode + "\0");
+                bw.Write(hBytes.Length);
+                bw.Write(hBytes);
+            }
+
+            bw.Write(orderedTriggers.Count);
+            foreach (var (trg, _) in orderedTriggers)
+            {
+                string code = !string.IsNullOrWhiteSpace(trg.Code)
+                    ? trg.Code
+                    : (trg.Kind == TriggerNodeKind.GuiTrigger ? trg.GenerateJassFromGui() : string.Empty);
+                if (string.IsNullOrEmpty(code))
+                {
+                    bw.Write(0);
+                }
+                else
+                {
+                    var cBytes = Encoding.UTF8.GetBytes(code + "\0");
+                    bw.Write(cBytes.Length);
+                    bw.Write(cBytes);
+                }
+            }
+
+            bw.Flush();
+            project.RawMpqFiles["war3map.wct"] = msWct.ToArray();
         }
     }
 

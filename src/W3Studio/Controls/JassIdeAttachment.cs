@@ -30,6 +30,8 @@ public sealed class JassIdeAttachment : IDisposable
     private OverloadInsightWindow? _insightWindow;
     private bool _disposed;
 
+    public event Action<TriggerNode, int>? NavigateToTriggerRequested;
+
     public JassIdeAttachment(TextEditor editor, MapProject? project = null, WorkspaceSettings? settings = null)
     {
         _editor = editor ?? throw new ArgumentNullException(nameof(editor));
@@ -362,7 +364,200 @@ public sealed class JassIdeAttachment : IDisposable
         {
             e.Handled = true;
             ShowGoToLineDialog();
+            return;
         }
+
+        if (mods == ModifierKeys.Control && e.Key == Key.H)
+        {
+            e.Handled = true;
+            ShowFindReplaceDialog();
+            return;
+        }
+
+        if (mods == ModifierKeys.None && e.Key == Key.F12)
+        {
+            e.Handled = true;
+            GoToDefinitionAtCaret();
+        }
+    }
+
+    public void ShowFindReplaceDialog()
+    {
+        if (_editor.Document == null) return;
+
+        var hostOwner = Window.GetWindow(_editor);
+        var owner = hostOwner != null && hostOwner.IsLoaded && hostOwner.IsVisible ? hostOwner : null;
+        var dlg = new Window
+        {
+            Title = "Buscar y Reemplazar (JASS / vJASS)",
+            Width = 410,
+            Height = 205,
+            WindowStartupLocation = owner != null ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen,
+            ResizeMode = ResizeMode.NoResize,
+            Owner = owner,
+            Background = new SolidColorBrush(Color.FromRgb(245, 245, 245))
+        };
+
+        var grid = new Grid { Margin = new Thickness(12) };
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(88) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var lblFind = new TextBlock { Text = "Buscar:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 8) };
+        var txtFind = new TextBox { Text = _editor.SelectedText ?? string.Empty, Padding = new Thickness(4, 2, 4, 2), Margin = new Thickness(0, 0, 0, 8) };
+        Grid.SetRow(lblFind, 0); Grid.SetColumn(lblFind, 0);
+        Grid.SetRow(txtFind, 0); Grid.SetColumn(txtFind, 1);
+
+        var lblReplace = new TextBlock { Text = "Reemplazar:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 8) };
+        var txtReplace = new TextBox { Padding = new Thickness(4, 2, 4, 2), Margin = new Thickness(0, 0, 0, 8) };
+        Grid.SetRow(lblReplace, 1); Grid.SetColumn(lblReplace, 0);
+        Grid.SetRow(txtReplace, 1); Grid.SetColumn(txtReplace, 1);
+
+        var chkCase = new CheckBox { Content = "Coincidir mayúsculas y minúsculas", Margin = new Thickness(0, 0, 0, 10) };
+        Grid.SetRow(chkCase, 2); Grid.SetColumn(chkCase, 1);
+
+        var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        Grid.SetRow(btnPanel, 3); Grid.SetColumnSpan(btnPanel, 2);
+
+        var btnFindNext = new Button { Content = "Buscar Siguiente", Padding = new Thickness(8, 3, 8, 3), Margin = new Thickness(0, 0, 6, 0) };
+        var btnReplaceOne = new Button { Content = "Reemplazar", Padding = new Thickness(8, 3, 8, 3), Margin = new Thickness(0, 0, 6, 0) };
+        var btnReplaceAll = new Button { Content = "Reemplazar Todo", Padding = new Thickness(8, 3, 8, 3), Margin = new Thickness(0, 0, 6, 0) };
+        var btnClose = new Button { Content = "Cerrar", Padding = new Thickness(8, 3, 8, 3), IsCancel = true };
+
+        bool SelectNext(string needle, StringComparison cmp)
+        {
+            if (string.IsNullOrEmpty(needle)) return false;
+            var text = _editor.Text;
+            int start = Math.Min(_editor.SelectionStart + _editor.SelectionLength, text.Length);
+            int idx = text.IndexOf(needle, start, cmp);
+            if (idx < 0) idx = text.IndexOf(needle, 0, cmp);
+            if (idx < 0) return false;
+            _editor.Select(idx, needle.Length);
+            _editor.ScrollToLine(_editor.Document.GetLineByOffset(idx).LineNumber);
+            return true;
+        }
+
+        btnFindNext.Click += (_, _) =>
+        {
+            var cmp = chkCase.IsChecked == true ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+            if (!SelectNext(txtFind.Text, cmp))
+                MessageBox.Show(dlg, $"No se encontró '{txtFind.Text}'.", "Buscar", MessageBoxButton.OK, MessageBoxImage.Information);
+        };
+
+        btnReplaceOne.Click += (_, _) =>
+        {
+            if (_editor.IsReadOnly || string.IsNullOrEmpty(txtFind.Text)) return;
+            var cmp = chkCase.IsChecked == true ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+            if (string.Equals(_editor.SelectedText, txtFind.Text, cmp))
+            {
+                _editor.Document.Replace(_editor.SelectionStart, _editor.SelectionLength, txtReplace.Text ?? string.Empty);
+            }
+            SelectNext(txtFind.Text, cmp);
+        };
+
+        btnReplaceAll.Click += (_, _) =>
+        {
+            if (_editor.IsReadOnly || string.IsNullOrEmpty(txtFind.Text)) return;
+            var needle = txtFind.Text;
+            var repl = txtReplace.Text ?? string.Empty;
+            var cmp = chkCase.IsChecked == true ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+            var text = _editor.Text;
+            int count = 0;
+            int pos = 0;
+            var sb = new System.Text.StringBuilder(text.Length);
+            while (true)
+            {
+                int found = text.IndexOf(needle, pos, cmp);
+                if (found < 0)
+                {
+                    sb.Append(text, pos, text.Length - pos);
+                    break;
+                }
+                sb.Append(text, pos, found - pos);
+                sb.Append(repl);
+                pos = found + needle.Length;
+                count++;
+            }
+            if (count > 0)
+            {
+                _editor.Document.Replace(0, _editor.Document.TextLength, sb.ToString());
+                RefreshFolding();
+            }
+            MessageBox.Show(dlg, $"Se reemplazaron {count} coincidencia(s).", "Reemplazar Todo", MessageBoxButton.OK, MessageBoxImage.Information);
+        };
+
+        btnPanel.Children.Add(btnFindNext);
+        btnPanel.Children.Add(btnReplaceOne);
+        btnPanel.Children.Add(btnReplaceAll);
+        btnPanel.Children.Add(btnClose);
+
+        grid.Children.Add(lblFind);
+        grid.Children.Add(txtFind);
+        grid.Children.Add(lblReplace);
+        grid.Children.Add(txtReplace);
+        grid.Children.Add(chkCase);
+        grid.Children.Add(btnPanel);
+        dlg.Content = grid;
+
+        txtFind.Focus();
+        txtFind.SelectAll();
+        dlg.ShowDialog();
+    }
+
+    public bool GoToDefinitionAtCaret()
+    {
+        if (_editor.Document == null) return false;
+        string word = GetIdentifierAtOffset(_editor.CaretOffset);
+        if (string.IsNullOrWhiteSpace(word)) return false;
+
+        var escaped = Regex.Escape(word);
+        var funcOrTypePattern = new Regex(
+            $@"^[ \t]*(?:(?:public|private|static)\s+)*(?:function|method|struct|library|scope|interface)\s+{escaped}\b",
+            RegexOptions.Multiline);
+        var varPattern = new Regex(
+            $@"^[ \t]*(?:local\s+|constant\s+)?[A-Za-z_][A-Za-z0-9_]*\s+(?:array\s+)?{escaped}\b",
+            RegexOptions.Multiline);
+
+        static int FindLineInText(string text, Regex primary, Regex secondary)
+        {
+            var m = primary.Match(text);
+            if (!m.Success) m = secondary.Match(text);
+            if (!m.Success) return -1;
+            int line = 1;
+            for (int i = 0; i < m.Index && i < text.Length; i++)
+                if (text[i] == '\n') line++;
+            return line;
+        }
+
+        int localLine = FindLineInText(_editor.Text, funcOrTypePattern, varPattern);
+        if (localLine > 0 && localLine <= _editor.LineCount)
+        {
+            var docLine = _editor.Document.GetLineByNumber(localLine);
+            _editor.Select(docLine.Offset, docLine.Length);
+            _editor.ScrollToLine(localLine);
+            _editor.Focus();
+            return true;
+        }
+
+        if (_project != null)
+        {
+            foreach (var node in _project.AllTriggerNodes)
+            {
+                if (node.Kind is TriggerNodeKind.Category or TriggerNodeKind.RootScript || string.IsNullOrEmpty(node.Code))
+                    continue;
+                int foundLine = FindLineInText(node.Code, funcOrTypePattern, varPattern);
+                if (foundLine > 0)
+                {
+                    NavigateToTriggerRequested?.Invoke(node, foundLine);
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private void TextArea_TextEntering(object sender, TextCompositionEventArgs e)

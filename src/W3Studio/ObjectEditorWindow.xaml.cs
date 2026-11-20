@@ -7,6 +7,7 @@ namespace W3Studio;
 public partial class ObjectEditorWindow : Window
 {
     public event System.Action<string?>? RequestOpenIconManager;
+    public event System.Action<W3ObjectEntry?>? ObjectDataChanged;
 
     public ObjectEditorWindow(
         WarcraftBaseDataService baseDataService,
@@ -18,6 +19,7 @@ public partial class ObjectEditorWindow : Window
         InitializeComponent();
         ObjEditorControl.HidePopoutButton();
         ObjEditorControl.RequestOpenIconManager += path => RequestOpenIconManager?.Invoke(path);
+        ObjEditorControl.ObjectDataChanged += entry => ObjectDataChanged?.Invoke(entry);
         ObjEditorControl.InitializeServices(baseDataService, blpIconService);
         ObjEditorControl.LoadProject(project);
         ObjEditorControl.SelectCategoryAndSearch(initialCategory, searchRawcode);
@@ -34,7 +36,7 @@ public partial class ObjectEditorWindow : Window
     }
 
     private void MenuClose_Click(object sender, RoutedEventArgs e) => Close();
-    private void MenuNewObject_Click(object sender, RoutedEventArgs e) => ObjEditorControl.RebuildObjectTree();
+    private void MenuNewObject_Click(object sender, RoutedEventArgs e) => ObjEditorControl.OpenNewCustomObjectDialog();
     private void MenuCatUnits_Click(object sender, RoutedEventArgs e) => ObjEditorControl.SelectCategoryAndSearch(W3ObjectCategory.Units);
     private void MenuCatItems_Click(object sender, RoutedEventArgs e) => ObjEditorControl.SelectCategoryAndSearch(W3ObjectCategory.Items);
     private void MenuCatDestructables_Click(object sender, RoutedEventArgs e) => ObjEditorControl.SelectCategoryAndSearch(W3ObjectCategory.Destructables);

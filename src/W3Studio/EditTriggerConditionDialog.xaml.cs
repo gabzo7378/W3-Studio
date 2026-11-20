@@ -8,6 +8,7 @@ namespace W3Studio;
 
 public partial class EditTriggerConditionDialog : Window
 {
+    private bool _isLoadingExisting;
     public GuiTriggerElement ResultElement { get; private set; }
 
     public EditTriggerConditionDialog(GuiTriggerElement? existing = null, MapProject? project = null)
@@ -15,6 +16,7 @@ public partial class EditTriggerConditionDialog : Window
         InitializeComponent();
 
         PopulateRegions(project);
+        PopulateProjectUnits(project);
 
         ResultElement = existing?.Clone() ?? new GuiTriggerElement
         {
@@ -24,9 +26,27 @@ public partial class EditTriggerConditionDialog : Window
             DisplayText = "(Unit-type of (Triggering unit)) Equal to Footman"
         };
 
+        _isLoadingExisting = true;
         LoadExistingData();
+        _isLoadingExisting = false;
         UpdateUiPanels();
         UpdatePreview();
+    }
+
+    private void PopulateProjectUnits(MapProject? project)
+    {
+        if (project == null) return;
+        foreach (var obj in project.Objects)
+        {
+            if (obj.Category == W3ObjectCategory.Units && !string.IsNullOrWhiteSpace(obj.Rawcode))
+            {
+                CboUnitType.Items.Add(new ComboBoxItem
+                {
+                    Content = $"{obj.Name} ({obj.Rawcode}) [Mapa]",
+                    Tag = obj.Rawcode
+                });
+            }
+        }
     }
 
     private void PopulateRegions(MapProject? project)
@@ -50,12 +70,26 @@ public partial class EditTriggerConditionDialog : Window
         if (string.IsNullOrEmpty(ResultElement.FunctionName))
             return;
 
+        bool matched = false;
         foreach (ComboBoxItem item in CboConditionType.Items)
         {
             if (string.Equals(item.Tag?.ToString(), ResultElement.FunctionName, StringComparison.OrdinalIgnoreCase))
             {
                 CboConditionType.SelectedItem = item;
+                matched = true;
                 break;
+            }
+        }
+
+        if (!matched)
+        {
+            foreach (ComboBoxItem item in CboConditionType.Items)
+            {
+                if (string.Equals(item.Tag?.ToString(), "CustomScript", StringComparison.OrdinalIgnoreCase))
+                {
+                    CboConditionType.SelectedItem = item;
+                    break;
+                }
             }
         }
 
@@ -114,11 +148,12 @@ public partial class EditTriggerConditionDialog : Window
 
         if (p.TryGetValue("Text", out var txt)) TxtStringValue.Text = txt;
         if (p.TryGetValue("Script", out var sc)) TxtCustomScript.Text = sc;
+        else if (p.TryGetValue("RawJass", out var rawSc)) TxtCustomScript.Text = rawSc;
     }
 
     private void CboConditionType_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (CboConditionType == null) return;
+        if (_isLoadingExisting || CboConditionType == null) return;
         var selectedTag = (CboConditionType.SelectedItem as ComboBoxItem)?.Tag?.ToString();
         if (selectedTag == "AbilityEqual") TxtRawcodeParam.Text = "AHtb";
         else if (selectedTag == "ItemTypeEqual") TxtRawcodeParam.Text = "phea";

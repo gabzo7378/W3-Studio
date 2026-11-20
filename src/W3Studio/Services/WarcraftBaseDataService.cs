@@ -81,6 +81,9 @@ public class FieldMetaDefinition
     public int DecimalPlaces { get; set; } = 2;
 }
 
+public sealed record TerrainTileDefinition(string TileId, string DisplayName, string TexturePath, bool Buildable);
+public sealed record CliffTileDefinition(string CliffId, string DisplayName, string GroundTile, string TexturePath);
+
 /// <summary>
 /// Extrae directamente de los archivos MPQ de Warcraft III 1.27b (War3.mpq, War3x.mpq, War3Patch.mpq)
 /// las tablas SLK, archivos de texto *Strings.txt / *Func.txt y los catálogos *MetaData.slk oficiales.
@@ -92,9 +95,13 @@ public class WarcraftBaseDataService
     private readonly Dictionary<W3ObjectCategory, List<string>> _categoryFieldOrder = new();
     private readonly Dictionary<string, string> _weStrings = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _terrainTileTextures = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<TerrainTileDefinition> _terrainTileCatalog = new();
+    private readonly List<CliffTileDefinition> _cliffTileCatalog = new();
 
     public IReadOnlyDictionary<string, BaseObjectMetadata> AllBaseObjects => _allObjects;
     public IReadOnlyDictionary<string, FieldMetaDefinition> FieldCatalog => _fieldCatalog;
+    public IReadOnlyList<TerrainTileDefinition> TerrainTileCatalog => _terrainTileCatalog;
+    public IReadOnlyList<CliffTileDefinition> CliffTileCatalog => _cliffTileCatalog;
     public bool IsLoaded { get; private set; }
     public bool IsBaseMpqLoaded => IsLoaded;
     public int LoadedBaseObjectsCount => _allObjects.Count;
@@ -1425,34 +1432,95 @@ public class WarcraftBaseDataService
     private void ParseTerrainSlk(List<MpqArchive> archives, string virtualPath)
     {
         _terrainTileTextures.Clear();
+        _terrainTileCatalog.Clear();
+        _cliffTileCatalog.Clear();
+
         var slkText = ReadTextFromArchives(archives, virtualPath);
-        if (string.IsNullOrEmpty(slkText)) return;
-
-        var rows = ParseRawSlkGrid(slkText);
-        if (rows.Count <= 1) return;
-
-        var headers = new Dictionary<int, string>();
-        foreach (var kvp in rows[1])
-            headers[kvp.Key] = kvp.Value.Trim('"');
-
-        foreach (var rowKvp in rows.Skip(1))
+        if (!string.IsNullOrEmpty(slkText))
         {
-            var row = rowKvp.Value;
-            if (!row.TryGetValue(1, out var rawKey)) continue;
-            var tileId = rawKey.Trim('"');
-            if (tileId.Length != 4) continue;
-
-            string dir = string.Empty;
-            string file = string.Empty;
-            foreach (var cell in row)
+            var rows = ParseRawSlkGrid(slkText);
+            if (rows.Count > 1)
             {
-                if (!headers.TryGetValue(cell.Key, out var colName)) continue;
-                if (colName.Equals("dir", StringComparison.OrdinalIgnoreCase)) dir = cell.Value.Trim('"');
-                else if (colName.Equals("file", StringComparison.OrdinalIgnoreCase)) file = cell.Value.Trim('"');
-            }
+                var headers = new Dictionary<int, string>();
+                foreach (var kvp in rows[1])
+                    headers[kvp.Key] = kvp.Value.Trim('"');
 
-            if (!string.IsNullOrEmpty(dir) && !string.IsNullOrEmpty(file))
-                _terrainTileTextures[tileId] = $"{dir}\\{file}.blp";
+                foreach (var rowKvp in rows.Skip(1))
+                {
+                    var row = rowKvp.Value;
+                    if (!row.TryGetValue(1, out var rawKey)) continue;
+                    var tileId = rawKey.Trim('"');
+                    if (tileId.Length != 4) continue;
+
+                    string dir = string.Empty;
+                    string file = string.Empty;
+                    string comment = string.Empty;
+                    string weNameKey = string.Empty;
+                    bool buildable = true;
+                    foreach (var cell in row)
+                    {
+                        if (!headers.TryGetValue(cell.Key, out var colName)) continue;
+                        var val = cell.Value.Trim('"');
+                        if (colName.Equals("dir", StringComparison.OrdinalIgnoreCase)) dir = val;
+                        else if (colName.Equals("file", StringComparison.OrdinalIgnoreCase)) file = val;
+                        else if (colName.Equals("comment", StringComparison.OrdinalIgnoreCase)) comment = val;
+                        else if (colName.Equals("name", StringComparison.OrdinalIgnoreCase)) weNameKey = val;
+                        else if (colName.Equals("buildable", StringComparison.OrdinalIgnoreCase)) buildable = val != "0";
+                    }
+
+                    if (!string.IsNullOrEmpty(dir) && !string.IsNullOrEmpty(file))
+                    {
+                        string texPath = $"{dir}\\{file}.blp";
+                        _terrainTileTextures[tileId] = texPath;
+                        string display = ResolveWeString(weNameKey);
+                        if (string.IsNullOrWhiteSpace(display) || display == weNameKey)
+                            display = !string.IsNullOrWhiteSpace(comment) ? comment : TerrainBrushService.GetTilesetDisplayName(tileId);
+                        _terrainTileCatalog.Add(new TerrainTileDefinition(tileId, display, texPath, buildable));
+                    }
+                }
+            }
+        }
+
+        var cliffSlk = ReadTextFromArchives(archives, @"TerrainArt\CliffTypes.slk");
+        if (!string.IsNullOrEmpty(cliffSlk))
+        {
+            var rows = ParseRawSlkGrid(cliffSlk);
+            if (rows.Count > 1)
+            {
+                var headers = new Dictionary<int, string>();
+                foreach (var kvp in rows[1])
+                    headers[kvp.Key] = kvp.Value.Trim('"');
+
+                foreach (var rowKvp in rows.Skip(1))
+                {
+                    var row = rowKvp.Value;
+                    if (!row.TryGetValue(1, out var rawKey)) continue;
+                    var cliffId = rawKey.Trim('"');
+                    if (cliffId.Length != 4) continue;
+
+                    string texDir = string.Empty;
+                    string texFile = string.Empty;
+                    string groundTile = string.Empty;
+                    string weNameKey = string.Empty;
+                    foreach (var cell in row)
+                    {
+                        if (!headers.TryGetValue(cell.Key, out var colName)) continue;
+                        var val = cell.Value.Trim('"');
+                        if (colName.Equals("texDir", StringComparison.OrdinalIgnoreCase)) texDir = val;
+                        else if (colName.Equals("texFile", StringComparison.OrdinalIgnoreCase)) texFile = val;
+                        else if (colName.Equals("groundTile", StringComparison.OrdinalIgnoreCase)) groundTile = val;
+                        else if (colName.Equals("name", StringComparison.OrdinalIgnoreCase)) weNameKey = val;
+                    }
+
+                    string display = ResolveWeString(weNameKey);
+                    if (string.IsNullOrWhiteSpace(display) || display == weNameKey)
+                        display = string.IsNullOrWhiteSpace(groundTile) ? cliffId : $"{cliffId} ({groundTile})";
+                    string texPath = !string.IsNullOrEmpty(texDir) && !string.IsNullOrEmpty(texFile)
+                        ? $"{texDir}\\{texFile}.blp"
+                        : string.Empty;
+                    _cliffTileCatalog.Add(new CliffTileDefinition(cliffId, display, groundTile, texPath));
+                }
+            }
         }
     }
 

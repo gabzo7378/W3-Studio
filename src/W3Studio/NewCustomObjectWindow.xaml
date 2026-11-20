@@ -1,0 +1,47 @@
+<Window x:Class="W3Studio.NewCustomObjectWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Nuevo Objeto Personalizado (WC3 1.27b)"
+        Width="430"
+        Height="250"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource ThemeWindowBg}"
+        Foreground="{DynamicResource Win10Text}">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="TxtBaseInfo" Text="Basado en: ..." FontWeight="SemiBold" Margin="0,0,0,10"/>
+
+        <StackPanel Grid.Row="1" Margin="0,0,0,10">
+            <TextBlock Text="Nombre del nuevo objeto:" FontSize="11.5" Margin="0,0,0,3"/>
+            <TextBox x:Name="TxtObjectName" Style="{StaticResource Win10TextBox}"/>
+        </StackPanel>
+
+        <Grid Grid.Row="2" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="150"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Rawcode (4 caracteres):" FontSize="11.5" Margin="0,0,0,3"/>
+                <TextBox x:Name="TxtRawcode" MaxLength="4" FontFamily="Consolas" FontWeight="Bold" Style="{StaticResource Win10TextBox}" TextChanged="TxtRawcode_TextChanged"/>
+            </StackPanel>
+            <TextBlock x:Name="TxtRawcodeHint" Grid.Column="1" Margin="10,18,0,0" FontSize="10.5" TextWrapping="Wrap" VerticalAlignment="Top" Foreground="{DynamicResource ThemeTextMuted}"/>
+        </Grid>
+
+        <TextBlock x:Name="TxtValidationError" Grid.Row="3" Foreground="#E04B4B" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Top"/>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="BtnCreate" Content="Crear Objeto" Width="110" Height="28" Margin="0,0,8,0" IsDefault="True" Style="{StaticResource Win10ClassicButton}" Click="BtnCreate_Click"/>
+            <Button Content="Cancelar" Width="86" Height="28" IsCancel="True" Style="{StaticResource Win10ClassicButton}" Click="BtnCancel_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
+

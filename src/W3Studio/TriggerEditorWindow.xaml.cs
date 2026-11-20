@@ -47,6 +47,12 @@ public partial class TriggerEditorWindow : Window
         GridVariables.ItemsSource = _variablesView;
 
         _ideAttachment = new JassIdeAttachment(CodeEditor, project, settings);
+        _ideAttachment.NavigateToTriggerRequested += (targetNode, targetLine) =>
+        {
+            SelectTriggerNode(targetNode);
+            RbCodeMode.IsChecked = true;
+            ScrollCodeEditorToLine(targetLine);
+        };
 
         _liveAnalyzeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
         _liveAnalyzeTimer.Tick += LiveAnalyzeTimer_Tick;
@@ -193,6 +199,8 @@ public partial class TriggerEditorWindow : Window
         _selectedNode.Code = generated;
         _selectedNode.IsModified = true;
         JassKnowledgeService.SyncNodeCodeToProject(_project, _selectedNode, oldCode, generated);
+        var cleanName = JassKnowledgeService.CleanTriggerIdentifier(_selectedNode.Name);
+        JassKnowledgeService.EnsureTriggerCallAndGlobal(_project, cleanName, ensureInitCall: _selectedNode.IsEnabled);
         RefreshGuiPreviewIfExpanded();
     }
 
@@ -210,10 +218,23 @@ public partial class TriggerEditorWindow : Window
     private void TxtTriggerName_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (_isUpdatingUi || _selectedNode == null) return;
-        _selectedNode.Name = TxtTriggerName.Text.Trim();
+        var newName = TxtTriggerName.Text.Trim();
+        if (string.IsNullOrWhiteSpace(newName)) return;
+
+        var oldName = _selectedNode.Name;
+        if (string.Equals(oldName, newName, StringComparison.Ordinal)) return;
+
+        _selectedNode.Name = newName;
         _selectedNode.IsModified = true;
-        if (_selectedNode.Kind == TriggerNodeKind.GuiTrigger)
-            SyncSelectedGuiNodeToScript();
+        if (_project != null)
+            _project.HasTriggerStructureEdits = true;
+
+        if (_selectedNode.Kind is TriggerNodeKind.GuiTrigger or TriggerNodeKind.CustomTextTrigger)
+        {
+            JassKnowledgeService.RenameTriggerInProjectScript(_project, _selectedNode, oldName, newName);
+            if (_selectedNode.Kind == TriggerNodeKind.GuiTrigger)
+                SyncSelectedGuiNodeToScript();
+        }
     }
 
     private void TxtTriggerComment_TextChanged(object sender, TextChangedEventArgs e)
@@ -287,13 +308,41 @@ public partial class TriggerEditorWindow : Window
         }
     }
 
+    private Window? GetSafeOwnerWindow()
+    {
+        if (IsLoaded && IsVisible)
+            return this;
+        var host = (TreeTriggers != null ? Window.GetWindow(TreeTriggers) : null)
+                   ?? (Content is DependencyObject d ? Window.GetWindow(d) : null)
+                   ?? Application.Current?.MainWindow;
+        return host != null && host.IsLoaded && host.IsVisible ? host : null;
+    }
+
+    private bool? ShowOwnedDialog(Window dialog)
+    {
+        var owner = GetSafeOwnerWindow();
+        if (owner != null)
+            dialog.Owner = owner;
+        else
+            dialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        return dialog.ShowDialog();
+    }
+
+    private MessageBoxResult ShowMessage(string text, string caption, MessageBoxButton button, MessageBoxImage icon)
+    {
+        var owner = GetSafeOwnerWindow();
+        return owner != null
+            ? MessageBox.Show(owner, text, caption, button, icon)
+            : MessageBox.Show(text, caption, button, icon);
+    }
+
     // ==================== EVENTOS GUI ====================
 
     private void BtnAddEvent_Click(object sender, RoutedEventArgs e)
     {
         if (_selectedNode == null) return;
-        var dlg = new EditTriggerEventDialog(null, _project) { Owner = this };
-        if (dlg.ShowDialog() == true)
+        var dlg = new EditTriggerEventDialog(null, _project);
+        if (ShowOwnedDialog(dlg) == true)
         {
             _selectedNode.Events.Add(dlg.ResultElement);
             UpdateGuiCounts();
@@ -305,16 +354,23 @@ public partial class TriggerEditorWindow : Window
     private void BtnEditEvent_Click(object sender, RoutedEventArgs e) => EditSelectedEvent();
     private void ListEvents_MouseDoubleClick(object sender, MouseButtonEventArgs e) => EditSelectedEvent();
 
+    private void ListEvents_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) { e.Handled = true; EditSelectedEvent(); }
+        else if (e.Key == Key.Delete) { e.Handled = true; BtnDeleteEvent_Click(sender, e); }
+    }
+
     private void EditSelectedEvent()
     {
         if (_selectedNode == null || ListEvents.SelectedItem is not GuiTriggerElement ev) return;
-        var dlg = new EditTriggerEventDialog(ev, _project) { Owner = this };
-        if (dlg.ShowDialog() == true)
+        var dlg = new EditTriggerEventDialog(ev, _project);
+        if (ShowOwnedDialog(dlg) == true)
         {
             var idx = _selectedNode.Events.IndexOf(ev);
             if (idx >= 0) _selectedNode.Events[idx] = dlg.ResultElement;
             UpdateGuiCounts();
             SyncSelectedGuiNodeToScript();
+            ListEvents.SelectedItem = dlg.ResultElement;
         }
     }
 
@@ -326,13 +382,37 @@ public partial class TriggerEditorWindow : Window
         SyncSelectedGuiNodeToScript();
     }
 
+    private void BtnMoveEventUp_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedNode == null || ListEvents.SelectedItem is not GuiTriggerElement ev) return;
+        var idx = _selectedNode.Events.IndexOf(ev);
+        if (idx > 0)
+        {
+            _selectedNode.Events.Move(idx, idx - 1);
+            SyncSelectedGuiNodeToScript();
+            ListEvents.SelectedItem = ev;
+        }
+    }
+
+    private void BtnMoveEventDown_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedNode == null || ListEvents.SelectedItem is not GuiTriggerElement ev) return;
+        var idx = _selectedNode.Events.IndexOf(ev);
+        if (idx >= 0 && idx < _selectedNode.Events.Count - 1)
+        {
+            _selectedNode.Events.Move(idx, idx + 1);
+            SyncSelectedGuiNodeToScript();
+            ListEvents.SelectedItem = ev;
+        }
+    }
+
     // ==================== CONDICIONES GUI ====================
 
     private void BtnAddCondition_Click(object sender, RoutedEventArgs e)
     {
         if (_selectedNode == null) return;
-        var dlg = new EditTriggerConditionDialog(null, _project) { Owner = this };
-        if (dlg.ShowDialog() == true)
+        var dlg = new EditTriggerConditionDialog(null, _project);
+        if (ShowOwnedDialog(dlg) == true)
         {
             _selectedNode.Conditions.Add(dlg.ResultElement);
             UpdateGuiCounts();
@@ -344,16 +424,23 @@ public partial class TriggerEditorWindow : Window
     private void BtnEditCondition_Click(object sender, RoutedEventArgs e) => EditSelectedCondition();
     private void ListConditions_MouseDoubleClick(object sender, MouseButtonEventArgs e) => EditSelectedCondition();
 
+    private void ListConditions_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) { e.Handled = true; EditSelectedCondition(); }
+        else if (e.Key == Key.Delete) { e.Handled = true; BtnDeleteCondition_Click(sender, e); }
+    }
+
     private void EditSelectedCondition()
     {
         if (_selectedNode == null || ListConditions.SelectedItem is not GuiTriggerElement cond) return;
-        var dlg = new EditTriggerConditionDialog(cond, _project) { Owner = this };
-        if (dlg.ShowDialog() == true)
+        var dlg = new EditTriggerConditionDialog(cond, _project);
+        if (ShowOwnedDialog(dlg) == true)
         {
             var idx = _selectedNode.Conditions.IndexOf(cond);
             if (idx >= 0) _selectedNode.Conditions[idx] = dlg.ResultElement;
             UpdateGuiCounts();
             SyncSelectedGuiNodeToScript();
+            ListConditions.SelectedItem = dlg.ResultElement;
         }
     }
 
@@ -365,13 +452,37 @@ public partial class TriggerEditorWindow : Window
         SyncSelectedGuiNodeToScript();
     }
 
+    private void BtnMoveConditionUp_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedNode == null || ListConditions.SelectedItem is not GuiTriggerElement cond) return;
+        var idx = _selectedNode.Conditions.IndexOf(cond);
+        if (idx > 0)
+        {
+            _selectedNode.Conditions.Move(idx, idx - 1);
+            SyncSelectedGuiNodeToScript();
+            ListConditions.SelectedItem = cond;
+        }
+    }
+
+    private void BtnMoveConditionDown_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedNode == null || ListConditions.SelectedItem is not GuiTriggerElement cond) return;
+        var idx = _selectedNode.Conditions.IndexOf(cond);
+        if (idx >= 0 && idx < _selectedNode.Conditions.Count - 1)
+        {
+            _selectedNode.Conditions.Move(idx, idx + 1);
+            SyncSelectedGuiNodeToScript();
+            ListConditions.SelectedItem = cond;
+        }
+    }
+
     // ==================== ACCIONES GUI ====================
 
     private void BtnAddAction_Click(object sender, RoutedEventArgs e)
     {
         if (_selectedNode == null) return;
-        var dlg = new EditTriggerActionDialog(null, _project) { Owner = this };
-        if (dlg.ShowDialog() == true)
+        var dlg = new EditTriggerActionDialog(null, _project);
+        if (ShowOwnedDialog(dlg) == true)
         {
             _selectedNode.Actions.Add(dlg.ResultElement);
             UpdateGuiCounts();
@@ -383,16 +494,24 @@ public partial class TriggerEditorWindow : Window
     private void BtnEditAction_Click(object sender, RoutedEventArgs e) => EditSelectedAction();
     private void ListActions_MouseDoubleClick(object sender, MouseButtonEventArgs e) => EditSelectedAction();
 
+    private void ListActions_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) { e.Handled = true; EditSelectedAction(); }
+        else if (e.Key == Key.Delete) { e.Handled = true; BtnDeleteAction_Click(sender, e); }
+        else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.D) { e.Handled = true; BtnDuplicateAction_Click(sender, e); }
+    }
+
     private void EditSelectedAction()
     {
         if (_selectedNode == null || ListActions.SelectedItem is not GuiTriggerElement act) return;
-        var dlg = new EditTriggerActionDialog(act, _project) { Owner = this };
-        if (dlg.ShowDialog() == true)
+        var dlg = new EditTriggerActionDialog(act, _project);
+        if (ShowOwnedDialog(dlg) == true)
         {
             var idx = _selectedNode.Actions.IndexOf(act);
             if (idx >= 0) _selectedNode.Actions[idx] = dlg.ResultElement;
             UpdateGuiCounts();
             SyncSelectedGuiNodeToScript();
+            ListActions.SelectedItem = dlg.ResultElement;
         }
     }
 
@@ -402,6 +521,20 @@ public partial class TriggerEditorWindow : Window
         _selectedNode.Actions.Remove(act);
         UpdateGuiCounts();
         SyncSelectedGuiNodeToScript();
+    }
+
+    private void BtnDuplicateAction_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedNode == null || ListActions.SelectedItem is not GuiTriggerElement act) return;
+        var idx = _selectedNode.Actions.IndexOf(act);
+        var copy = act.Clone();
+        if (idx >= 0 && idx < _selectedNode.Actions.Count)
+            _selectedNode.Actions.Insert(idx + 1, copy);
+        else
+            _selectedNode.Actions.Add(copy);
+        UpdateGuiCounts();
+        SyncSelectedGuiNodeToScript();
+        ListActions.SelectedItem = copy;
     }
 
     private void BtnMoveActionUp_Click(object sender, RoutedEventArgs e)
@@ -434,18 +567,17 @@ public partial class TriggerEditorWindow : Window
     {
         if (_selectedNode == null)
         {
-            MessageBox.Show(this, "Por favor seleccione un disparador para convertir.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
+            ShowMessage("Por favor seleccione un disparador para convertir.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         if (_selectedNode.Kind != TriggerNodeKind.GuiTrigger)
         {
-            MessageBox.Show(this, "El elemento seleccionado ya es un script o bloque de texto personalizado.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
+            ShowMessage("El elemento seleccionado ya es un script o bloque de texto personalizado.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var res = MessageBox.Show(
-            this,
+        var res = ShowMessage(
             $"¿Está seguro de que desea convertir el disparador '{_selectedNode.Name}' a texto personalizado (JASS / vJASS)?\n\n" +
             "Esta acción transformará los eventos, condiciones y acciones GUI en código JASS editable.",
             "Convertir Disparador a Texto Personalizado",
@@ -463,7 +595,7 @@ public partial class TriggerEditorWindow : Window
         JassKnowledgeService.SyncNodeCodeToProject(_project, _selectedNode, oldCode, generatedJass);
 
         SelectTriggerNode(_selectedNode);
-        MessageBox.Show(this, $"El disparador '{_selectedNode.Name}' se ha convertido con éxito a texto personalizado JASS.", "Conversión Exitosa", MessageBoxButton.OK, MessageBoxImage.Information);
+        ShowMessage($"El disparador '{_selectedNode.Name}' se ha convertido con éxito a texto personalizado JASS.", "Conversión Exitosa", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void BtnSyncFromGui_Click(object sender, RoutedEventArgs e)
@@ -478,7 +610,7 @@ public partial class TriggerEditorWindow : Window
     {
         if (_project == null)
         {
-            MessageBox.Show(this, "Debe abrir un mapa para añadir disparadores.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
+            ShowMessage("Debe abrir un mapa para añadir disparadores.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -516,6 +648,9 @@ public partial class TriggerEditorWindow : Window
         node.Code = node.GenerateJassFromGui();
 
         InsertTriggerIntoTree(node);
+        _project.HasTriggerStructureEdits = true;
+        JassKnowledgeService.SyncNodeCodeToProject(_project, node, string.Empty, node.Code);
+        JassKnowledgeService.EnsureTriggerCallAndGlobal(_project, JassKnowledgeService.CleanTriggerIdentifier(node.Name), ensureInitCall: true);
         SelectTriggerNode(node);
         RefreshMapRefsList();
     }
@@ -524,7 +659,7 @@ public partial class TriggerEditorWindow : Window
     {
         if (_project == null)
         {
-            MessageBox.Show(this, "Debe abrir un mapa para añadir scripts vJASS.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
+            ShowMessage("Debe abrir un mapa para añadir scripts vJASS.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -564,6 +699,7 @@ public partial class TriggerEditorWindow : Window
         if (!_project.AllTriggerNodes.Contains(node))
             _project.AllTriggerNodes.Add(node);
 
+        _project.HasTriggerStructureEdits = true;
         JassKnowledgeService.SyncNodeCodeToProject(_project, node, string.Empty, initialCode);
         SelectTriggerNode(node);
         RefreshMapRefsList();
@@ -576,7 +712,7 @@ public partial class TriggerEditorWindow : Window
             _selectedNode.Kind == TriggerNodeKind.MapHeader ||
             _selectedNode.Kind == TriggerNodeKind.Category)
         {
-            MessageBox.Show(this, "Solo puedes duplicar triggers o scripts individuales.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
+            ShowMessage("Solo puedes duplicar triggers o scripts individuales.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -592,6 +728,8 @@ public partial class TriggerEditorWindow : Window
         if (copy.Kind == TriggerNodeKind.GuiTrigger)
         {
             copy.Code = copy.GenerateJassFromGui();
+            JassKnowledgeService.SyncNodeCodeToProject(_project, copy, string.Empty, copy.Code);
+            JassKnowledgeService.EnsureTriggerCallAndGlobal(_project, JassKnowledgeService.CleanTriggerIdentifier(copy.Name), ensureInitCall: copy.IsEnabled);
         }
         else if (!string.IsNullOrEmpty(copy.Code))
         {
@@ -599,6 +737,7 @@ public partial class TriggerEditorWindow : Window
             JassKnowledgeService.SyncNodeCodeToProject(_project, copy, string.Empty, copy.Code);
         }
 
+        _project.HasTriggerStructureEdits = true;
         InsertTriggerIntoTree(copy);
         SelectTriggerNode(copy);
         RefreshMapRefsList();
@@ -624,7 +763,7 @@ public partial class TriggerEditorWindow : Window
     {
         if (_project == null)
         {
-            MessageBox.Show(this, "Debe abrir un mapa para crear categorías.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
+            ShowMessage("Debe abrir un mapa para crear categorías.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -635,6 +774,7 @@ public partial class TriggerEditorWindow : Window
             Kind = TriggerNodeKind.Category
         };
         _project.TriggerTree.Add(cat);
+        _project.HasTriggerStructureEdits = true;
         SelectTriggerNode(cat);
     }
 
@@ -644,12 +784,11 @@ public partial class TriggerEditorWindow : Window
 
         if (_selectedNode.Kind == TriggerNodeKind.RootScript || _selectedNode.Kind == TriggerNodeKind.MapHeader)
         {
-            MessageBox.Show(this, "No se puede eliminar el script raíz ni la cabecera del mapa.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+            ShowMessage("No se puede eliminar el script raíz ni la cabecera del mapa.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
-        var res = MessageBox.Show(
-            this,
+        var res = ShowMessage(
             $"¿Está seguro de que desea eliminar '{_selectedNode.Name}'?",
             "Confirmar eliminación",
             MessageBoxButton.YesNo,
@@ -657,8 +796,16 @@ public partial class TriggerEditorWindow : Window
 
         if (res != MessageBoxResult.Yes) return;
 
-        RemoveNodeRecursively(_project.TriggerTree, _selectedNode);
-        _project.AllTriggerNodes.Remove(_selectedNode);
+        var toRemove = _selectedNode;
+        JassKnowledgeService.RemoveTriggerFromProjectScript(_project, toRemove);
+        RemoveNodeRecursively(_project.TriggerTree, toRemove);
+        if (toRemove.Kind == TriggerNodeKind.Category)
+        {
+            foreach (var child in toRemove.Children.ToList())
+                _project.AllTriggerNodes.Remove(child);
+        }
+        _project.AllTriggerNodes.Remove(toRemove);
+        _project.HasTriggerStructureEdits = true;
         ClearDetails();
         _selectedNode = null;
         RefreshMapRefsList();
@@ -742,6 +889,30 @@ public partial class TriggerEditorWindow : Window
             _ideAttachment.ShowGoToLineDialog();
     }
 
+    private void BtnFindReplace_Click(object sender, RoutedEventArgs e)
+    {
+        if (RbGuiMode.IsChecked == true)
+            RbCodeMode.IsChecked = true;
+        _ideAttachment.ShowFindReplaceDialog();
+    }
+
+    private void BtnGoToDefinition_Click(object sender, RoutedEventArgs e)
+    {
+        if (RbCodeMode.IsChecked == true)
+            _ideAttachment.GoToDefinitionAtCaret();
+    }
+
+    private void ScrollCodeEditorToLine(int line)
+    {
+        if (line > 0 && line <= CodeEditor.LineCount)
+        {
+            var lineObj = CodeEditor.Document.GetLineByNumber(line);
+            CodeEditor.Select(lineObj.Offset, lineObj.Length);
+            CodeEditor.ScrollToLine(line);
+            CodeEditor.Focus();
+        }
+    }
+
     private void TxtCodeSearch_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter)
@@ -810,12 +981,12 @@ public partial class TriggerEditorWindow : Window
 
         if (compileRes.Success && errCount == 0 && warnCount == 0)
         {
-            MessageBox.Show(this, "Validación WC3 1.27b limpia: 0 errores de sintaxis y 0 memory leaks detectados.", "Validación Correcta", MessageBoxButton.OK, MessageBoxImage.Information);
+            ShowMessage("Validación WC3 1.27b limpia: 0 errores de sintaxis y 0 memory leaks detectados.", "Validación Correcta", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         else if (compileRes.Success && errCount == 0)
         {
             RbCodeMode.IsChecked = true;
-            MessageBox.Show(this, $"Sintaxis WC3 1.27b correcta (0 errores).\nSe detectaron {warnCount} advertencia(s) de posibles Memory Leaks en el panel inferior.", "Validación con Advertencias de Leak", MessageBoxButton.OK, MessageBoxImage.Warning);
+            ShowMessage($"Sintaxis WC3 1.27b correcta (0 errores).\nSe detectaron {warnCount} advertencia(s) de posibles Memory Leaks en el panel inferior.", "Validación con Advertencias de Leak", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         else
         {
@@ -825,14 +996,24 @@ public partial class TriggerEditorWindow : Window
 
     private void GridDiagnostics_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (GridDiagnostics.SelectedItem is not CompilerDiagnostic diag) return;
-        if (diag.Line > 0 && diag.Line <= CodeEditor.LineCount)
+        if (GridDiagnostics.SelectedItem is not CompilerDiagnostic diag || diag.Line <= 0) return;
+
+        if (_project != null &&
+            string.Equals(diag.TriggerOrFile, _project.FileName, StringComparison.OrdinalIgnoreCase))
         {
-            var lineObj = CodeEditor.Document.GetLineByNumber(diag.Line);
-            CodeEditor.Select(lineObj.Offset, lineObj.Length);
-            CodeEditor.ScrollToLine(diag.Line);
-            CodeEditor.Focus();
+            var (mappedNode, localLine) = JassKnowledgeService.MapScriptLineToTrigger(_project, diag.Line);
+            if (mappedNode != null)
+            {
+                if (_selectedNode != mappedNode)
+                    SelectTriggerNode(mappedNode);
+                RbCodeMode.IsChecked = true;
+                ScrollCodeEditorToLine(localLine);
+                return;
+            }
         }
+
+        RbCodeMode.IsChecked = true;
+        ScrollCodeEditorToLine(diag.Line);
     }
 
     private void TxtTreeFilter_TextChanged(object sender, RoutedEventArgs e)
@@ -1021,7 +1202,7 @@ public partial class TriggerEditorWindow : Window
 
         if (string.IsNullOrWhiteSpace(cleanVarName))
         {
-            MessageBox.Show(this, "Ingresa un nombre válido para la variable.", "Variable inválida", MessageBoxButton.OK, MessageBoxImage.Warning);
+            ShowMessage("Ingresa un nombre válido para la variable.", "Variable inválida", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -1033,7 +1214,7 @@ public partial class TriggerEditorWindow : Window
         {
             if (_project.GlobalVariables.Any(v => string.Equals(v.Name, cleanVarName, StringComparison.OrdinalIgnoreCase)))
             {
-                MessageBox.Show(this, $"Ya existe la variable udg_{cleanVarName}.", "Duplicado", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ShowMessage($"Ya existe la variable udg_{cleanVarName}.", "Duplicado", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             _project.GlobalVariables.Add(new W3GlobalVariable
@@ -1055,6 +1236,7 @@ public partial class TriggerEditorWindow : Window
 
         JassKnowledgeService.SyncGlobalVariablesToScript(_project);
         _project.HasMiscEdits = true;
+        _project.HasTriggerStructureEdits = true;
         PanelVarEditor.Visibility = Visibility.Collapsed;
         RefreshVariablesGrid();
         RefreshMapRefsList();
@@ -1068,12 +1250,13 @@ public partial class TriggerEditorWindow : Window
     private void BtnDeleteVariable_Click(object sender, RoutedEventArgs e)
     {
         if (_project == null || GridVariables.SelectedItem is not W3GlobalVariable gv) return;
-        var res = MessageBox.Show(this, $"¿Eliminar variable '{gv.JassIdentifier}' de war3map.j?", "Confirmar eliminación", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        var res = ShowMessage($"¿Eliminar variable '{gv.JassIdentifier}' de war3map.j?", "Confirmar eliminación", MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (res != MessageBoxResult.Yes) return;
 
         _project.GlobalVariables.Remove(gv);
         JassKnowledgeService.SyncGlobalVariablesToScript(_project);
         _project.HasMiscEdits = true;
+        _project.HasTriggerStructureEdits = true;
         RefreshVariablesGrid();
         RefreshMapRefsList();
     }

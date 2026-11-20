@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using W3Studio.Services;
 using Xunit;
 
@@ -105,5 +106,151 @@ public class TerrainBrushServiceTests
         Assert.Equal(2, res.MaxY);
         Assert.Equal((byte)1, project.Terrain.TextureIndices![2, 2]);
         Assert.Equal((byte)4, project.Terrain.CliffLevels![2, 2]);
+    }
+
+    [Fact]
+    public void DiamondBrush_BoundaryAndEyedropper_WorkAccurately()
+    {
+        var project = TestTerrainFactory.CreateSyntheticTerrainProject(8, 8);
+        var stroke = new TerrainStrokeState();
+
+        var dab = TerrainBrushService.ApplyDabDetailed(
+            project,
+            0f,
+            0f,
+            new TerrainBrushOptions
+            {
+                ApplyTexture = true,
+                TextureIndex = 1,
+                ApplyBlight = true,
+                BoundaryTool = TerrainBoundaryTool.Add,
+                BrushSize = 2,
+                Shape = TerrainBrushShape.Diamond
+            },
+            isStrokeStart: true,
+            stroke);
+
+        Assert.True(dab.Modified);
+        Assert.True(project.Terrain.BoundaryFlags![4, 4]);
+        // Corner diagonal (+1, +1) has L1 dist 2.0 > 1.55 so diamond excludes it
+        Assert.False(project.Terrain.BoundaryFlags![5, 5]);
+
+        var inspected = TerrainBrushService.InspectCorner(project, 0f, 0f);
+        Assert.NotNull(inspected);
+        Assert.Equal(1, inspected!.TextureIndex);
+        Assert.True(inspected.HasBlight);
+        Assert.True(inspected.IsBoundary);
+
+        var eraseDab = TerrainBrushService.ApplyDabDetailed(
+            project,
+            0f,
+            0f,
+            new TerrainBrushOptions
+            {
+                BoundaryTool = TerrainBoundaryTool.Remove,
+                BrushSize = 2,
+                Shape = TerrainBrushShape.Diamond
+            },
+            isStrokeStart: true,
+            new TerrainStrokeState());
+        Assert.True(eraseDab.Modified);
+        Assert.False(project.Terrain.BoundaryFlags![4, 4]);
+    }
+
+    [Fact]
+    public void PathingBrush_AppliesAndPersistsAcrossWpmSync()
+    {
+        var project = TestTerrainFactory.CreateSyntheticTerrainProject(5, 5);
+        var baseData = new WarcraftBaseDataService();
+        var opts = new TerrainBrushOptions
+        {
+            PathingTool = TerrainPathingTool.BlockWalkAndBuild,
+            BrushSize = 1,
+            Shape = TerrainBrushShape.Square
+        };
+
+        var pdab = PathingService.ApplyPathingBrushDab(project, baseData, null, 0f, 0f, opts);
+        Assert.True(pdab.Modified);
+        Assert.NotEmpty(project.Terrain.ManualPathingOverrides);
+
+        // Even if terrain edits trigger a full WPM rebuild, manual pathing overrides survive
+        project.HasTerrainEdits = true;
+        var rebuiltWpm = PathingService.BuildUpdatedWpmBytes(project, baseData, null);
+        int pw = (project.Terrain.GridWidth - 1) * 4;
+        int centerSy = pw / 2;
+        int centerSx = pw / 2;
+        byte cellFlag = rebuiltWpm[16 + centerSy * pw + centerSx];
+        Assert.Equal(PathingService.FlagWalkBlocked | PathingService.FlagBuildBlocked,
+            (byte)(cellFlag & (PathingService.FlagWalkBlocked | PathingService.FlagBuildBlocked)));
+    }
+
+    [Fact]
+    public void HeightmapExportAndImport_RoundtripsHeightsAndUpdatesW3e()
+    {
+        var project = TestTerrainFactory.CreateSyntheticTerrainProject(9, 9);
+        var stroke = new TerrainStrokeState();
+        // Sculpt a hill at the center before exporting
+        TerrainBrushService.ApplyDabDetailed(
+            project,
+            0f,
+            0f,
+            new TerrainBrushOptions
+            {
+                ApplyHeight = true,
+                HeightTool = TerrainHeightTool.Raise,
+                HeightStrength = 2.0f,
+                BrushSize = 2
+            },
+            isStrokeStart: true,
+            stroke);
+
+        string tempPng = Path.Combine(Path.GetTempPath(), $"w3s_hmap_{Guid.NewGuid():N}.png");
+        try
+        {
+            var (minZ, maxZ) = TerrainOperationsService.ExportHeightmapPng(project, tempPng);
+            Assert.True(File.Exists(tempPng));
+            Assert.True(maxZ > minZ);
+
+            // Reset to flat & import scaled back to [0..300]
+            var target = TestTerrainFactory.CreateSyntheticTerrainProject(9, 9);
+            int modified = TerrainOperationsService.ImportHeightmapFromImage(target, tempPng, 0f, 300f, smoothPass: false);
+            Assert.True(modified > 0);
+            Assert.True(target.Terrain.GroundHeights![4, 4] > target.Terrain.GroundHeights![0, 0] + 100f);
+        }
+        finally
+        {
+            try { if (File.Exists(tempPng)) File.Delete(tempPng); } catch { }
+        }
+    }
+
+    [Fact]
+    public void ApplyTilesetConfiguration_RebuildsHeaderAndRemapsGroundTiles()
+    {
+        var project = TestTerrainFactory.CreateSyntheticTerrainProject(5, 5);
+        TerrainBrushService.ApplyDabDetailed(
+            project,
+            0f,
+            0f,
+            new TerrainBrushOptions { ApplyTexture = true, TextureIndex = 1, BrushSize = 1 },
+            isStrokeStart: true,
+            new TerrainStrokeState());
+
+        // Swap slot 0 & 1 and add a 3rd texture "Lrok"
+        var remap = new Dictionary<int, int> { [0] = 1, [1] = 0 };
+        TerrainOperationsService.ApplyTilesetConfiguration(
+            project,
+            'F',
+            new[] { project.Terrain.GroundTiles[1], project.Terrain.GroundTiles[0], "Lrok" },
+            new[] { "CFdi", "CFgr" },
+            remap);
+
+        Assert.Equal('F', project.Terrain.Tileset);
+        Assert.Equal(3, project.Terrain.GroundTiles.Count);
+        Assert.Equal("Lrok", project.Terrain.GroundTiles[2]);
+        Assert.Equal(2, project.Terrain.CliffTiles.Count);
+        // Former slot 1 at center (2,2) was remapped to new slot 0
+        Assert.Equal((byte)0, project.Terrain.TextureIndices![2, 2]);
+        int cornerOffset = TerrainBrushService.GetW3eCornerDataOffset(project.Terrain.RawW3eBytes!);
+        Assert.Equal(37 + 4 * 3 + 4 * 2, cornerOffset);
     }
 }

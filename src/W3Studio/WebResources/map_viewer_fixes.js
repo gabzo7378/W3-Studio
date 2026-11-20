@@ -2939,6 +2939,73 @@ void main() {
     return origDie.apply(this, arguments);
   };
 
+  const origReloadW3eTerrain = proto.reloadW3eTerrain;
+  proto.reloadW3eTerrain = async function (buffer) {
+    try {
+      const bytes = buffer instanceof ArrayBuffer
+        ? new Uint8Array(buffer)
+        : (buffer && buffer.buffer ? new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength) : null);
+      if (bytes && bytes.length >= 24 && bytes[0] === 0x57 && bytes[1] === 0x33 && bytes[2] === 0x45 && bytes[3] === 0x21) {
+        const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+        const tileset = String.fromCharCode(bytes[8]);
+        let p = 13;
+        const nGround = dv.getInt32(p, true);
+        p += 4;
+        const groundIds = [];
+        for (let i = 0; i < nGround && p + 4 <= bytes.length; i++, p += 4) {
+          groundIds.push(String.fromCharCode(bytes[p], bytes[p + 1], bytes[p + 2], bytes[p + 3]));
+        }
+        const nCliff = p + 4 <= bytes.length ? dv.getInt32(p, true) : 0;
+        p += 4;
+        const cliffIds = [];
+        for (let i = 0; i < nCliff && p + 4 <= bytes.length; i++, p += 4) {
+          cliffIds.push(String.fromCharCode(bytes[p], bytes[p + 1], bytes[p + 2], bytes[p + 3]));
+        }
+
+        const curGround = (this.tilesets || []).map((r) => (r && r.string ? r.string("tileID") : "")).join(",");
+        const curCliff = (this.cliffTilesets || []).map((r) => (r && r.string ? r.string("cliffID") : "")).join(",");
+        if (curGround !== groundIds.join(",") || curCliff !== cliffIds.join(",")) {
+          const ext = (this.solverParams && this.solverParams.reforged) ? ".dds" : ".blp";
+          const nViewer = this.viewer;
+          const nextGroundRows = [];
+          const nextGroundLoads = [];
+          for (const gid of groundIds) {
+            const row = nViewer.terrainData.getRow(gid);
+            if (row) {
+              nextGroundRows.push(row);
+              nextGroundLoads.push(this.load(`${row.string("dir")}\\${row.string("file")}${ext}`));
+            }
+          }
+          const blightMap = {
+            A: "Ashen", B: "Barrens", C: "Felwood", D: "Cave", F: "Lordf", G: "Dungeon",
+            I: "Ice", J: "DRuins", K: "Citadel", L: "Lords", N: "North", O: "Outland",
+            Q: "VillageFall", V: "Village", W: "Lordw", X: "Village", Y: "Village", Z: "Ruins"
+          };
+          const blightIdx = nextGroundLoads.length;
+          nextGroundLoads.push(this.load(`TerrainArt\\Blight\\${blightMap[tileset] || "Lords"}_Blight${ext}`));
+          const nextCliffRows = [];
+          const nextCliffLoads = [];
+          for (const cid of cliffIds) {
+            const row = nViewer.cliffTypesData.getRow(cid);
+            if (row) {
+              nextCliffRows.push(row);
+              nextCliffLoads.push(this.load(`${row.string("texDir")}\\${row.string("texFile")}${ext}`));
+            }
+          }
+          const [gTex, cTex] = await Promise.all([Promise.all(nextGroundLoads), Promise.all(nextCliffLoads)]);
+          this.tilesets = nextGroundRows;
+          this.blightTextureIndex = blightIdx;
+          this.tilesetTextures = gTex;
+          this.cliffTilesets = nextCliffRows;
+          this.cliffTextures = cTex;
+        }
+      }
+    } catch (err) {
+      console.warn("[W3Studio Fixes] Tileset live reload warning:", err);
+    }
+    return origReloadW3eTerrain.apply(this, arguments);
+  };
+
   const origUpdate = proto.update;
   proto.update = function () {
     const curOverrides = (this.viewer && this.viewer._w3sObjectOverrides) || window._w3sObjectOverrides || null;

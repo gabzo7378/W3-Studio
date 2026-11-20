@@ -1,0 +1,108 @@
+<Window x:Class="W3Studio.ModifyTilesetWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Modificar Conjuntos de Terreno (Modify Tileset)"
+        Width="760"
+        Height="560"
+        MinWidth="680"
+        MinHeight="480"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource ThemeWindowBg}"
+        Foreground="{DynamicResource Win10Text}">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="140"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Base Tileset -->
+        <Border Grid.Row="0" Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Padding="8" Margin="0,0,0,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="240"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Tileset Base (Blight / Agua / Iluminación):" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                <ComboBox x:Name="CmbBaseTileset" Grid.Column="1" FontSize="12"/>
+                <TextBlock x:Name="TxtSlotsCount" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="11.5" Foreground="{DynamicResource ThemeTextMuted}"/>
+            </Grid>
+        </Border>
+
+        <!-- Map Ground Tiles vs Catalog -->
+        <Grid Grid.Row="1" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="115"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <GroupBox Header="Texturas de Suelo en el Mapa (máx. 16)" Margin="0,0,6,0" Padding="6">
+                <ListBox x:Name="LstCurrentTiles" Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" Margin="2">
+                                <Border Width="18" Height="18" CornerRadius="2" BorderBrush="#666" BorderThickness="1" Background="{Binding SwatchHex}" Margin="0,0,8,0"/>
+                                <TextBlock Text="{Binding DisplayLabel}" VerticalAlignment="Center" FontSize="11.5"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </GroupBox>
+
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="2,0">
+                <Button Content="← Agregar" Height="28" Margin="0,0,0,6" Style="{StaticResource Win10ClassicButton}" Click="BtnAddGroundTile_Click"/>
+                <Button Content="⇄ Reemplazar" Height="28" Margin="0,0,0,6" Style="{StaticResource Win10ClassicButton}" ToolTip="Reemplaza la textura seleccionada conservando dónde fue pintada en el mapa" Click="BtnReplaceGroundTile_Click"/>
+                <Button Content="Quitar →" Height="28" Margin="0,0,0,12" Style="{StaticResource Win10ClassicButton}" Click="BtnRemoveGroundTile_Click"/>
+                <Button Content="▲ Subir" Height="26" Margin="0,0,0,4" Style="{StaticResource Win10ClassicButton}" Click="BtnMoveUp_Click"/>
+                <Button Content="▼ Bajar" Height="26" Style="{StaticResource Win10ClassicButton}" Click="BtnMoveDown_Click"/>
+            </StackPanel>
+
+            <GroupBox Grid.Column="2" Header="Catálogo Oficial de Suelos" Margin="6,0,0,0" Padding="6">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBox x:Name="TxtGroundSearch" Style="{StaticResource Win10TextBox}" Margin="0,0,0,6" ToolTip="Buscar textura..." TextChanged="TxtGroundSearch_TextChanged"/>
+                    <ListBox x:Name="LstCatalogTiles" Grid.Row="1" Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" MouseDoubleClick="LstCatalogTiles_MouseDoubleClick">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="2">
+                                    <Border Width="18" Height="18" CornerRadius="2" BorderBrush="#666" BorderThickness="1" Background="{Binding SwatchHex}" Margin="0,0,8,0"/>
+                                    <TextBlock Text="{Binding DisplayLabel}" VerticalAlignment="Center" FontSize="11.5"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </GroupBox>
+        </Grid>
+
+        <!-- Cliff Tiles -->
+        <GroupBox Grid.Row="2" Header="Tipos de Acantilados (Cliff Tilesets)" Padding="6" Margin="0,0,0,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="115"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <ListBox x:Name="LstCurrentCliffs" Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" DisplayMemberPath="DisplayLabel"/>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0">
+                    <Button Content="← Agregar" Height="26" Margin="0,0,0,6" Style="{StaticResource Win10ClassicButton}" Click="BtnAddCliff_Click"/>
+                    <Button Content="Quitar →" Height="26" Style="{StaticResource Win10ClassicButton}" Click="BtnRemoveCliff_Click"/>
+                </StackPanel>
+                <ListBox x:Name="LstCatalogCliffs" Grid.Column="2" Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" DisplayMemberPath="DisplayLabel"/>
+            </Grid>
+        </GroupBox>
+
+        <!-- Footer -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Aplicar al Mapa" Width="125" Height="30" Margin="0,0,8,0" Style="{StaticResource Win10ClassicButton}" Click="BtnApply_Click"/>
+            <Button Content="Cancelar" Width="95" Height="30" Style="{StaticResource Win10ClassicButton}" Click="BtnCancel_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
+

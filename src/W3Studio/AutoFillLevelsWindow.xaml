@@ -1,0 +1,65 @@
+<Window x:Class="W3Studio.AutoFillLevelsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Auto-Fill Niveles (World Editor)"
+        Width="440"
+        Height="370"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource ThemeWindowBg}"
+        Foreground="{DynamicResource Win10Text}">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="TxtHeaderInfo" Text="Campo: ..." FontWeight="SemiBold" Margin="0,0,0,10"/>
+
+        <StackPanel Grid.Row="1" Margin="0,0,0,8">
+            <TextBlock Text="Modo de progresión:" FontSize="11.5" Margin="0,0,0,3"/>
+            <ComboBox x:Name="CmbMode" SelectedIndex="0" SelectionChanged="Input_Changed">
+                <ComboBoxItem Content="Lineal: Base + Incremento × (Nivel - 1)" Tag="Linear"/>
+                <ComboBoxItem Content="Geométrica: Base × Factor^(Nivel - 1)" Tag="Geometric"/>
+                <ComboBoxItem Content="Fórmula WE: (Nivel Anterior × Factor Ant.) + Incremento" Tag="Wc3Formula"/>
+                <ComboBoxItem Content="Constante: Igual en todos los niveles" Tag="Constant"/>
+            </ComboBox>
+        </StackPanel>
+
+        <Grid Grid.Row="2" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Valor Base (Nv 1):" FontSize="11" Margin="0,0,0,3"/>
+                <TextBox x:Name="TxtBaseValue" Text="100" Style="{StaticResource Win10TextBox}" TextChanged="Input_Changed"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="Factor / Incremento:" FontSize="11" Margin="0,0,0,3"/>
+                <TextBox x:Name="TxtLevelFactor" Text="50" Style="{StaticResource Win10TextBox}" TextChanged="Input_Changed"/>
+            </StackPanel>
+            <StackPanel Grid.Column="4">
+                <TextBlock Text="Factor Nv. Anterior:" FontSize="11" Margin="0,0,0,3"/>
+                <TextBox x:Name="TxtPrevFactor" Text="1.0" Style="{StaticResource Win10TextBox}" TextChanged="Input_Changed"/>
+            </StackPanel>
+        </Grid>
+
+        <TextBlock Grid.Row="3" Text="Vista previa por nivel:" FontSize="11" Foreground="{DynamicResource ThemeTextMuted}" Margin="0,2,0,4"/>
+
+        <ListBox x:Name="LstPreview" Grid.Row="4" Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" FontFamily="Consolas" FontSize="11.5" Margin="0,0,0,10"/>
+
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Aplicar a Todos los Niveles" Width="165" Height="28" Margin="0,0,8,0" IsDefault="True" Style="{StaticResource Win10ClassicButton}" Click="BtnApply_Click"/>
+            <Button Content="Cancelar" Width="85" Height="28" IsCancel="True" Style="{StaticResource Win10ClassicButton}" Click="BtnCancel_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
+

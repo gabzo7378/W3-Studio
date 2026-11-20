@@ -716,6 +716,26 @@
                                               VerticalScrollBarVisibility="Auto"
                                               Foreground="{DynamicResource Win10Text}">
                                     <StackPanel>
+                                        <!-- Herramientas Avanzadas (Tileset / Heightmap / Cuentagotas) -->
+                                        <UniformGrid Columns="2" Margin="0,0,0,6">
+                                            <Button Content="Tileset..." Height="23" Margin="0,0,2,2" FontSize="10.5"
+                                                    Style="{StaticResource Win10ClassicButton}"
+                                                    ToolTip="Modificar texturas de suelo y acantilados del mapa (Modify Tileset)"
+                                                    Click="BtnModifyTileset_Click"/>
+                                            <ToggleButton x:Name="BtnTerrainEyedropper" Height="23" Margin="2,0,0,2" FontSize="10.5"
+                                                          Content="Cuentagotas (Alt)"
+                                                          ToolTip="Tomar textura, plaga y acantilado de un vértice del terreno (también Alt+Clic)"
+                                                          Click="BtnTerrainEyedropper_Click"/>
+                                            <Button Content="Import Heightmap" Height="23" Margin="0,2,2,0" FontSize="10"
+                                                    Style="{StaticResource Win10ClassicButton}"
+                                                    ToolTip="Importar imagen PNG/JPG/BMP en escala de grises como alturas del terreno"
+                                                    Click="BtnImportHeightmap_Click"/>
+                                            <Button Content="Export Heightmap" Height="23" Margin="2,2,0,0" FontSize="10"
+                                                    Style="{StaticResource Win10ClassicButton}"
+                                                    ToolTip="Exportar las alturas del mapa a PNG 16-bit en escala de grises"
+                                                    Click="BtnExportHeightmap_Click"/>
+                                        </UniformGrid>
+
                                         <!-- 1. Apply Texture -->
                                         <CheckBox x:Name="ChkApplyTexture"
                                                   Content="Apply Texture"
@@ -750,7 +770,7 @@
                                                     <ToggleButton x:Name="BtnCliffSame" Tag="SameLevel" Height="24" Margin="1" FontSize="10.5" Content="═ Nivel" ToolTip="Same Level (Mantener altura del acantilado)" Click="BtnCliffTool_Click"/>
                                                     <ToggleButton x:Name="BtnCliffInc" Tag="IncreaseOne" Height="24" Margin="1" FontSize="10.5" Content="▲ Subir" ToolTip="Increase One (Subir precipicio 1 nivel)" Click="BtnCliffTool_Click"/>
                                                 </UniformGrid>
-                                                <UniformGrid Columns="2">
+                                                <UniformGrid Columns="2" Margin="0,0,0,4">
                                                     <ToggleButton x:Name="BtnCliffWater" Tag="Water" Height="24" Margin="1" FontSize="10.5" ToolTip="Water (Crear cuenca de agua)" Click="BtnCliffTool_Click">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Image Source="pack://application:,,,/Assets/Icons/terrain_water.png" Width="13" Height="13" Margin="0,0,4,0"/>
@@ -764,10 +784,11 @@
                                                         </StackPanel>
                                                     </ToggleButton>
                                                 </UniformGrid>
+                                                <ComboBox x:Name="CmbTerrainCliffType" FontSize="10.5" ToolTip="Tipo de acantilado (Cliff Tileset)" SelectionChanged="CmbTerrainCliffType_SelectionChanged"/>
                                             </StackPanel>
                                         </Border>
 
-                                        <!-- 3. Apply Height (Idéntico al W3 World Editor clásico: Raise, Lower, Plateau, Noise, Smooth) -->
+                                        <!-- 3. Apply Height (Raise, Lower, Plateau, Noise, Smooth + Strength) -->
                                         <CheckBox x:Name="ChkApplyHeight"
                                                   Content="Apply Height: NONE"
                                                   FontSize="11.5"
@@ -775,82 +796,113 @@
                                                   Foreground="{DynamicResource Win10Text}"
                                                   Checked="TerrainOption_Changed"
                                                   Unchecked="TerrainOption_Changed"/>
-                                        <Border Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Margin="14,3,0,5" Padding="3">
-                                            <UniformGrid Columns="5">
-                                                <!-- Raise -->
-                                                <ToggleButton x:Name="BtnHeightRaise" Tag="Raise" Height="32" Margin="1" ToolTip="Raise (Elevar terreno)" Click="BtnHeightTool_Click">
-                                                    <Viewbox Width="24" Height="20">
-                                                        <Canvas Width="28" Height="22">
-                                                            <Polygon Points="2,13 14,7 26,13 14,20" Fill="#3B79C9" Stroke="#123059" StrokeThickness="1"/>
-                                                            <Path Data="M 6,13 Q 14,1 22,13 Z" Fill="#88BDF8" Stroke="#123059" StrokeThickness="1"/>
-                                                        </Canvas>
-                                                    </Viewbox>
-                                                </ToggleButton>
-                                                <!-- Lower -->
-                                                <ToggleButton x:Name="BtnHeightLower" Tag="Lower" Height="32" Margin="1" ToolTip="Lower (Hundir terreno)" Click="BtnHeightTool_Click">
-                                                    <Viewbox Width="24" Height="20">
-                                                        <Canvas Width="28" Height="22">
-                                                            <Polygon Points="2,10 14,4 26,10 14,17" Fill="#4E8DDA" Stroke="#123059" StrokeThickness="1"/>
-                                                            <Ellipse Width="12" Height="7" Fill="#102C4D" Canvas.Left="8" Canvas.Top="7.5"/>
-                                                        </Canvas>
-                                                    </Viewbox>
-                                                </ToggleButton>
-                                                <!-- Plateau -->
-                                                <ToggleButton x:Name="BtnHeightPlateau" Tag="Plateau" Height="32" Margin="1" ToolTip="Plateau (Meseta plana)" Click="BtnHeightTool_Click">
-                                                    <Viewbox Width="24" Height="20">
-                                                        <Canvas Width="28" Height="22">
-                                                            <Polygon Points="2,13 14,7 26,13 14,20" Fill="#3B79C9" Stroke="#123059" StrokeThickness="1"/>
-                                                            <Path Data="M 8,10 L 8,13 A 6,3 0 0,0 20,13 L 20,10 Z" Fill="#153763" Stroke="#123059" StrokeThickness="0.8"/>
-                                                            <Ellipse Canvas.Left="8" Canvas.Top="7" Width="12" Height="6" Fill="#78B2F5" Stroke="#123059" StrokeThickness="0.9"/>
-                                                        </Canvas>
-                                                    </Viewbox>
-                                                </ToggleButton>
-                                                <!-- Noise -->
-                                                <ToggleButton x:Name="BtnHeightNoise" Tag="Noise" Height="32" Margin="1" ToolTip="Noise (Relieve irregular / Ruido)" Click="BtnHeightTool_Click">
-                                                    <Viewbox Width="24" Height="20">
-                                                        <Canvas Width="28" Height="22">
-                                                            <Polygon Points="2,13 14,7 26,13 14,20" Fill="#4E8DDA" Stroke="#123059" StrokeThickness="1"/>
-                                                            <Polyline Points="5,13 8,4 11,12 14,2 17,12 20,5 22,13" Fill="#7CB4F6" Stroke="#123059" StrokeThickness="1"/>
-                                                            <Path Data="M 21,3 L 26,8 M 26,8 L 23,8 M 26,8 L 26,5" Stroke="#111111" StrokeThickness="1.5"/>
-                                                        </Canvas>
-                                                    </Viewbox>
-                                                </ToggleButton>
-                                                <!-- Smooth -->
-                                                <ToggleButton x:Name="BtnHeightSmooth" Tag="Smooth" Height="32" Margin="1" ToolTip="Smooth (Suavizar terreno)" Click="BtnHeightTool_Click">
-                                                    <Viewbox Width="24" Height="20">
-                                                        <Canvas Width="28" Height="22">
-                                                            <Ellipse Canvas.Left="4" Canvas.Top="9" Width="20" Height="10" Fill="#3B79C9" Stroke="#123059" StrokeThickness="1"/>
-                                                            <Path Data="M 7,13 Q 14,4 21,13" Fill="#7DB6F7" Stroke="#123059" StrokeThickness="1"/>
-                                                            <Path Data="M 24,2 L 24,8 M 22,6 L 24,8.5 L 26,6" Stroke="#111111" StrokeThickness="1.5"/>
-                                                        </Canvas>
-                                                    </Viewbox>
-                                                </ToggleButton>
-                                            </UniformGrid>
+                                        <Border Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Margin="14,3,0,7" Padding="4">
+                                            <StackPanel>
+                                                <UniformGrid Columns="5">
+                                                    <!-- Raise -->
+                                                    <ToggleButton x:Name="BtnHeightRaise" Tag="Raise" Height="32" Margin="1" ToolTip="Raise (Elevar terreno)" Click="BtnHeightTool_Click">
+                                                        <Viewbox Width="24" Height="20">
+                                                            <Canvas Width="28" Height="22">
+                                                                <Polygon Points="2,13 14,7 26,13 14,20" Fill="#3B79C9" Stroke="#123059" StrokeThickness="1"/>
+                                                                <Path Data="M 6,13 Q 14,1 22,13 Z" Fill="#88BDF8" Stroke="#123059" StrokeThickness="1"/>
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                    </ToggleButton>
+                                                    <!-- Lower -->
+                                                    <ToggleButton x:Name="BtnHeightLower" Tag="Lower" Height="32" Margin="1" ToolTip="Lower (Hundir terreno)" Click="BtnHeightTool_Click">
+                                                        <Viewbox Width="24" Height="20">
+                                                            <Canvas Width="28" Height="22">
+                                                                <Polygon Points="2,10 14,4 26,10 14,17" Fill="#4E8DDA" Stroke="#123059" StrokeThickness="1"/>
+                                                                <Ellipse Width="12" Height="7" Fill="#102C4D" Canvas.Left="8" Canvas.Top="7.5"/>
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                    </ToggleButton>
+                                                    <!-- Plateau -->
+                                                    <ToggleButton x:Name="BtnHeightPlateau" Tag="Plateau" Height="32" Margin="1" ToolTip="Plateau (Meseta plana)" Click="BtnHeightTool_Click">
+                                                        <Viewbox Width="24" Height="20">
+                                                            <Canvas Width="28" Height="22">
+                                                                <Polygon Points="2,13 14,7 26,13 14,20" Fill="#3B79C9" Stroke="#123059" StrokeThickness="1"/>
+                                                                <Path Data="M 8,10 L 8,13 A 6,3 0 0,0 20,13 L 20,10 Z" Fill="#153763" Stroke="#123059" StrokeThickness="0.8"/>
+                                                                <Ellipse Canvas.Left="8" Canvas.Top="7" Width="12" Height="6" Fill="#78B2F5" Stroke="#123059" StrokeThickness="0.9"/>
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                    </ToggleButton>
+                                                    <!-- Noise -->
+                                                    <ToggleButton x:Name="BtnHeightNoise" Tag="Noise" Height="32" Margin="1" ToolTip="Noise (Relieve irregular / Ruido)" Click="BtnHeightTool_Click">
+                                                        <Viewbox Width="24" Height="20">
+                                                            <Canvas Width="28" Height="22">
+                                                                <Polygon Points="2,13 14,7 26,13 14,20" Fill="#4E8DDA" Stroke="#123059" StrokeThickness="1"/>
+                                                                <Polyline Points="5,13 8,4 11,12 14,2 17,12 20,5 22,13" Fill="#7CB4F6" Stroke="#123059" StrokeThickness="1"/>
+                                                                <Path Data="M 21,3 L 26,8 M 26,8 L 23,8 M 26,8 L 26,5" Stroke="#111111" StrokeThickness="1.5"/>
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                    </ToggleButton>
+                                                    <!-- Smooth -->
+                                                    <ToggleButton x:Name="BtnHeightSmooth" Tag="Smooth" Height="32" Margin="1" ToolTip="Smooth (Suavizar terreno)" Click="BtnHeightTool_Click">
+                                                        <Viewbox Width="24" Height="20">
+                                                            <Canvas Width="28" Height="22">
+                                                                <Ellipse Canvas.Left="4" Canvas.Top="9" Width="20" Height="10" Fill="#3B79C9" Stroke="#123059" StrokeThickness="1"/>
+                                                                <Path Data="M 7,13 Q 14,4 21,13" Fill="#7DB6F7" Stroke="#123059" StrokeThickness="1"/>
+                                                                <Path Data="M 24,2 L 24,8 M 22,6 L 24,8.5 L 26,6" Stroke="#111111" StrokeThickness="1.5"/>
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                    </ToggleButton>
+                                                </UniformGrid>
+                                                <DockPanel Margin="2,4,2,0">
+                                                    <TextBlock x:Name="TxtHeightStrengthLabel" DockPanel.Dock="Left" Text="Fuerza: 1.0x" FontSize="10.5" Width="68" VerticalAlignment="Center"/>
+                                                    <Slider x:Name="SldHeightStrength" Minimum="0.25" Maximum="2.50" Value="1.0" TickFrequency="0.25" SmallChange="0.25" IsSnapToTickEnabled="True" ValueChanged="SldHeightStrength_ValueChanged"/>
+                                                </DockPanel>
+                                            </StackPanel>
                                         </Border>
 
-                                        <TextBlock Text="Clic Izq: Aplicar pincel | Ctrl+Clic: Rotar vista | Esc: Cámara"
-                                                   FontSize="10"
+                                        <!-- 4. Boundary & Pincel Manual de Pathing (WPM) -->
+                                        <TextBlock Text="Boundary y Pathing Manual (WPM)" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,3"/>
+                                        <Border Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource Win10Border}" BorderThickness="1" Margin="14,0,0,6" Padding="4">
+                                            <StackPanel>
+                                                <UniformGrid Columns="2" Margin="0,0,0,4">
+                                                    <ToggleButton x:Name="BtnBoundaryAdd" Tag="Add" Height="22" Margin="1" FontSize="10" Content="■ Borde (+)" ToolTip="Colocar Boundary negro impassable (war3map.w3e)" Click="BtnBoundaryTool_Click"/>
+                                                    <ToggleButton x:Name="BtnBoundaryRemove" Tag="Remove" Height="22" Margin="1" FontSize="10" Content="□ Quitar Borde" ToolTip="Quitar Boundary del terreno" Click="BtnBoundaryTool_Click"/>
+                                                </UniformGrid>
+                                                <TextBlock Text="Pincel de Pathing (32×32):" FontSize="10" Foreground="{DynamicResource ThemeTextMuted}" Margin="1,0,0,2"/>
+                                                <UniformGrid Columns="3">
+                                                    <ToggleButton x:Name="BtnPathWalk" Tag="BlockWalk" Height="22" Margin="1" FontSize="9.5" Content="No Walk" ToolTip="Bloquear paso terrestre (0x02)" Click="BtnPathingTool_Click"/>
+                                                    <ToggleButton x:Name="BtnPathBuild" Tag="BlockBuild" Height="22" Margin="1" FontSize="9.5" Content="No Build" ToolTip="Bloquear construcción (0x08)" Click="BtnPathingTool_Click"/>
+                                                    <ToggleButton x:Name="BtnPathFly" Tag="BlockFly" Height="22" Margin="1" FontSize="9.5" Content="No Fly" ToolTip="Bloquear vuelo (0x04)" Click="BtnPathingTool_Click"/>
+                                                    <ToggleButton x:Name="BtnPathWalkBuild" Tag="BlockWalkAndBuild" Height="22" Margin="1" FontSize="9.5" Content="Walk+Build" ToolTip="Bloquear paso y construcción" Click="BtnPathingTool_Click"/>
+                                                    <ToggleButton x:Name="BtnPathAll" Tag="BlockAll" Height="22" Margin="1" FontSize="9.5" Content="Bloq. Todo" ToolTip="Bloquear paso, vuelo y construcción" Click="BtnPathingTool_Click"/>
+                                                    <ToggleButton x:Name="BtnPathErase" Tag="Erase" Height="22" Margin="1" FontSize="9.5" Content="Borrar WPM" ToolTip="Limpiar bloqueos manuales en el área" Click="BtnPathingTool_Click"/>
+                                                </UniformGrid>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <TextBlock Text="Clic Izq: Pintar | Alt+Clic: Cuentagotas | Ctrl+Clic: Rotar | Esc: Cámara"
+                                                   FontSize="9.8"
                                                    Foreground="{DynamicResource ThemeTextMuted}"
                                                    TextWrapping="Wrap"
-                                                   Margin="2,2,2,0"/>
+                                                   Margin="2,1,2,0"/>
                                     </StackPanel>
                                 </ScrollViewer>
 
-                                <!-- Sección inferior Size: 1..8 y Shape: Circle / Square -->
-                                <StackPanel Grid.Row="3" Margin="8,0,8,8">
-                                    <TextBlock x:Name="TxtBrushSizeLabel" Text="Size: 2" FontSize="11" Foreground="{DynamicResource Win10Text}" Margin="0,0,0,3"/>
+                                <!-- Sección inferior Size: 1..16 y Shape: Circle / Square / Diamond -->
+                                <StackPanel x:Name="PnlTerrainSizeShape" Grid.Row="3" Margin="8,0,8,8">
+                                    <DockPanel Margin="0,0,0,3">
+                                        <TextBlock x:Name="TxtBrushSizeLabel" DockPanel.Dock="Left" Text="Size: 2" FontSize="11" Foreground="{DynamicResource Win10Text}" Width="55" VerticalAlignment="Center"/>
+                                        <Slider x:Name="SldBrushSize" Minimum="1" Maximum="16" Value="2" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="SldBrushSize_ValueChanged"/>
+                                    </DockPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                        <Button x:Name="BtnSize1" Tag="1" Content="•" Width="28" Height="24" Style="{StaticResource Win10ClassicButton}" Margin="0,0,3,0" Click="BtnBrushSize_Click"/>
-                                        <Button x:Name="BtnSize2" Tag="2" Content="●" Width="28" Height="24" Style="{StaticResource Win10ClassicButton}" Margin="0,0,3,0" FontSize="9" Click="BtnBrushSize_Click"/>
-                                        <Button x:Name="BtnSize3" Tag="3" Content="●" Width="28" Height="24" Style="{StaticResource Win10ClassicButton}" Margin="0,0,3,0" FontSize="12" Click="BtnBrushSize_Click"/>
-                                        <Button x:Name="BtnSize5" Tag="5" Content="⬤" Width="28" Height="24" Style="{StaticResource Win10ClassicButton}" Margin="0,0,3,0" Click="BtnBrushSize_Click"/>
-                                        <Button x:Name="BtnSize8" Tag="8" Content="⬛" Width="28" Height="24" Style="{StaticResource Win10ClassicButton}" Click="BtnBrushSize_Click"/>
+                                        <Button x:Name="BtnSize1" Tag="1" Content="•" Width="26" Height="23" Style="{StaticResource Win10ClassicButton}" Margin="0,0,2,0" Click="BtnBrushSize_Click"/>
+                                        <Button x:Name="BtnSize2" Tag="2" Content="●" Width="26" Height="23" Style="{StaticResource Win10ClassicButton}" Margin="0,0,2,0" FontSize="9" Click="BtnBrushSize_Click"/>
+                                        <Button x:Name="BtnSize3" Tag="3" Content="●" Width="26" Height="23" Style="{StaticResource Win10ClassicButton}" Margin="0,0,2,0" FontSize="12" Click="BtnBrushSize_Click"/>
+                                        <Button x:Name="BtnSize5" Tag="5" Content="⬤" Width="26" Height="23" Style="{StaticResource Win10ClassicButton}" Margin="0,0,2,0" Click="BtnBrushSize_Click"/>
+                                        <Button x:Name="BtnSize8" Tag="8" Content="8" Width="26" Height="23" Style="{StaticResource Win10ClassicButton}" Margin="0,0,2,0" FontSize="10" Click="BtnBrushSize_Click"/>
+                                        <Button x:Name="BtnSize12" Tag="12" Content="12" Width="26" Height="23" Style="{StaticResource Win10ClassicButton}" FontSize="10" Click="BtnBrushSize_Click"/>
                                     </StackPanel>
 
                                     <TextBlock x:Name="TxtBrushShapeLabel" Text="Shape: Circle" FontSize="11" Foreground="{DynamicResource Win10Text}" Margin="0,0,0,3"/>
                                     <StackPanel Orientation="Horizontal">
-                                        <Button x:Name="BtnShapeCircle" Tag="Circle" Content="●" Width="28" Height="24" Style="{StaticResource Win10ClassicButton}" Margin="0,0,3,0" Click="BtnBrushShape_Click"/>
-                                        <Button x:Name="BtnShapeSquare" Tag="Square" Content="■" Width="28" Height="24" Style="{StaticResource Win10ClassicButton}" Click="BtnBrushShape_Click"/>
+                                        <Button x:Name="BtnShapeCircle" Tag="Circle" Content="●" Width="28" Height="24" ToolTip="Círculo" Style="{StaticResource Win10ClassicButton}" Margin="0,0,3,0" Click="BtnBrushShape_Click"/>
+                                        <Button x:Name="BtnShapeSquare" Tag="Square" Content="■" Width="28" Height="24" ToolTip="Cuadrado" Style="{StaticResource Win10ClassicButton}" Margin="0,0,3,0" Click="BtnBrushShape_Click"/>
+                                        <Button x:Name="BtnShapeDiamond" Tag="Diamond" Content="◆" Width="28" Height="24" ToolTip="Rombo (Diamond)" Style="{StaticResource Win10ClassicButton}" Click="BtnBrushShape_Click"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Grid>

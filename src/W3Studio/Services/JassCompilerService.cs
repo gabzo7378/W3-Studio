@@ -88,19 +88,43 @@ public class JassCompilerService
         return result;
     }
 
+    private static string StripLineCommentRespectingStrings(string rawLine)
+    {
+        bool inString = false;
+        for (int i = 0; i < rawLine.Length; i++)
+        {
+            char c = rawLine[i];
+            if (c == '"' && (i == 0 || rawLine[i - 1] != '\\'))
+            {
+                inString = !inString;
+            }
+            else if (!inString && c == '/' && i + 1 < rawLine.Length && rawLine[i + 1] == '/')
+            {
+                return rawLine.Substring(0, i);
+            }
+        }
+        return rawLine;
+    }
+
     private static void Run127bCompatibilityChecks(string scriptText, string sourceLabel, ValidationResult result)
     {
         var lines = scriptText.Split('\n');
         var openFuncLine = 0;
         var inFunction = false;
         var seenExecutableInFunction = false;
+        var openGlobalsLine = 0;
+        var ifStack = new Stack<int>();
+        var loopStack = new Stack<int>();
 
         for (var i = 0; i < lines.Length; i++)
         {
             var lineNum = i + 1;
             var rawLine = lines[i];
-            var commentIdx = rawLine.IndexOf("//", StringComparison.Ordinal);
-            var codePart = (commentIdx >= 0 ? rawLine.Substring(0, commentIdx) : rawLine).Trim();
+            var trimmedRaw = rawLine.TrimStart();
+            if (trimmedRaw.StartsWith("//!", StringComparison.Ordinal))
+                continue;
+
+            var codePart = StripLineCommentRespectingStrings(rawLine).Trim();
 
             if (string.IsNullOrEmpty(codePart))
                 continue;
@@ -120,6 +144,45 @@ public class JassCompilerService
                 });
             }
 
+            if (Regex.IsMatch(codePart, @"^globals\b"))
+            {
+                if (openGlobalsLine > 0)
+                {
+                    result.ErrorCount++;
+                    result.Diagnostics.Add(new CompilerDiagnostic
+                    {
+                        Severity = "Error",
+                        Line = lineNum,
+                        Source = "JASS 1.27b",
+                        TriggerOrFile = sourceLabel,
+                        Message = $"Bloque 'globals' anidado (ya había uno abierto en la línea {openGlobalsLine})."
+                    });
+                }
+                else
+                {
+                    openGlobalsLine = lineNum;
+                }
+            }
+            else if (Regex.IsMatch(codePart, @"^endglobals\b"))
+            {
+                if (openGlobalsLine == 0)
+                {
+                    result.ErrorCount++;
+                    result.Diagnostics.Add(new CompilerDiagnostic
+                    {
+                        Severity = "Error",
+                        Line = lineNum,
+                        Source = "JASS 1.27b",
+                        TriggerOrFile = sourceLabel,
+                        Message = "'endglobals' sin un bloque 'globals' abierto."
+                    });
+                }
+                else
+                {
+                    openGlobalsLine = 0;
+                }
+            }
+
             if (Regex.IsMatch(codePart, @"^(?:public\s+|private\s+|static\s+)*(?:function|method)\b"))
             {
                 inFunction = true;
@@ -133,6 +196,47 @@ public class JassCompilerService
             }
             else if (inFunction)
             {
+                if (Regex.IsMatch(codePart, @"^if\b"))
+                {
+                    ifStack.Push(lineNum);
+                }
+                else if (Regex.IsMatch(codePart, @"^endif\b"))
+                {
+                    if (ifStack.Count > 0) ifStack.Pop();
+                    else
+                    {
+                        result.ErrorCount++;
+                        result.Diagnostics.Add(new CompilerDiagnostic
+                        {
+                            Severity = "Error",
+                            Line = lineNum,
+                            Source = "JASS 1.27b",
+                            TriggerOrFile = sourceLabel,
+                            Message = "'endif' sin un bloque 'if' correspondiente."
+                        });
+                    }
+                }
+                else if (Regex.IsMatch(codePart, @"^loop\b"))
+                {
+                    loopStack.Push(lineNum);
+                }
+                else if (Regex.IsMatch(codePart, @"^endloop\b"))
+                {
+                    if (loopStack.Count > 0) loopStack.Pop();
+                    else
+                    {
+                        result.ErrorCount++;
+                        result.Diagnostics.Add(new CompilerDiagnostic
+                        {
+                            Severity = "Error",
+                            Line = lineNum,
+                            Source = "JASS 1.27b",
+                            TriggerOrFile = sourceLabel,
+                            Message = "'endloop' sin un bloque 'loop' correspondiente."
+                        });
+                    }
+                }
+
                 if (Regex.IsMatch(codePart, @"^local\s+"))
                 {
                     if (seenExecutableInFunction)
@@ -153,6 +257,47 @@ public class JassCompilerService
                     seenExecutableInFunction = true;
                 }
             }
+        }
+
+        if (openGlobalsLine > 0)
+        {
+            result.ErrorCount++;
+            result.Diagnostics.Add(new CompilerDiagnostic
+            {
+                Severity = "Error",
+                Line = openGlobalsLine,
+                Source = "JASS 1.27b",
+                TriggerOrFile = sourceLabel,
+                Message = $"Bloque 'globals' abierto en la línea {openGlobalsLine} sin 'endglobals'."
+            });
+        }
+
+        if (ifStack.Count > 0)
+        {
+            int unclosedIf = ifStack.Pop();
+            result.ErrorCount++;
+            result.Diagnostics.Add(new CompilerDiagnostic
+            {
+                Severity = "Error",
+                Line = unclosedIf,
+                Source = "JASS 1.27b",
+                TriggerOrFile = sourceLabel,
+                Message = $"Bloque 'if' abierto en la línea {unclosedIf} sin 'endif'."
+            });
+        }
+
+        if (loopStack.Count > 0)
+        {
+            int unclosedLoop = loopStack.Pop();
+            result.ErrorCount++;
+            result.Diagnostics.Add(new CompilerDiagnostic
+            {
+                Severity = "Error",
+                Line = unclosedLoop,
+                Source = "JASS 1.27b",
+                TriggerOrFile = sourceLabel,
+                Message = $"Bloque 'loop' abierto en la línea {unclosedLoop} sin 'endloop'."
+            });
         }
 
         if (inFunction && openFuncLine > 0)
@@ -212,9 +357,25 @@ public class JassCompilerService
                     Message = "Compilación vJASS completada con éxito (clijasshelper.exe)."
                 });
             }
-            else if (!string.IsNullOrWhiteSpace(combined))
+            else
             {
-                ParseCompilerOutput(combined, "clijasshelper", sourceLabel, result);
+                int prevErrors = result.ErrorCount;
+                if (!string.IsNullOrWhiteSpace(combined))
+                    ParseCompilerOutput(combined, "clijasshelper", sourceLabel, result);
+                if (result.ErrorCount == prevErrors)
+                {
+                    result.ErrorCount++;
+                    result.Diagnostics.Add(new CompilerDiagnostic
+                    {
+                        Severity = "Error",
+                        Line = 1,
+                        Source = "clijasshelper",
+                        TriggerOrFile = sourceLabel,
+                        Message = string.IsNullOrWhiteSpace(combined)
+                            ? $"clijasshelper.exe falló con código de salida {proc.ExitCode}."
+                            : combined
+                    });
+                }
             }
         }
         catch (Exception ex)
@@ -272,7 +433,23 @@ public class JassCompilerService
             }
             else
             {
-                ParseCompilerOutput(combined, "PJass", sourceLabel, result);
+                int prevErrors = result.ErrorCount;
+                if (!string.IsNullOrWhiteSpace(combined))
+                    ParseCompilerOutput(combined, "PJass", sourceLabel, result);
+                if (result.ErrorCount == prevErrors)
+                {
+                    result.ErrorCount++;
+                    result.Diagnostics.Add(new CompilerDiagnostic
+                    {
+                        Severity = "Error",
+                        Line = 1,
+                        Source = "PJass",
+                        TriggerOrFile = sourceLabel,
+                        Message = string.IsNullOrWhiteSpace(combined)
+                            ? $"pjass.exe falló con código de salida {proc.ExitCode}."
+                            : combined
+                    });
+                }
             }
         }
         catch (Exception ex)
@@ -292,14 +469,19 @@ public class JassCompilerService
     private static void ParseCompilerOutput(string output, string toolName, string sourceLabel, ValidationResult result)
     {
         var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        int parsedSpecificErrors = 0;
+        var fallbackErrorLines = new List<string>();
+
         foreach (var line in lines)
         {
+            var trimmed = line.Trim();
             // Match patterns like "war3map_input.j:142: syntax error..." or "Line 142: ..."
-            var m1 = Regex.Match(line, @":(\d+):\s*(.+)");
-            var m2 = Regex.Match(line, @"[Ll]ine\s+(\d+)\s*:\s*(.+)");
+            var m1 = Regex.Match(trimmed, @":(\d+):\s*(.+)");
+            var m2 = Regex.Match(trimmed, @"[Ll]ine\s+(\d+)\s*:\s*(.+)");
 
             if (m1.Success && int.TryParse(m1.Groups[1].Value, out var ln1))
             {
+                parsedSpecificErrors++;
                 result.ErrorCount++;
                 result.Diagnostics.Add(new CompilerDiagnostic
                 {
@@ -312,6 +494,7 @@ public class JassCompilerService
             }
             else if (m2.Success && int.TryParse(m2.Groups[1].Value, out var ln2))
             {
+                parsedSpecificErrors++;
                 result.ErrorCount++;
                 result.Diagnostics.Add(new CompilerDiagnostic
                 {
@@ -322,8 +505,20 @@ public class JassCompilerService
                     Message = m2.Groups[2].Value.Trim()
                 });
             }
-            else if (line.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
-                     line.Contains("error", StringComparison.OrdinalIgnoreCase))
+            else if (trimmed.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+                     trimmed.Contains("error", StringComparison.OrdinalIgnoreCase))
+            {
+                // Skip pjass/jasshelper summary footer lines ("... failed with N error", "Parse failed: N error total")
+                // when specific line diagnostics were already captured
+                bool isSummaryLine = Regex.IsMatch(trimmed, @"failed with \d+ error|^Parse failed:\s*\d+\s*error", RegexOptions.IgnoreCase);
+                if (!isSummaryLine)
+                    fallbackErrorLines.Add(trimmed);
+            }
+        }
+
+        if (parsedSpecificErrors == 0)
+        {
+            foreach (var fallback in fallbackErrorLines)
             {
                 result.ErrorCount++;
                 result.Diagnostics.Add(new CompilerDiagnostic
@@ -332,7 +527,7 @@ public class JassCompilerService
                     Line = 1,
                     Source = toolName,
                     TriggerOrFile = sourceLabel,
-                    Message = line.Trim()
+                    Message = fallback
                 });
             }
         }

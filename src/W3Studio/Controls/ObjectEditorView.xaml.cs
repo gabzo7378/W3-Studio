@@ -27,6 +27,7 @@ public partial class ObjectEditorView : UserControl
 
     public event Action? RequestOpenStandaloneWindow;
     public event Action<string?>? RequestOpenIconManager;
+    public event Action<W3ObjectEntry?>? ObjectDataChanged;
 
     private void BtnEditIconInManager_Click(object sender, RoutedEventArgs e)
     {
@@ -88,7 +89,9 @@ public partial class ObjectEditorView : UserControl
         if (TxtBtnPopoutWindow != null) TxtBtnPopoutWindow.Text = LocalizationService.L("Abrir Ventana Object Editor", "Open Object Editor Window");
         if (TxtBtnNewObject != null) TxtBtnNewObject.Text = LocalizationService.L("Nuevo Objeto...", "New Object...");
         if (TxtBtnCloneObject != null) TxtBtnCloneObject.Text = LocalizationService.L("Clonar Seleccionado", "Clone Selected");
+        if (TxtBtnDeleteObject != null) TxtBtnDeleteObject.Text = LocalizationService.L("Eliminar / Resetear", "Delete / Reset");
         if (TxtBtnResetField != null) TxtBtnResetField.Text = LocalizationService.L("Restaurar Campo a Base", "Reset Field to Default");
+        if (TxtBtnAutoFill != null) TxtBtnAutoFill.Text = LocalizationService.L("Auto-Rellenar Niveles...", "Auto-Fill Levels...");
 
         if (TxtTabUnits != null) TxtTabUnits.Text = LocalizationService.L("Unidades", "Units");
         if (TxtTabItems != null) TxtTabItems.Text = LocalizationService.L("Objetos", "Items");
@@ -322,7 +325,7 @@ public partial class ObjectEditorView : UserControl
         if (cat == W3ObjectCategory.Units)
         {
             var raceRaw = GetVal("race", "urac");
-            var isBldgRaw = GetVal("isbldg", "ubld");
+            var isBldgRaw = GetVal("isbldg", "ubdg");
             var campRaw = GetVal("campaign");
             var specRaw = GetVal("special");
             var primary = GetVal("Primary", "upra");
@@ -804,10 +807,12 @@ public partial class ObjectEditorView : UserControl
 
         entry.IsStandardUnmodified = false;
         entry.IsModified = true;
+        _currentProject.HasObjectEdits = true;
         if (!_currentProject.Objects.Contains(entry))
         {
             _currentProject.Objects.Add(entry);
         }
+        ObjectDataChanged?.Invoke(entry);
     }
 
     private void RefreshInspectorAfterFieldEdit(W3ObjectEntry entry)
@@ -1194,11 +1199,21 @@ public partial class ObjectEditorView : UserControl
             return;
 
         field.ResolvedValue = newValue;
+        field.RawValue = newValue;
         field.IsModified = true;
         if (!_selectedEntry.Fields.Contains(field))
             _selectedEntry.Fields.Add(field);
 
         EnsureEntryRegisteredInProject(_selectedEntry);
+
+        // Si cambió el número de niveles de habilidad (alev) o mejora (glvl), regenerar filas de niveles en vivo
+        if (field.FieldId.Equals("alev", StringComparison.OrdinalIgnoreCase) ||
+            field.FieldId.Equals("glvl", StringComparison.OrdinalIgnoreCase))
+        {
+            DisplayObjectEntry(_selectedEntry);
+            return;
+        }
+
         RefreshInspectorAfterFieldEdit(_selectedEntry);
         RefreshFieldsDataGrid();
     }
@@ -1327,8 +1342,7 @@ public partial class ObjectEditorView : UserControl
         _selectedEntry.ButtonPosY = y;
         EnsureEntryRegisteredInProject(_selectedEntry);
 
-        var xCode = _selectedEntry.Category == W3ObjectCategory.Abilities ? "abpx" : "ubpx";
-        var yCode = _selectedEntry.Category == W3ObjectCategory.Abilities ? "abpy" : "ubpy";
+        var (xCode, yCode) = ObjectEditorHelper.GetButtonPositionFieldIds(_selectedEntry.Category);
         SetOrCreateField(_selectedEntry, xCode, x.ToString());
         SetOrCreateField(_selectedEntry, yCode, y.ToString());
 
@@ -1336,32 +1350,55 @@ public partial class ObjectEditorView : UserControl
         UpdateCommandCardVisual(_selectedEntry);
     }
 
-    private void SetOrCreateField(W3ObjectEntry entry, string fieldCode, string newValue)
+    private void SetOrCreateField(W3ObjectEntry entry, string fieldCode, string newValue, int preferredLevel = 0)
     {
-        var field = _currentEntryAllFields.FirstOrDefault(f => f.FieldId.Equals(fieldCode, StringComparison.OrdinalIgnoreCase) && f.Level <= 1)
-                    ?? entry.Fields.FirstOrDefault(f => f.FieldId.Equals(fieldCode, StringComparison.OrdinalIgnoreCase));
+        W3ObjectField? field = null;
+        if (ReferenceEquals(entry, _selectedEntry))
+        {
+            field = _currentEntryAllFields.FirstOrDefault(f =>
+                f.FieldId.Equals(fieldCode, StringComparison.OrdinalIgnoreCase) &&
+                (preferredLevel == 0 ? f.Level <= 1 : f.Level == preferredLevel));
+        }
+
+        field ??= entry.Fields.FirstOrDefault(f =>
+            f.FieldId.Equals(fieldCode, StringComparison.OrdinalIgnoreCase) &&
+            (preferredLevel == 0 ? f.Level <= 1 : f.Level == preferredLevel));
 
         if (field != null)
         {
             field.ResolvedValue = newValue;
+            field.RawValue = newValue;
             field.IsModified = true;
             if (!entry.Fields.Contains(field))
                 entry.Fields.Add(field);
         }
         else
         {
+            var dataType = _baseDataService?.GetFieldDataType(fieldCode) ?? War3Net.Build.Object.ObjectDataType.String;
+            int dataPointer = 0;
+            int level = preferredLevel;
+            if (_baseDataService != null && _baseDataService.FieldCatalog.TryGetValue(fieldCode, out var def))
+            {
+                dataPointer = def.DataPointer;
+                if (def.RepeatForLevels && level == 0)
+                    level = 1;
+            }
+
             var created = new W3ObjectField
             {
                 FieldId = fieldCode,
                 FieldIntId = WarcraftBaseDataService.RawcodeToInt(fieldCode),
                 FieldName = _baseDataService?.GetFieldDisplayName(fieldCode) ?? fieldCode,
-                Level = 0,
+                Level = level,
+                DataPointer = dataPointer,
+                DataType = dataType,
                 ResolvedValue = newValue,
                 RawValue = newValue,
                 IsModified = true
             };
             entry.Fields.Add(created);
-            _currentEntryAllFields.Insert(0, created);
+            if (ReferenceEquals(entry, _selectedEntry))
+                _currentEntryAllFields.Insert(0, created);
         }
     }
 
@@ -1426,25 +1463,64 @@ public partial class ObjectEditorView : UserControl
         SetOrCreateField(_selectedEntry, uberCode, TxtTooltipExtended.Text);
     }
 
-    // ==================== CREAR / CLONAR OBJETO Y RESTAURAR CAMPO ====================
+    // ==================== CREAR / CLONAR / ELIMINAR / AUTO-FILL ====================
 
-    private void BtnNewCustomObject_Click(object sender, RoutedEventArgs e)
+    private HashSet<string> CollectAllUsedRawcodes()
+    {
+        return new HashSet<string>(
+            (_currentProject?.Objects.Select(o => o.Rawcode) ?? Enumerable.Empty<string>())
+            .Concat(_baseDataService?.AllBaseObjects.Keys ?? Enumerable.Empty<string>()),
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    public void OpenNewCustomObjectDialog()
+    {
+        if (_currentProject == null || _selectedEntry == null)
+        {
+            MessageBox.Show(Window.GetWindow(this), "Selecciona primero un objeto base en el árbol de la izquierda.", "Nuevo Objeto", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var baseRaw = _selectedEntry.IsCustom ? _selectedEntry.BaseRawcode : _selectedEntry.Rawcode;
+        var prefix = ObjectEditorHelper.ResolveCustomRawcodePrefix(_activeCategory, baseRaw);
+        var used = CollectAllUsedRawcodes();
+        var suggested = ObjectEditorHelper.GenerateNextFreeRawcode(prefix, used);
+
+        var dlg = new NewCustomObjectWindow(
+            _activeCategory,
+            baseRaw,
+            StripColorCodes(_selectedEntry.Name),
+            suggested,
+            used)
+        {
+            Owner = Window.GetWindow(this)
+        };
+
+        if (dlg.ShowDialog() == true)
+        {
+            CreateCustomCloneFromSelected(dlg.CustomRawcode, dlg.ObjectName);
+        }
+    }
+
+    private void BtnOpenNewObjectDialog_Click(object sender, RoutedEventArgs e)
+        => OpenNewCustomObjectDialog();
+
+    private void BtnCloneObject_Click(object sender, RoutedEventArgs e)
     {
         if (_currentProject == null || _selectedEntry == null)
             return;
 
-        var prefix = _activeCategory switch
-        {
-            W3ObjectCategory.Items => 'I',
-            W3ObjectCategory.Abilities => 'A',
-            W3ObjectCategory.Buffs => 'B',
-            W3ObjectCategory.Destructables => 'B',
-            W3ObjectCategory.Upgrades => 'R',
-            _ => 'h'
-        };
+        var baseRaw = _selectedEntry.IsCustom ? _selectedEntry.BaseRawcode : _selectedEntry.Rawcode;
+        var prefix = ObjectEditorHelper.ResolveCustomRawcodePrefix(_activeCategory, baseRaw);
+        var newRawcode = ObjectEditorHelper.GenerateNextFreeRawcode(prefix, CollectAllUsedRawcodes());
+        CreateCustomCloneFromSelected(newRawcode, $"{StripColorCodes(_selectedEntry.Name)} (Copia)");
+    }
 
-        // Find next unused rawcode (e.g. I000..I999 / I00A..I0ZZ)
-        var newRawcode = GenerateNextFreeRawcode(prefix);
+    private void CreateCustomCloneFromSelected(string newRawcode, string newName)
+    {
+        if (_currentProject == null || _selectedEntry == null)
+            return;
+
         var baseRaw = _selectedEntry.IsCustom ? _selectedEntry.BaseRawcode : _selectedEntry.Rawcode;
 
         var clone = new W3ObjectEntry
@@ -1455,7 +1531,7 @@ public partial class ObjectEditorView : UserControl
             Rawcode = newRawcode,
             OldId = WarcraftBaseDataService.RawcodeToInt(baseRaw),
             NewId = WarcraftBaseDataService.RawcodeToInt(newRawcode),
-            Name = $"{StripColorCodes(_selectedEntry.Name)} (Copia)",
+            Name = newName,
             TooltipBasic = _selectedEntry.TooltipBasic,
             TooltipExtended = _selectedEntry.TooltipExtended,
             Hotkey = _selectedEntry.Hotkey,
@@ -1483,37 +1559,61 @@ public partial class ObjectEditorView : UserControl
             });
         }
 
-        var nameField = _activeCategory switch
-        {
-            W3ObjectCategory.Abilities => "anam",
-            W3ObjectCategory.Buffs => "fnam",
-            W3ObjectCategory.Upgrades => "gnam",
-            _ => "unam"
-        };
+        var nameField = ObjectEditorHelper.GetNameFieldId(_activeCategory);
         SetOrCreateField(clone, nameField, clone.Name);
 
         _currentProject.Objects.Add(clone);
+        _currentProject.HasObjectEdits = true;
         RebuildObjectTree(newRawcode);
+        ObjectDataChanged?.Invoke(clone);
     }
 
-    private string GenerateNextFreeRawcode(char prefix)
+    private void BtnDeleteOrResetObject_Click(object sender, RoutedEventArgs e)
     {
-        var used = new HashSet<string>(
-            (_currentProject?.Objects.Select(o => o.Rawcode) ?? Enumerable.Empty<string>())
-            .Concat(_baseDataService?.AllBaseObjects.Keys ?? Enumerable.Empty<string>()),
-            StringComparer.OrdinalIgnoreCase);
+        if (_currentProject == null || _selectedEntry == null)
+            return;
 
-        const string chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        for (var i = 1; i < 46656; i++)
+        var owner = Window.GetWindow(this);
+        if (_selectedEntry.IsCustom)
         {
-            var c1 = chars[(i / 1296) % 36];
-            var c2 = chars[(i / 36) % 36];
-            var c3 = chars[i % 36];
-            var cand = $"{prefix}{c1}{c2}{c3}";
-            if (!used.Contains(cand))
-                return cand;
+            var res = MessageBox.Show(
+                owner,
+                $"¿Deseas eliminar permanentemente el objeto personalizado [{_selectedEntry.Rawcode}] {StripColorCodes(_selectedEntry.Name)}?",
+                "Eliminar Objeto Personalizado",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (res != MessageBoxResult.Yes) return;
+
+            var removed = _selectedEntry;
+            _currentProject.Objects.Remove(removed);
+            _currentProject.HasObjectEdits = true;
+            _selectedEntry = null;
+            RebuildObjectTree();
+            ObjectDataChanged?.Invoke(null);
         }
-        return $"{prefix}99Z";
+        else
+        {
+            if (_selectedEntry.Fields.Count == 0 && _selectedEntry.IsStandardUnmodified)
+            {
+                MessageBox.Show(owner, "Este objeto estándar ya tiene todos sus valores por defecto.", "Restaurar Objeto", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var res = MessageBox.Show(
+                owner,
+                $"¿Deseas restaurar TODOS los campos modificados del objeto estándar [{_selectedEntry.Rawcode}] {StripColorCodes(_selectedEntry.Name)} a sus valores base?",
+                "Restaurar Objeto Estándar",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (res != MessageBoxResult.Yes) return;
+
+            var raw = _selectedEntry.Rawcode;
+            _selectedEntry.Fields.Clear();
+            _currentProject.Objects.Remove(_selectedEntry);
+            _currentProject.HasObjectEdits = true;
+            RebuildObjectTree(raw);
+            ObjectDataChanged?.Invoke(null);
+        }
     }
 
     private void BtnResetFieldToDefault_Click(object sender, RoutedEventArgs e)
@@ -1522,7 +1622,86 @@ public partial class ObjectEditorView : UserControl
             return;
 
         _selectedEntry.Fields.Remove(field);
-        DisplayObjectEntry(_selectedEntry);
+        if (_currentProject != null)
+        {
+            _currentProject.HasObjectEdits = true;
+            if (!_selectedEntry.IsCustom && _selectedEntry.Fields.Count == 0)
+            {
+                _currentProject.Objects.Remove(_selectedEntry);
+                _selectedEntry.IsStandardUnmodified = true;
+                _selectedEntry.IsModified = false;
+            }
+            else
+            {
+                _selectedEntry.IsModified = true;
+            }
+        }
+        var raw = _selectedEntry.Rawcode;
+        RebuildObjectTree(raw);
+        ObjectDataChanged?.Invoke(_selectedEntry);
+    }
+
+    private void BtnAutoFillLevels_Click(object sender, RoutedEventArgs e)
+    {
+        var owner = Window.GetWindow(this);
+        if (_selectedEntry == null || _baseDataService == null)
+            return;
+
+        if (_selectedEntry.Category is not (W3ObjectCategory.Abilities or W3ObjectCategory.Upgrades))
+        {
+            MessageBox.Show(owner, "Auto-Fill Niveles está disponible para Habilidades y Mejoras con múltiples niveles.", "Auto-Fill Niveles", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (GridFields.SelectedItem is not W3ObjectField selectedField)
+        {
+            MessageBox.Show(owner, "Selecciona primero un campo numérico en la tabla (por ejemplo Daño, Costo de Maná, Cooldown o Duración).", "Auto-Fill Niveles", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (selectedField.DataType is not (War3Net.Build.Object.ObjectDataType.Int or War3Net.Build.Object.ObjectDataType.Real or War3Net.Build.Object.ObjectDataType.Unreal))
+        {
+            MessageBox.Show(owner, $"El campo '{selectedField.FieldName}' no es numérico.", "Auto-Fill Niveles", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var levelFields = _currentEntryAllFields
+            .Where(f => f.FieldId.Equals(selectedField.FieldId, StringComparison.OrdinalIgnoreCase) && f.Level >= 1)
+            .OrderBy(f => f.Level)
+            .ToList();
+
+        if (levelFields.Count <= 1)
+        {
+            MessageBox.Show(owner, "Este campo solo tiene 1 nivel actualmente. Aumenta primero 'Niveles' (alev / glvl) en la tabla.", "Auto-Fill Niveles", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        bool isInt = selectedField.DataType == War3Net.Build.Object.ObjectDataType.Int;
+        var dlg = new AutoFillLevelsWindow(
+            selectedField.FieldName,
+            levelFields.Count,
+            levelFields[0].ResolvedValue,
+            isInt)
+        {
+            Owner = owner
+        };
+
+        if (dlg.ShowDialog() != true)
+            return;
+
+        for (int i = 0; i < levelFields.Count && i < dlg.GeneratedValues.Count; i++)
+        {
+            var lf = levelFields[i];
+            lf.ResolvedValue = dlg.GeneratedValues[i];
+            lf.RawValue = dlg.GeneratedValues[i];
+            lf.IsModified = true;
+            if (!_selectedEntry.Fields.Contains(lf))
+                _selectedEntry.Fields.Add(lf);
+        }
+
+        EnsureEntryRegisteredInProject(_selectedEntry);
+        RefreshInspectorAfterFieldEdit(_selectedEntry);
+        RefreshFieldsDataGrid();
     }
 
     private void BtnPopoutWindow_Click(object sender, RoutedEventArgs e)

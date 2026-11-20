@@ -1,0 +1,55 @@
+<Window x:Class="W3Studio.ImportHeightmapWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Importar Heightmap (Escala de Grises)"
+        Width="440"
+        Height="270"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource ThemeWindowBg}"
+        Foreground="{DynamicResource Win10Text}">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="TxtMapDimInfo" Text="Grilla del mapa: 129 x 129" FontWeight="SemiBold" Margin="0,0,0,10"/>
+
+        <Grid Grid.Row="1" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="TxtImagePath" Style="{StaticResource Win10TextBox}" IsReadOnly="True" Margin="0,0,6,0"/>
+            <Button Grid.Column="1" Content="Examinar..." Width="88" Height="26" Style="{StaticResource Win10ClassicButton}" Click="BtnBrowse_Click"/>
+        </Grid>
+
+        <Grid Grid.Row="2" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Altura Mínima (Negro, Z):" FontSize="11" Margin="0,0,0,3"/>
+                <TextBox x:Name="TxtMinZ" Text="-128" Style="{StaticResource Win10TextBox}"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="Altura Máxima (Blanco, Z):" FontSize="11" Margin="0,0,0,3"/>
+                <TextBox x:Name="TxtMaxZ" Text="512" Style="{StaticResource Win10TextBox}"/>
+            </StackPanel>
+        </Grid>
+
+        <CheckBox x:Name="ChkSmooth" Grid.Row="3" Content="Aplicar suavizado 3×3 al importar (recomendado para imágenes 8-bit)" IsChecked="True" VerticalAlignment="Top" Foreground="{DynamicResource Win10Text}"/>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Importar Relieve" Width="125" Height="28" Margin="0,0,8,0" Style="{StaticResource Win10ClassicButton}" Click="BtnImport_Click"/>
+            <Button Content="Cancelar" Width="88" Height="28" Style="{StaticResource Win10ClassicButton}" Click="BtnCancel_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
+
